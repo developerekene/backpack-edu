@@ -1,5 +1,15 @@
 import { Link, Navigate } from "react-router-dom";
-import { Globe, BookOpen, GraduationCap, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  Globe,
+  ShieldCheck,
+  Sparkles,
+  ArrowRight,
+  BookOpen,
+  BarChart3,
+  Users,
+  GraduationCap,
+  Star
+} from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 
@@ -115,6 +125,251 @@ const Home = () => {
           </div>
         </div>
       </div>
+
+      <div className="bg-slate-50 dark:bg-slate-800/40 rounded-3xl p-6 sm:p-10 border border-slate-200 dark:border-slate-700/60 mx-4 space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 dark:border-slate-700 pb-8">
+          <div className="space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+              Everything You Need to Manage Learning
+            </h2>
+
+            <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base max-w-xl">
+              A complete learning management experience designed to help
+              schools, instructors, and students stay organized and focused.
+            </p>
+          </div>
+
+          <Link
+            to="/courses"
+            className="self-start md:self-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-xl transition shadow-sm"
+          >
+            Explore Courses
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {/* Features */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+          {/* Course Management */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+            <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+
+            <h4 className="font-bold text-slate-900 dark:text-white text-lg">
+              Course Management
+            </h4>
+
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Create structured courses, organize learning materials, and
+              give instructors the tools they need to deliver engaging
+              learning experiences.
+            </p>
+          </div>
+
+          {/* Student Progress */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+            <BarChart3 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+
+            <h4 className="font-bold text-slate-900 dark:text-white text-lg">
+              Student Progress
+            </h4>
+
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Monitor student activity, course progress, and learning
+              performance with clear metrics that make it easier to identify
+              areas for improvement.
+            </p>
+          </div>
+
+          {/* Instructor Workspace */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+            <Users className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+
+            <h4 className="font-bold text-slate-900 dark:text-white text-lg">
+              Instructor Workspace
+            </h4>
+
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Give instructors a dedicated workspace to manage their
+              courses, students, learning content, and day-to-day teaching
+              activities.
+            </p>
+          </div>
+
+          {/* Learning Experience */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+            <GraduationCap className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+
+            <h4 className="font-bold text-slate-900 dark:text-white text-lg">
+              Better Learning Experience
+            </h4>
+
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Connect instructors and students through a structured platform
+              that keeps learning resources, enrollment, and progress in one
+              accessible place.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ========================================== */}
+      {/* TESTIMONIALS                               */}
+      {/* ========================================== */}
+      <section className="py-20 sm:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+
+          {/* Header */}
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider">
+              Testimonials
+            </span>
+
+            <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
+              What Our Learners Say
+            </h2>
+
+            <p className="mt-4 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+              Hear from students, instructors, and learning communities
+              using the platform to build better learning experiences.
+            </p>
+          </div>
+
+          {/* Testimonials */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            {/* Testimonial 1 */}
+            <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all duration-300">
+
+              <div className="flex items-center gap-1 text-amber-400">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className="w-4 h-4 fill-current"
+                  />
+                ))}
+              </div>
+
+              <p className="mt-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                "The platform makes it much easier to organize courses
+                and keep track of what students are learning. Everything
+                feels structured and easy to manage."
+              </p>
+
+              <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-indigo-100 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center">
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                    AO
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Amaka Okafor
+                  </h4>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-500">
+                    Instructor
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            {/* Testimonial 2 */}
+            <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all duration-300">
+
+              <div className="flex items-center gap-1 text-amber-400">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className="w-4 h-4 fill-current"
+                  />
+                ))}
+              </div>
+
+              <p className="mt-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                "I like having my courses and learning progress in one
+                place. It gives me a clearer picture of what I have
+                completed and what I still need to work on."
+              </p>
+
+              <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-emerald-100 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-center">
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    CN
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Chinedu Nwosu
+                  </h4>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-500">
+                    Student
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            {/* Testimonial 3 */}
+            <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-purple-300 dark:hover:border-purple-500/30 transition-all duration-300">
+
+              <div className="flex items-center gap-1 text-amber-400">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className="w-4 h-4 fill-current"
+                  />
+                ))}
+              </div>
+
+              <p className="mt-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                "Managing students and course content is significantly
+                simpler. The platform gives us the structure we need
+                without making the learning process complicated."
+              </p>
+
+              <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-purple-100 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 flex items-center justify-center">
+                  <span className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                    EJ
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Esther James
+                  </h4>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-500">
+                    Academy Administrator
+                  </p>
+                </div>
+              </div>
+            </article>
+
+          </div>
+
+          {/* Bottom CTA */}
+          <div className="mt-10 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Ready to create your own learning experience?
+            </p>
+
+            <Link
+              to="/onboard"
+              className="inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition"
+            >
+              Get Started
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+        </div>
+      </section>
 
       {/* Featured Courses Snapshot */}
       {courses.length > 0 && (

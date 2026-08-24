@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
-import { Briefcase, GraduationCap, LogOut, Moon, Sun, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket } from "lucide-react";
+import { Briefcase, GraduationCap, LogOut, Moon, Sun, User, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { getNotificationPermission, requestPushPermission, sendPushNotification } from "../../lib/pushNotifications";
 import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
@@ -362,6 +362,11 @@ export const Navbar = () => {
               <span>Launch Box</span>
             </Link>
 
+            <Link to="/about-us" className={`${getLinkStyle("/about-us")} flex items-center space-x-1`}>
+              <User className="w-3.5 h-3.5" />
+              <span>About Us</span>
+            </Link>
+
             {currentUser && currentUser.role === 'organization' && (
               <Link
                 to="/onboard"
@@ -428,6 +433,11 @@ export const Navbar = () => {
           <Link to="/lunch" onClick={closeMenu} className={`${getMobileLinkStyle("/lunch")} flex items-center space-x-2`}>
             <Rocket className="w-4 h-4 text-indigo-500" />
             <span>Launch Box</span>
+          </Link>
+
+          <Link to="/about-us" onClick={closeMenu} className={`${getMobileLinkStyle("/about-us")} flex items-center space-x-2`}>
+            <Rocket className="w-4 h-4 text-indigo-500" />
+            <span>About Us</span>
           </Link>
 
           {currentUser && currentUser.role === 'organization' && (
