@@ -153,7 +153,7 @@ export interface CourseModuleMedia {
 export interface CourseModuleItem {
   id: string;
   title: string;
-  type: 'video' | 'document' | 'embed' | 'text';
+  type: 'video' | 'document' | 'embed' | 'text' | 'link';
   content?: string;
   url?: string;
 }
