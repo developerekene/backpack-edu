@@ -14,10 +14,13 @@ import {
   ChatMessage, 
   OrgJoinRequest, 
   OrgMember, 
-  AppNotification 
+  AppNotification,
+  AdmissionSession,
+  ReapplicationRecord
 } from '../types';
 import { useAuth } from './AuthContext';
 import { sendPushNotification } from '../lib/pushNotifications';
+import { generateId } from '../lib/id';
 
 interface AppState {
   organizations: Organization[];
@@ -69,12 +72,17 @@ interface AppState {
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
-const sanitizeForFirestore = <T extends object>(obj: T): T => {
+const sanitizeForFirestore = <T,>(obj: T): T => {
+  if (obj === undefined) return obj;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForFirestore(item)) as unknown as T;
+  }
   const cleaned = {} as Record<string, unknown>;
   const record = obj as Record<string, unknown>;
   for (const key in record) {
     if (record[key] !== undefined) {
-      cleaned[key] = record[key];
+      cleaned[key] = sanitizeForFirestore(record[key]);
     }
   }
   return cleaned as T;
@@ -147,7 +155,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const userObj = getUserData(data);
-        const currentList: T[] = Array.isArray(userObj[field]) ? userObj[field] : [];
+        const currentList: T[] = Array.isArray(userObj[field]) ? (userObj[field] as T[]) : [];
         const updatedList = updateFn(currentList);
         const updatedUser = {
           ...userObj,
@@ -206,6 +214,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const allAssessments: Assessment[] = [];
         const allSubmissions: Submission[] = [];
         const allScheduleEvents: ScheduleEvent[] = [];
+        const allMessages: ChatMessage[] = [];
 
         backpackSnap.docs.forEach(docSnap => {
           const data = docSnap.data();
@@ -257,6 +266,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (Array.isArray(userObj.assessments)) allAssessments.push(...userObj.assessments);
           if (Array.isArray(userObj.submissions)) allSubmissions.push(...userObj.submissions);
           if (Array.isArray(userObj.scheduleEvents)) allScheduleEvents.push(...userObj.scheduleEvents);
+          if (Array.isArray(userObj.messages)) allMessages.push(...userObj.messages);
         });
 
         // Deduplicate arrays by id
@@ -279,6 +289,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setSubmissions(dedupeById(allSubmissions));
         setScheduleEvents(dedupeById(allScheduleEvents));
         setOrgMembers(dedupeById(allMembers));
+        setMessages(dedupeById(allMessages));
 
       } catch (err) {
         console.error("loadAllBackpackData failed:", err);
@@ -830,11 +841,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const course = courses.find(c => c.id === msg.courseId);
     const targetUid = course?.orgId || currentUser?.id || '';
     await updateBackpackUserField<ChatMessage>(targetUid, 'messages', (list) => [...list, cleaned]);
+    setMessages(prev => [...prev, msg]);
   };
 
   return (
     <AppContext.Provider value={{
-      organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents, notifications,
+      organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents, messages, notifications,
       addOrganization, updateOrganization, deleteOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, cancelEnrollmentRequest, openCourseAdmission, closeCourseAdmission, createCourseAdmissionSession, updateCourseAdmissionSession, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, addNotification, markNotificationRead, markAllNotificationsRead, clearNotifications
     }}>
       {children}
