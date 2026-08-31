@@ -293,7 +293,7 @@ const AboutUs: React.FC = () => {
 
                                 {/* Replace with actual image URL */}
                                 <img
-                                    src="https://placehold.co/600x700"
+                                    src="https://media.licdn.com/dms/image/v2/D4E03AQHiqi4YHQpQLA/profile-displayphoto-crop_800_800/B4EZywxwZxGYAM-/0/1772492361198?e=1789603200&v=beta&t=RDKpliGLTyAKSqD5XPvMqyu9zsLJ9YsvXSrLvXn-GJA"
                                     alt="Ekenedilichukwu Okoli"
                                     className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
                                 />
@@ -344,7 +344,7 @@ const AboutUs: React.FC = () => {
                             <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
 
                                 <img
-                                    src="https://placehold.co/600x700"
+                                    src="https://media.licdn.com/dms/image/v2/D4E03AQEOPrCW2KTHrw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1729331170966?e=1789603200&v=beta&t=F83iBZgBuT6rjLGAyrkOEx9BOU-tRJaSRSVf7gHz5cg"
                                     alt="Ogochukwu Okoli"
                                     className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
                                 />
@@ -392,8 +392,8 @@ const AboutUs: React.FC = () => {
                             <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
 
                                 <img
-                                    src="https://placehold.co/600x700"
-                                    alt="Richard Oyenchi"
+                                    src="https://media.licdn.com/dms/image/v2/D4D03AQEH8lBu1Lca3Q/profile-displayphoto-crop_800_800/B4DZvLtaH9KoAI-/0/1768649239267?e=1789603200&v=beta&t=PG20w_SbBQKSHfJhAhEBDx5zCTaf2A9t6BlFBN3VsUw"
+                                    alt="Richard Onyekachi"
                                     className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
                                 />
 
@@ -440,7 +440,7 @@ const AboutUs: React.FC = () => {
                             <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
 
                                 <img
-                                    src="https://placehold.co/600x700"
+                                    src="https://media.licdn.com/dms/image/v2/D4D03AQG_Kk8suQsnyg/profile-displayphoto-crop_800_800/B4DZ21.xaHGcAI-/0/1776874637809?e=1789603200&v=beta&t=wVkJDQIBpe8hnfC7St_ugtX61jAWJ_n7VK8FBUzs3fo"
                                     alt="Stella Eneh"
                                     className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
                                 />
@@ -480,6 +480,52 @@ const AboutUs: React.FC = () => {
 
                             </div>
                         </article>
+
+                        <article className="group bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/60 overflow-hidden hover:border-pink-300 dark:hover:border-pink-500/30 hover:-translate-y-1 transition-all duration-300">
+
+                            <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
+
+                                <img
+                                    src="https://media.licdn.com/dms/image/v2/D4E03AQFK6M42xcMg5A/profile-displayphoto-crop_800_800/B4EZ6sZCB1JkAI-/0/1781008704690?e=1789603200&v=beta&t=YZ2KC6qZsyLRh5I68_yzdyOT8n1rt3k9YNeDA_l1E38"
+                                    alt="Ilonuba Chukwudi"
+                                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                                />
+
+                                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
+
+                                <span className="absolute top-4 left-4 w-8 h-8 rounded-lg bg-slate-950/70 backdrop-blur-sm border border-white/10 flex items-center justify-center text-xs font-bold text-white">
+                                    05
+                                </span>
+
+                            </div>
+
+                            <div className="p-6">
+
+                                <div className="flex items-start justify-between gap-3">
+
+                                    <div>
+                                        <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                                            Ilonuba Chukwudi
+                                        </h3>
+
+                                        <p className="mt-1 text-sm font-semibold text-pink-600 dark:text-pink-400">
+                                            Frontend Engineer
+                                        </p>
+                                    </div>
+
+                                    <div className="w-9 h-9 shrink-0 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
+                                        <Monitor className="w-4 h-4 text-pink-500 dark:text-pink-400" />
+                                    </div>
+
+                                </div>
+
+                                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    Turning product ideas into polished, accessible, and responsive user experiences through clean frontend engineering.
+                                </p>
+
+                            </div>
+                        </article>
+
 
                     </div>
 
