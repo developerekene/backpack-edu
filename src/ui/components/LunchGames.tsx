@@ -515,7 +515,7 @@ export const LunchGames = () => {
                 onClick={() => handleStartAd(ad)}
                 className={`p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
                   selectedAd.id === ad.id
-                    ? "bg-slate-900 text-white border-indigo-500 shadow-lg scale-[1.02]"
+                    ? "bg-slate-50 text-white hover:border-indigo-400 shadow-lg scale-[1.02]"
                     : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700/60 hover:border-indigo-400"
                 }`}
               >
