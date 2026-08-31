@@ -107,8 +107,8 @@ export function CreateAssessmentForm({
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>(
     {
       basic: true,
-      scheduling: true,
-      grading: true,
+      scheduling: false,
+      grading: false,
       format: false,
       studentGroup: false,
       submission: false,
