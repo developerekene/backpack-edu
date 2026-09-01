@@ -166,10 +166,21 @@ export interface CourseModuleMedia {
   type: "image" | "video" | "document";
 }
 
+export interface CourseModuleItem {
+  id: string;
+  title: string;
+  type: 'video' | 'document' | 'embed' | 'text' | 'link';
+  content?: string;
+  url?: string;
+}
+
 export interface CourseModule {
   id: string;
   title: string;
-  content: string;
+  description?: string;
+  items?: CourseModuleItem[];
+  
+  content?: string;
   fileUrls?: string[];
   media?: CourseModuleMedia[];
 }

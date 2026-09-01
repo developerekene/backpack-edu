@@ -26,6 +26,7 @@ import {
   Settings2,
   UserCheck,
   Mail,
+  Link as LinkIcon,
 } from "lucide-react";
 import { LiveKitCall } from "../components/LiveKitCall";
 import { ChatMessage } from "../../types";
@@ -39,15 +40,14 @@ import { EnrollmentModal } from "../components/EnrollmentModal";
 import { CoursePaymentModal } from "../components/CoursePaymentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
+import { CourseModulesTab } from "../components/CourseModulesTab";
 import { generateId } from "../../lib/id";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
   const {
     courses,
-    updateCourse,
     userProgress,
-    updateProgress,
     materials,
     addMaterial,
     sendMessage,
@@ -88,12 +88,6 @@ const CourseDetails = () => {
   // Materials state
   const [newMatTitle, setNewMatTitle] = useState("");
   const [newMatUrl, setNewMatUrl] = useState("");
-
-  // Module edit state
-  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
-  const [editModuleTitle, setEditModuleTitle] = useState("");
-  const [editModuleContent, setEditModuleContent] = useState("");
-  const [isAddingModule, setIsAddingModule] = useState(false);
 
   const course = courses.find((c) => c.id === courseId);
   const progress = userProgress.find(
@@ -145,8 +139,7 @@ const CourseDetails = () => {
       hasInstructorAccess ||
       currentUser?.role === "organization" ||
       currentUser?.role === "instructor");
-  const canManageSessions =
-    isOrganization || hasOrgAccess || currentUser?.role === "admin";
+  const canManageSessions = isOrganization || hasOrgAccess;
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
   const isReapplicationCandidate = myEnrollment?.status === "rejected";
@@ -468,53 +461,6 @@ const CourseDetails = () => {
     </div>
   );
 
-  const handleCompleteModule = (moduleId: string) => {
-    if (!currentUser || !isStudent) return;
-    const completed = progress?.completedModuleIds || [];
-    if (!completed.includes(moduleId)) {
-      updateProgress({
-        userId: currentUser.id,
-        courseId: course.id,
-        completedModuleIds: [...completed, moduleId],
-        performanceScore: progress?.performanceScore || 85,
-      });
-    }
-  };
-
-  const handleSaveModule = async () => {
-    if (!editModuleTitle || !editModuleContent) return;
-
-    const newModules = [...course.modules];
-    if (editingModuleId) {
-      const index = newModules.findIndex((m) => m.id === editingModuleId);
-      if (index !== -1) {
-        newModules[index] = {
-          ...newModules[index],
-          title: editModuleTitle,
-          content: editModuleContent,
-        };
-      }
-    } else {
-      newModules.push({
-        id: generateId("mod"),
-        title: editModuleTitle,
-        content: editModuleContent,
-      });
-    }
-
-    await updateCourse(course.id, { modules: newModules });
-    setEditingModuleId(null);
-    setIsAddingModule(false);
-    setEditModuleTitle("");
-    setEditModuleContent("");
-  };
-
-  const handleDeleteModule = async (moduleId: string) => {
-    if (!confirm("Are you sure you want to delete this module?")) return;
-    const newModules = course.modules.filter((m) => m.id !== moduleId);
-    await updateCourse(course.id, { modules: newModules });
-  };
-
   const handleAddMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMatTitle || !newMatUrl) return;
@@ -796,212 +742,7 @@ const CourseDetails = () => {
               </div>
             )}
             {activeTab === "modules" && (
-              <div className="p-6 space-y-4">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Course Modules
-                  </h2>
-                  {!isStudent && !isAddingModule && (
-                    <button
-                      onClick={() => {
-                        setIsAddingModule(true);
-                        setEditingModuleId(null);
-                        setEditModuleTitle("");
-                        setEditModuleContent("");
-                      }}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white rounded-lg text-sm font-bold transition-colors"
-                    >
-                      + Add Module
-                    </button>
-                  )}
-                </div>
-
-                {(isAddingModule || editingModuleId) && (
-                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 mb-6">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-4">
-                      {editingModuleId ? "Edit Module" : "New Module"}
-                    </h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                          Module Title
-                        </label>
-                        <input
-                          type="text"
-                          value={editModuleTitle}
-                          onChange={(e) => setEditModuleTitle(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 text-sm text-slate-900 dark:text-white"
-                          placeholder="e.g. Introduction to Physics"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                          Module Content
-                        </label>
-                        <textarea
-                          value={editModuleContent}
-                          onChange={(e) => setEditModuleContent(e.target.value)}
-                          rows={5}
-                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 text-sm text-slate-900 dark:text-white mb-2"
-                          placeholder="Content text, video links, etc."
-                        />
-                        <FileUpload
-                          label="Attach File / Video"
-                          onUpload={(url, type) => {
-                            const markdown =
-                              type === "image"
-                                ? `\n![Image](${url})`
-                                : type === "video"
-                                  ? `\n[Video Link](${url})`
-                                  : `\n[Document Link](${url})`;
-                            setEditModuleContent((prev) => prev + markdown);
-                          }}
-                        />
-                      </div>
-                      <div className="flex justify-end space-x-2 pt-2">
-                        <button
-                          onClick={() => {
-                            setIsAddingModule(false);
-                            setEditingModuleId(null);
-                          }}
-                          className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg text-sm font-medium transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleSaveModule}
-                          disabled={!editModuleTitle || !editModuleContent}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-slate-900 dark:text-white rounded-lg text-sm font-bold transition-colors"
-                        >
-                          Save Module
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {course.modules.length === 0 && !isAddingModule && (
-                  <div className="text-center py-8 text-slate-500 dark:text-slate-400">
-                    No modules available yet.
-                  </div>
-                )}
-
-                {course.modules.map((mod, i) => {
-                  const isCompleted = progress?.completedModuleIds.includes(
-                    mod.id,
-                  );
-                  return (
-                    <div
-                      key={mod.id}
-                      className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6"
-                    >
-                      <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-4">
-                        <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                          Module {i + 1}: {mod.title}
-                        </h3>
-                        {isStudent &&
-                          (isCompleted ? (
-                            <span className="flex items-center text-emerald-400 text-sm font-semibold whitespace-nowrap">
-                              <CheckCircle className="w-4 h-4 mr-1" /> Completed
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleCompleteModule(mod.id)}
-                              className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-                            >
-                              Mark Complete
-                            </button>
-                          ))}
-                        {!isStudent && (
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => {
-                                setEditingModuleId(mod.id);
-                                setEditModuleTitle(mod.title);
-                                setEditModuleContent(mod.content);
-                                setIsAddingModule(false);
-                              }}
-                              className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg text-sm font-medium transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteModule(mod.id)}
-                              className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="prose prose-invert max-w-none text-slate-600 dark:text-slate-300 space-y-4">
-                        <p className="whitespace-pre-wrap">{mod.content}</p>
-
-                        {mod.media && mod.media.length > 0 && (
-                          <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                              Module Attachments & Media
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {mod.media.map((med) => (
-                                <div
-                                  key={med.id}
-                                  className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 shadow-sm"
-                                >
-                                  {med.type === "image" && (
-                                    <div className="space-y-2">
-                                      <img
-                                        src={med.url}
-                                        alt={med.name}
-                                        className="w-full max-h-64 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
-                                      />
-                                      <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">
-                                        {med.name}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {med.type === "video" && (
-                                    <div className="space-y-2">
-                                      <video
-                                        src={med.url}
-                                        controls
-                                        className="w-full max-h-64 rounded-lg bg-black"
-                                      />
-                                      <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">
-                                        {med.name}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {med.type === "document" && (
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-2.5 overflow-hidden">
-                                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
-                                          <FileText className="w-4 h-4" />
-                                        </div>
-                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                                          {med.name}
-                                        </span>
-                                      </div>
-                                      <a
-                                        href={med.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-500 text-xs font-bold rounded-lg transition shrink-0 ml-2"
-                                      >
-                                        View / Download
-                                      </a>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <CourseModulesTab course={course} isStudent={isStudent} />
             )}
 
             {activeTab === "materials" && (
