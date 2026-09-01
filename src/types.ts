@@ -1,4 +1,4 @@
-export type Role = 'student' | 'organization' | 'instructor';
+export type Role = "student" | "organization" | "instructor";
 
 export interface PaystackSubaccount {
   subaccount_code: string;
@@ -21,7 +21,7 @@ export interface PaystackSplitTransaction {
   studentId: string;
   studentEmail: string;
   providerId: string;
-  providerType: 'organization' | 'instructor';
+  providerType: "organization" | "instructor";
   providerName: string;
   subaccountCode: string;
   totalAmount: number;
@@ -29,7 +29,7 @@ export interface PaystackSplitTransaction {
   platformFeeAmount: number;
   percentageCharge: number;
   currency: string;
-  status: 'initialized' | 'success' | 'failed';
+  status: "initialized" | "success" | "failed";
   createdAt: string;
   paymentUrl?: string;
 }
@@ -38,7 +38,7 @@ export interface UserDocument {
   id: string;
   title: string;
   url: string;
-  category: 'cv' | 'certificate' | 'id_proof' | 'transcript' | 'other';
+  category: "cv" | "certificate" | "id_proof" | "transcript" | "other";
   uploadedAt: string;
 }
 
@@ -60,12 +60,12 @@ export interface User {
   description?: string;
   location?: string;
   baseCurrency?: string;
-  orgType?: 'basic' | 'higher' | 'vocational';
+  orgType?: "basic" | "higher" | "vocational";
   address?: string;
   registrationId?: string;
   isAccredited?: boolean;
   accreditingBody?: string;
-  accreditationStatus?: 'accredited' | 'pending' | 'unaccredited';
+  accreditationStatus?: "accredited" | "pending" | "unaccredited";
   accreditationDocUrl?: string;
   ownerId?: string;
   logoUrl?: string;
@@ -85,14 +85,14 @@ export interface Organization {
   ownerId: string;
   baseCurrency: string;
   location?: string;
-  orgType?: 'basic' | 'higher' | 'vocational';
+  orgType?: "basic" | "higher" | "vocational";
   kycVerified?: boolean;
   kycDocumentUrl?: string;
   address?: string;
   registrationId?: string;
   isAccredited?: boolean;
   accreditingBody?: string;
-  accreditationStatus?: 'accredited' | 'pending' | 'unaccredited';
+  accreditationStatus?: "accredited" | "pending" | "unaccredited";
   accreditationDocUrl?: string;
   motto?: string;
   phone?: string;
@@ -106,7 +106,7 @@ export interface Organization {
 export interface AdmissionSession {
   id: string;
   name: string; // e.g. "2026/2027 Session", "Fall 2026 Cohort", "Batch A - 2026"
-  status: 'open' | 'closed';
+  status: "open" | "closed";
   startDate?: string;
   endDate?: string;
   applicationDeadline?: string;
@@ -123,31 +123,47 @@ export interface Course {
   description: string;
   price: number;
   currency: string;
-  paymentTerms?: 'one-time' | 'installment';
-  paymentTermsAllowed?: 'one-time' | 'installment' | 'both';
-  installmentInterval?: 'weekly' | 'monthly' | 'custom';
+  paymentTerms?: "one-time" | "installment";
+  paymentTermsAllowed?: "one-time" | "installment" | "both";
+  installmentInterval?: "weekly" | "monthly" | "custom";
   customMilestonesText?: string;
   qualificationTitle?: string;
-  qualificationType?: 'bachelors' | 'masters' | 'doctorate' | 'diploma' | 'certificate' | 'professional' | 'other';
+  qualificationType?:
+    | "bachelors"
+    | "masters"
+    | "doctorate"
+    | "diploma"
+    | "certificate"
+    | "professional"
+    | "other";
   instructorName?: string;
   instructorId?: string;
   requiredDocuments?: string[];
   requirements?: string;
   applicationProcess?: string;
   instructorRequirements?: string;
-  admissionStatus?: 'open' | 'closed'; // 'open' = accepting applications, 'closed' = admissions closed
+  admissionStatus?: "open" | "closed"; // 'open' = accepting applications, 'closed' = admissions closed
   activeSessionId?: string;
   activeSessionName?: string;
   admissionSessions?: AdmissionSession[];
   modules: CourseModule[];
-  certificateConfig?: { enabled: boolean; logoUrl?: string; signatureUrl?: string; customText?: string; orgName?: string; gradeLevel?: string; authorizedSealUrl?: string; qualificationTitle?: string };
+  certificateConfig?: {
+    enabled: boolean;
+    logoUrl?: string;
+    signatureUrl?: string;
+    customText?: string;
+    orgName?: string;
+    gradeLevel?: string;
+    authorizedSealUrl?: string;
+    qualificationTitle?: string;
+  };
 }
 
 export interface CourseModuleMedia {
   id: string;
   name: string;
   url: string;
-  type: 'image' | 'video' | 'document';
+  type: "image" | "video" | "document";
 }
 
 export interface CourseModuleItem {
@@ -175,7 +191,7 @@ export interface OrgJoinRequest {
   orgId: string;
   userName: string;
   orgName: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: "pending" | "approved" | "rejected";
 }
 
 export interface ReapplicationRecord {
@@ -183,7 +199,7 @@ export interface ReapplicationRecord {
   sessionId?: string;
   sessionName?: string;
   appliedAt: string;
-  status: 'rejected' | 'cancelled';
+  status: "rejected" | "cancelled";
   rejectedAt?: string;
   rejectionReason?: string;
 }
@@ -193,12 +209,12 @@ export interface EnrollmentRequest {
   userId: string;
   orgId: string;
   courseId: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
-  paymentStatus?: 'unpaid' | 'paid';
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  paymentStatus?: "unpaid" | "paid";
   userName?: string;
   userEmail?: string;
   courseTitle?: string;
-  paymentMethod?: 'one-time' | 'installment';
+  paymentMethod?: "one-time" | "installment";
   sessionId?: string;
   sessionName?: string;
   documents?: Record<string, string>; // docName -> fileUrl
@@ -234,7 +250,7 @@ export interface Material {
   courseId: string;
   title: string;
   url: string;
-  type: 'pdf' | 'doc' | 'video' | 'link';
+  type: "pdf" | "doc" | "video" | "link";
 }
 
 export interface OrgMember {
@@ -243,11 +259,11 @@ export interface OrgMember {
   userId?: string;
   name: string;
   email: string;
-  role: 'instructor' | 'student';
+  role: "instructor" | "student";
   department?: string;
   courseIds?: string[];
   joinedAt: string;
-  status: 'active' | 'invited' | 'pending' | 'graduated';
+  status: "active" | "invited" | "pending" | "graduated";
   requiresPayment?: boolean;
   requiresDocuments?: boolean;
   requiredDocNames?: string[];
@@ -262,17 +278,92 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   fileUrl?: string;
-  fileType?: 'image' | 'video' | 'document';
+  fileType?: "image" | "video" | "document";
 }
+
+// export interface Assessment {
+//   id: string;
+//   courseId: string;
+//   title: string;
+//   type: 'assignment' | 'test' | 'exam' | 'project';
+//   maxScore: number;
+//   dueDate: string;
+//   isGroup?: boolean;
+// }
+
+export type AssessmentType =
+  | "assignment"
+  | "quiz"
+  | "test"
+  | "exam"
+  | "project"
+  | "classwork";
+
+export type GradingType = "points" | "percentage" | "letter";
+
+export type QuestionType =
+  | "multiple_choice"
+  | "true_false"
+  | "short_answer"
+  | "essay"
+  | "file_upload"
+  | "mixed";
+
+export type SubmissionMethod = "online" | "file_upload" | "in_class";
 
 export interface Assessment {
   id: string;
   courseId: string;
+
+  // 1. Basic Assessment Information
   title: string;
-  type: 'assignment' | 'test' | 'exam' | 'project';
-  maxScore: number;
+  type: AssessmentType;
+  subject?: string;
+  gradeLevel?: string;
+  description?: string;
+  instructorName?: string;
+
+  // 2. Scheduling
+  startDate?: string;
   dueDate: string;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
+
+  // 3. Grading
+  maxScore: number;
+  passingScore?: number;
+  gradingType?: GradingType;
+  weight?: number;
+
+  // 4. Assessment Format
+  questionType?: QuestionType;
+  numberOfQuestions?: number;
+  pointsPerQuestion?: number;
+  attachments?: string[];
+  referenceMaterials?: string;
+
+  // 5. Student / Group Settings
+  assignedStudentIds?: string[];
   isGroup?: boolean;
+  groupSize?: number;
+  randomizeQuestions?: boolean;
+  allowMultipleAttempts?: boolean;
+  maxAttempts?: number;
+
+  // 6. Submission Settings
+  submissionMethod?: SubmissionMethod;
+  allowedFileTypes?: string[];
+  maxFileSizeMb?: number;
+  allowResubmission?: boolean;
+  requireStudentComments?: boolean;
+
+  // 7. Results & Feedback
+  showScoreImmediately?: boolean;
+  releaseResultsDate?: string;
+  showCorrectAnswers?: boolean;
+  teacherFeedback?: string;
+  allowStudentReview?: boolean;
 }
 
 export interface Submission {
@@ -285,7 +376,7 @@ export interface Submission {
   fileUrl?: string;
   score?: number;
   feedback?: string;
-  status: 'submitted' | 'graded';
+  status: "submitted" | "graded";
 }
 
 export interface ScheduleEvent {
@@ -295,7 +386,7 @@ export interface ScheduleEvent {
   date: string;
   time: string;
   durationMins: number;
-  type: 'lecture' | 'meeting' | 'exam';
+  type: "lecture" | "meeting" | "exam";
   meetingUrl?: string; // For the video call
   isActive?: boolean;
 }
@@ -305,9 +396,8 @@ export interface AppNotification {
   userId?: string;
   title: string;
   message: string;
-  type: 'live_class' | 'enrollment' | 'grade' | 'material' | 'info';
+  type: "live_class" | "enrollment" | "grade" | "material" | "info";
   read: boolean;
   createdAt: string;
   linkUrl?: string;
 }
-
