@@ -5,7 +5,7 @@ import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 import { CourseModule, CourseModuleItem } from "../../types";
 import { FileUpload } from "../components/FileUpload";
-import { KnowledgeCityBanner } from "../components/KnowledgeCityBanner";
+import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { generateId } from "../../lib/id";
 import {
   Plus,
@@ -879,7 +879,8 @@ const CourseUpload = () => {
               Curriculum
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Start putting together your course by creating sections, lectures and practice activities.
+              Start putting together your course by creating sections, lectures
+              and practice activities.
             </p>
           </div>
 
@@ -900,7 +901,9 @@ const CourseUpload = () => {
                       type="text"
                       required
                       value={mod.title}
-                      onChange={(e) => updateModule(index, "title", e.target.value)}
+                      onChange={(e) =>
+                        updateModule(index, "title", e.target.value)
+                      }
                       className="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400"
                       placeholder="Enter a title for this section"
                     />
@@ -925,7 +928,9 @@ const CourseUpload = () => {
                     </label>
                     <textarea
                       value={mod.description || ""}
-                      onChange={(e) => updateModule(index, "description", e.target.value)}
+                      onChange={(e) =>
+                        updateModule(index, "description", e.target.value)
+                      }
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm leading-relaxed"
                       placeholder="Brief summary of the learning objectives..."
                       rows={2}
@@ -934,89 +939,136 @@ const CourseUpload = () => {
 
                   {/* Lectures / Items */}
                   <div className="space-y-4 sm:pl-8 sm:border-l-2 border-slate-200 dark:border-slate-700 ml-2">
-                    {mod.items && mod.items.map((item, itemIndex) => (
-                      <div key={item.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow group/item">
-                        {/* Lecture Header */}
-                        <div className="p-3 sm:px-4 flex justify-between items-center bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50">
-                          <div className="flex items-center gap-3 flex-1">
-                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest shrink-0">
-                              Lecture {itemIndex + 1}:
-                            </span>
-                            {item.type === "video" && <Video className="w-4 h-4 text-purple-500 shrink-0" />}
-                            {item.type === "document" && <FileText className="w-4 h-4 text-blue-500 shrink-0" />}
-                            {item.type === "embed" && <LinkIcon className="w-4 h-4 text-emerald-500 shrink-0" />}
-                            {item.type === "text" && <FileText className="w-4 h-4 text-slate-500 shrink-0" />}
-                            <input
-                              type="text"
-                              required
-                              value={item.title}
-                              onChange={(e) => updateModuleItem(index, itemIndex, "title", e.target.value)}
-                              placeholder="Enter a title"
-                              className="flex-1 bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeModuleItem(index, itemIndex)}
-                            className="text-slate-400 hover:text-red-500 ml-3 opacity-0 group-hover/item:opacity-100 transition-opacity p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 shrink-0"
-                            title="Delete Lecture"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        
-                        {/* Lecture Content */}
-                        <div className="p-4 sm:p-5 bg-white dark:bg-slate-800 space-y-3">
-                          {item.type === "text" && (
-                            <textarea
-                              required
-                              value={item.content || ""}
-                              onChange={(e) => updateModuleItem(index, itemIndex, "content", e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-indigo-500 leading-relaxed text-slate-900 dark:text-white"
-                              placeholder="Write your lecture content here... (Markdown supported)"
-                              rows={5}
-                            />
-                          )}
-                          {item.type === "embed" && (
-                            <div className="flex items-center gap-3">
-                              <div className="p-2.5 bg-slate-100 dark:bg-slate-900 rounded-lg shrink-0 border border-slate-200 dark:border-slate-700">
-                                <LinkIcon className="w-5 h-5 text-slate-500" />
-                              </div>
+                    {mod.items &&
+                      mod.items.map((item, itemIndex) => (
+                        <div
+                          key={item.id}
+                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow group/item"
+                        >
+                          {/* Lecture Header */}
+                          <div className="p-3 sm:px-4 flex justify-between items-center bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50">
+                            <div className="flex items-center gap-3 flex-1">
+                              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest shrink-0">
+                                Lecture {itemIndex + 1}:
+                              </span>
+                              {item.type === "video" && (
+                                <Video className="w-4 h-4 text-purple-500 shrink-0" />
+                              )}
+                              {item.type === "document" && (
+                                <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                              )}
+                              {item.type === "embed" && (
+                                <LinkIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                              )}
+                              {item.type === "text" && (
+                                <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+                              )}
                               <input
-                                type="url"
+                                type="text"
                                 required
-                                value={item.url || ""}
-                                onChange={(e) => updateModuleItem(index, itemIndex, "url", e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
-                                placeholder="Paste video or external resource link URL here..."
+                                value={item.title}
+                                onChange={(e) =>
+                                  updateModuleItem(
+                                    index,
+                                    itemIndex,
+                                    "title",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="Enter a title"
+                                className="flex-1 bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400"
                               />
                             </div>
-                          )}
-                          {(item.type === "video" || item.type === "document") && (
-                            <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-900/50 transition duration-200">
-                              <div className="max-w-xs mx-auto">
-                                <FileUpload
-                                  label={`Upload ${item.type === 'video' ? 'Video' : 'Document'}`}
-                                  accept={item.type === "video" ? "video/*" : ".pdf,.doc,.docx,.txt"}
-                                  onUpload={(url) => updateModuleItem(index, itemIndex, "url", url)}
+                            <button
+                              type="button"
+                              onClick={() => removeModuleItem(index, itemIndex)}
+                              className="text-slate-400 hover:text-red-500 ml-3 opacity-0 group-hover/item:opacity-100 transition-opacity p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 shrink-0"
+                              title="Delete Lecture"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Lecture Content */}
+                          <div className="p-4 sm:p-5 bg-white dark:bg-slate-800 space-y-3">
+                            {item.type === "text" && (
+                              <textarea
+                                required
+                                value={item.content || ""}
+                                onChange={(e) =>
+                                  updateModuleItem(
+                                    index,
+                                    itemIndex,
+                                    "content",
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-indigo-500 leading-relaxed text-slate-900 dark:text-white"
+                                placeholder="Write your lecture content here... (Markdown supported)"
+                                rows={5}
+                              />
+                            )}
+                            {item.type === "embed" && (
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-slate-100 dark:bg-slate-900 rounded-lg shrink-0 border border-slate-200 dark:border-slate-700">
+                                  <LinkIcon className="w-5 h-5 text-slate-500" />
+                                </div>
+                                <input
+                                  type="url"
+                                  required
+                                  value={item.url || ""}
+                                  onChange={(e) =>
+                                    updateModuleItem(
+                                      index,
+                                      itemIndex,
+                                      "url",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                  placeholder="Paste video or external resource link URL here..."
                                 />
                               </div>
-                              {item.url && (
-                                <div className="mt-4 inline-flex items-center px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold border border-emerald-200 dark:border-emerald-800/50">
-                                  <CheckCircle2 className="w-4 h-4 mr-2" /> File Uploaded Successfully
+                            )}
+                            {(item.type === "video" ||
+                              item.type === "document") && (
+                              <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-900/50 transition duration-200">
+                                <div className="max-w-xs mx-auto">
+                                  <FileUpload
+                                    label={`Upload ${item.type === "video" ? "Video" : "Document"}`}
+                                    accept={
+                                      item.type === "video"
+                                        ? "video/*"
+                                        : ".pdf,.doc,.docx,.txt"
+                                    }
+                                    onUpload={(url) =>
+                                      updateModuleItem(
+                                        index,
+                                        itemIndex,
+                                        "url",
+                                        url,
+                                      )
+                                    }
+                                  />
                                 </div>
-                              )}
-                              {!item.url && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 font-medium">
-                                  No file selected. Please upload a {item.type}.
-                                </p>
-                              )}
-                            </div>
-                          )}
+                                {item.url && (
+                                  <div className="mt-4 inline-flex items-center px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold border border-emerald-200 dark:border-emerald-800/50">
+                                    <CheckCircle2 className="w-4 h-4 mr-2" />{" "}
+                                    File Uploaded Successfully
+                                  </div>
+                                )}
+                                {!item.url && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 font-medium">
+                                    No file selected. Please upload a{" "}
+                                    {item.type}.
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    
+                      ))}
+
                     {/* Add Item Actions */}
                     <div className="pt-2 flex flex-col sm:flex-row sm:items-center gap-3">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
@@ -1035,7 +1087,8 @@ const CourseUpload = () => {
                           onClick={() => addModuleItem(index, "document")}
                           className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center shadow-sm"
                         >
-                          <FileText className="w-3.5 h-3.5 mr-1.5" /> Article / Doc
+                          <FileText className="w-3.5 h-3.5 mr-1.5" /> Article /
+                          Doc
                         </button>
                         <button
                           type="button"
