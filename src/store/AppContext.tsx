@@ -56,6 +56,8 @@ interface AppState {
   deleteOrgMember: (id: string) => Promise<void>;
   updateProgress: (progress: UserProgress) => Promise<void>;
   addMaterial: (material: Material) => Promise<void>;
+  updateMaterial: (id: string, updates: Partial<Material>) => Promise<void>;
+  deleteMaterial: (id: string) => Promise<void>;
   addAttendanceRecord: (record: AttendanceRecord) => Promise<void>;
   sendMessage: (msg: ChatMessage) => Promise<void>;
   addAssessment: (assessment: Assessment) => Promise<void>;
@@ -750,6 +752,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setMaterials(prev => [...prev, cleaned]);
   };
 
+  const updateMaterial = async (id: string, updates: Partial<Material>) => {
+    const targetUid = currentUser?.id || '';
+    if (targetUid) {
+      await updateBackpackUserField<Material>(targetUid, 'materials', (list) =>
+        list.map(m => m.id === id ? { ...m, ...updates } : m)
+      );
+    }
+    setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+  };
+
+  const deleteMaterial = async (id: string) => {
+    const targetUid = currentUser?.id || '';
+    if (targetUid) {
+      await updateBackpackUserField<Material>(targetUid, 'materials', (list) =>
+        list.filter(m => m.id !== id)
+      );
+    }
+    setMaterials(prev => prev.filter(m => m.id !== id));
+  };
+
   // Attendance Records (stored in backpack/{targetId}.user.attendance)
   const addAttendanceRecord = async (record: AttendanceRecord) => {
     const attId = record.id || `att_${Date.now()}_${record.courseId}`;
@@ -846,8 +868,52 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents, messages, notifications,
-      addOrganization, updateOrganization, deleteOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, cancelEnrollmentRequest, openCourseAdmission, closeCourseAdmission, createCourseAdmissionSession, updateCourseAdmissionSession, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, addNotification, markNotificationRead, markAllNotificationsRead, clearNotifications
+      organizations,
+      courses,
+      enrollmentRequests,
+      orgJoinRequests,
+      orgMembers,
+      userProgress,
+      materials,
+      attendanceRecords,
+      assessments,
+      submissions,
+      scheduleEvents,
+      messages,
+      notifications,
+      addOrganization,
+      updateOrganization,
+      deleteOrganization,
+      addCourse,
+      updateCourse,
+      addEnrollmentRequest,
+      updateEnrollmentRequest,
+      cancelEnrollmentRequest,
+      openCourseAdmission,
+      closeCourseAdmission,
+      createCourseAdmissionSession,
+      updateCourseAdmissionSession,
+      addOrgJoinRequest,
+      updateOrgJoinRequest,
+      addOrgMember,
+      updateOrgMember,
+      deleteOrgMember,
+      updateProgress,
+      addMaterial,
+      updateMaterial,
+      deleteMaterial,
+      addAttendanceRecord,
+      sendMessage,
+      addAssessment,
+      addSubmission,
+      updateSubmissionScore,
+      addScheduleEvent,
+      updateScheduleEvent,
+      deleteScheduleEvent,
+      addNotification,
+      markNotificationRead,
+      markAllNotificationsRead,
+      clearNotifications
     }}>
       {children}
     </AppContext.Provider>

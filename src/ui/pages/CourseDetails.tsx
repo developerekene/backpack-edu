@@ -26,7 +26,8 @@ import {
   Settings2,
   UserCheck,
   Mail,
-  Link as LinkIcon,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { LiveKitCall } from "../components/LiveKitCall";
 import { ChatMessage } from "../../types";
@@ -41,6 +42,7 @@ import { CoursePaymentModal } from "../components/CoursePaymentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
 import { CourseModulesTab } from "../components/CourseModulesTab";
+import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
 
 const CourseDetails = () => {
@@ -50,6 +52,8 @@ const CourseDetails = () => {
     userProgress,
     materials,
     addMaterial,
+    updateMaterial,
+    deleteMaterial,
     sendMessage,
     enrollmentRequests,
     addEnrollmentRequest,
@@ -88,6 +92,19 @@ const CourseDetails = () => {
   // Materials state
   const [newMatTitle, setNewMatTitle] = useState("");
   const [newMatUrl, setNewMatUrl] = useState("");
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [editingMaterialTitle, setEditingMaterialTitle] = useState("");
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   const course = courses.find((c) => c.id === courseId);
   const progress = userProgress.find(
@@ -474,6 +491,25 @@ const CourseDetails = () => {
     setNewMatUrl("");
   };
 
+  const handleUpdateMaterial = async (id: string) => {
+    if (!editingMaterialTitle.trim()) return;
+    await updateMaterial(id, { title: editingMaterialTitle });
+    setEditingMaterialId(null);
+    setEditingMaterialTitle("");
+  };
+
+  const handleDeleteMaterial = async (id: string) => {
+    setAlertConfig({
+      isOpen: true,
+      title: "Delete Material",
+      message: "Are you sure you want to delete this material? This action cannot be undone.",
+      onConfirm: async () => {
+        await deleteMaterial(id);
+        setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
   const handleSendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!chatMsg.trim() && !chatAttachmentUrl) || !currentUser) return;
@@ -756,7 +792,7 @@ const CourseDetails = () => {
                 {!isStudent && (
                   <form
                     onSubmit={handleAddMaterial}
-                    className="mb-8 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 flex items-end space-x-4"
+                    className="mb-8 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4"
                   >
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
@@ -773,22 +809,31 @@ const CourseDetails = () => {
                     </div>
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                        Resource URL
+                        Resource URL or Upload
                       </label>
-                      <input
-                        type="url"
-                        required
-                        value={newMatUrl}
-                        onChange={(e) => setNewMatUrl(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 text-sm text-slate-900 dark:text-white"
-                        placeholder="https://..."
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          required={!newMatUrl}
+                          value={newMatUrl}
+                          onChange={(e) => setNewMatUrl(e.target.value)}
+                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 text-sm text-slate-900 dark:text-white"
+                          placeholder="https://..."
+                        />
+                        <div className="shrink-0 h-[38px] flex items-center">
+                          <FileUpload
+                            label="Upload"
+                            accept=".pdf,.doc,.docx,.txt"
+                            onUpload={(url) => setNewMatUrl(url)}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white rounded text-sm font-medium flex items-center h-[38px]"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm font-medium flex items-center h-[38px] shrink-0"
                     >
-                      <Upload className="w-4 h-4 mr-2" /> Upload
+                      <Upload className="w-4 h-4 mr-2" /> Add Material
                     </button>
                   </form>
                 )}
@@ -800,25 +845,98 @@ const CourseDetails = () => {
                     </p>
                   ) : (
                     courseMaterials.map((mat) => (
-                      <a
+                      <div
                         key={mat.id}
-                        href={mat.url}
-                        target="_blank"
-                        rel="noreferrer"
                         className="flex items-center p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-slate-500 rounded-xl transition-colors group"
                       >
-                        <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-lg flex items-center justify-center mr-4 group-hover:bg-indigo-500 group-hover:text-slate-900 dark:text-white transition-colors">
-                          <Paperclip className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-white">
-                            {mat.title}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {mat.type.toUpperCase()}
-                          </p>
-                        </div>
-                      </a>
+                        <a
+                          href={mat.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center flex-1"
+                        >
+                          <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-lg flex items-center justify-center mr-4 group-hover:bg-indigo-500 group-hover:text-slate-900 dark:text-white transition-colors shrink-0">
+                            <Paperclip className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1">
+                            {editingMaterialId === mat.id ? (
+                              <input
+                                type="text"
+                                value={editingMaterialTitle}
+                                onChange={(e) => setEditingMaterialTitle(e.target.value)}
+                                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-slate-900 dark:text-white mb-1"
+                                onClick={(e) => e.preventDefault()}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleUpdateMaterial(mat.id!);
+                                  } else if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    setEditingMaterialId(null);
+                                  }
+                                }}
+                                autoFocus
+                              />
+                            ) : (
+                              <p className="font-medium text-slate-900 dark:text-white">
+                                {mat.title}
+                              </p>
+                            )}
+                            <p className="text-xs text-slate-500">
+                              {mat.type.toUpperCase()}
+                            </p>
+                          </div>
+                        </a>
+                        
+                        {!isStudent && (
+                          <div className="flex items-center space-x-2 ml-4">
+                            {editingMaterialId === mat.id ? (
+                              <>
+                                <button
+                                  onClick={() => handleUpdateMaterial(mat.id!)}
+                                  className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                                  title="Save"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingMaterialId(null)}
+                                  className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                                  title="Cancel"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setEditingMaterialId(mat.id ?? null);
+                                    setEditingMaterialTitle(mat.title);
+                                  }}
+                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                  title="Edit Name"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (mat.id) {
+                                      handleDeleteMaterial(mat.id);
+                                    }
+                                  }}
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Delete Material"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))
                   )}
                 </div>
@@ -1000,6 +1118,14 @@ const CourseDetails = () => {
           onClose={() => setShowSessionModal(false)}
         />
       )}
+
+      <CustomAlert
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };
