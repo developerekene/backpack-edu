@@ -505,7 +505,6 @@ const CourseDetails = () => {
       message: "Are you sure you want to delete this material? This action cannot be undone.",
       onConfirm: async () => {
         await deleteMaterial(id);
-        setAlertConfig((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };

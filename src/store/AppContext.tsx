@@ -764,12 +764,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteMaterial = async (id: string) => {
     const targetUid = currentUser?.id || '';
-    if (targetUid) {
-      await updateBackpackUserField<Material>(targetUid, 'materials', (list) =>
-        list.filter(m => m.id !== id)
-      );
-    }
+    
+    // Optimistic update
     setMaterials(prev => prev.filter(m => m.id !== id));
+
+    if (targetUid) {
+      try {
+        await updateBackpackUserField<Material>(targetUid, 'materials', (list) =>
+          list.filter(m => m.id !== id)
+        );
+      } catch (err) {
+        console.error("Failed to delete material from backend:", err);
+      }
+    }
   };
 
   // Attendance Records (stored in backpack/{targetId}.user.attendance)
