@@ -169,7 +169,7 @@ export interface CourseModuleMedia {
 export interface CourseModuleItem {
   id: string;
   title: string;
-  type: 'video' | 'document' | 'embed' | 'text' | 'link';
+  type: "video" | "document" | "embed" | "text" | "link";
   content?: string;
   url?: string;
 }
@@ -179,7 +179,7 @@ export interface CourseModule {
   title: string;
   description?: string;
   items?: CourseModuleItem[];
-  
+
   content?: string;
   fileUrls?: string[];
   media?: CourseModuleMedia[];
@@ -314,6 +314,7 @@ export type SubmissionMethod = "online" | "file_upload" | "in_class";
 export interface Assessment {
   id: string;
   courseId: string;
+  questions?: AssessmentQuestion[];
 
   // 1. Basic Assessment Information
   title: string;
@@ -366,6 +367,23 @@ export interface Assessment {
   allowStudentReview?: boolean;
 }
 
+export interface AssessmentQuestionOption {
+  id: string;
+  text: string;
+  isCorrect?: boolean;
+}
+
+export interface AssessmentQuestion {
+  id: string;
+  format: "objective" | "essay";
+  questionType: "multiple_choice" | "true_false" | "essay";
+  prompt: string;
+  points: number;
+  options?: AssessmentQuestionOption[];
+  correctBoolean?: boolean;
+  rubric?: string;
+}
+
 export interface Submission {
   id: string;
   assessmentId: string;
@@ -377,6 +395,10 @@ export interface Submission {
   score?: number;
   feedback?: string;
   status: "submitted" | "graded";
+  answers?: Record<string, string>;
+  autoGradedPoints?: number;
+  autoGradedMax?: number;
+  pendingEssayGrading?: boolean;
 }
 
 export interface ScheduleEvent {
