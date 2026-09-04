@@ -48,7 +48,7 @@ export const CourseModulesTab = ({
   isStudent,
 }: CourseModulesTabProps) => {
   const { currentUser } = useAuth();
-  const { userProgress, updateProgress, updateCourse } = useAppContext();
+  const { userProgress, updateProgress, updateCourse, addMaterial } = useAppContext();
 
   const [draftModules, setDraftModules] = useState<CourseModule[] | null>(null);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -621,9 +621,17 @@ export const CourseModulesTab = ({
                                       ? "video/*"
                                       : ".pdf,.doc,.docx,.txt"
                                   }
-                                  onUpload={(url) =>
-                                    updateModuleItem(index, itemIndex, "url", url)
-                                  }
+                                  onUpload={(url) => {
+                                    updateModuleItem(index, itemIndex, "url", url);
+                                    if (item.type === "document") {
+                                      addMaterial({
+                                        courseId: course.id,
+                                        title: item.title || "Module Document",
+                                        url: url,
+                                        type: "doc",
+                                      });
+                                    }
+                                  }}
                                 />
                               </div>
                               {item.url && (
