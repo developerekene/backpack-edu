@@ -44,78 +44,153 @@ export function CreateAssessmentForm({
   orgMembers,
   instructorDefaultName,
   addAssessment,
+  initialAssessment,
+  onCancel,
 }: {
   courseId: string;
   orgMembers: OrgMember[];
   instructorDefaultName?: string;
   addAssessment: (assessment: Assessment) => Promise<void> | void;
+  /** When provided, the form pre-fills from this assessment and edits it in place instead of creating a new one. */
+  initialAssessment?: Assessment;
+  /** Called when an edit is cancelled or successfully saved. Ignored in create mode. */
+  onCancel?: () => void;
 }) {
+  const isEditing = !!initialAssessment;
+
   // 1. Basic Assessment Information
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState<AssessmentType>("assignment");
-  const [subject, setSubject] = useState("");
-  const [gradeLevel, setGradeLevel] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(initialAssessment?.title ?? "");
+  const [type, setType] = useState<AssessmentType>(
+    initialAssessment?.type ?? "assignment",
+  );
+  const [subject, setSubject] = useState(initialAssessment?.subject ?? "");
+  const [gradeLevel, setGradeLevel] = useState(
+    initialAssessment?.gradeLevel ?? "",
+  );
+  const [description, setDescription] = useState(
+    initialAssessment?.description ?? "",
+  );
   const [instructorName, setInstructorName] = useState(
-    instructorDefaultName || "",
+    initialAssessment?.instructorName ?? instructorDefaultName ?? "",
   );
 
   // 2. Scheduling
-  const [startDate, setStartDate] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState<number | "">("");
+  const [startDate, setStartDate] = useState(
+    initialAssessment?.startDate ?? "",
+  );
+  const [dueDate, setDueDate] = useState(initialAssessment?.dueDate ?? "");
+  const [startTime, setStartTime] = useState(
+    initialAssessment?.startTime ?? "",
+  );
+  const [endTime, setEndTime] = useState(initialAssessment?.endTime ?? "");
+  const [durationMinutes, setDurationMinutes] = useState<number | "">(
+    initialAssessment?.durationMinutes ?? "",
+  );
 
   // 3. Grading
-  const [maxScore, setMaxScore] = useState(100);
-  const [passingScore, setPassingScore] = useState<number | "">("");
-  const [gradingType, setGradingType] =
-    useState<NonNullable<Assessment["gradingType"]>>("points");
-  const [weight, setWeight] = useState<number | "">("");
+  const [maxScore, setMaxScore] = useState(initialAssessment?.maxScore ?? 100);
+  const [passingScore, setPassingScore] = useState<number | "">(
+    initialAssessment?.passingScore ?? "",
+  );
+  const [gradingType, setGradingType] = useState<
+    NonNullable<Assessment["gradingType"]>
+  >(initialAssessment?.gradingType ?? "points");
+  const [weight, setWeight] = useState<number | "">(
+    initialAssessment?.weight ?? "",
+  );
 
   // 4. Assessment Format
-  const [questionType, setQuestionType] =
-    useState<NonNullable<Assessment["questionType"]>>("multiple_choice");
-  const [numberOfQuestions, setNumberOfQuestions] = useState<number | "">("");
-  const [pointsPerQuestion, setPointsPerQuestion] = useState<number | "">("");
-  const [referenceMaterials, setReferenceMaterials] = useState("");
-  const [attachments, setAttachments] = useState<string[]>([]);
-  const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
+  const [questionType, setQuestionType] = useState<
+    NonNullable<Assessment["questionType"]>
+  >(initialAssessment?.questionType ?? "multiple_choice");
+  const [numberOfQuestions, setNumberOfQuestions] = useState<number | "">(
+    initialAssessment?.numberOfQuestions ?? "",
+  );
+  const [pointsPerQuestion, setPointsPerQuestion] = useState<number | "">(
+    initialAssessment?.pointsPerQuestion ?? "",
+  );
+  const [referenceMaterials, setReferenceMaterials] = useState(
+    initialAssessment?.referenceMaterials ?? "",
+  );
+  const [attachments, setAttachments] = useState<string[]>(
+    initialAssessment?.attachments ?? [],
+  );
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>(
+    initialAssessment?.questions ?? [],
+  );
 
   // 5. Student / Group Settings
-  const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
-  const [isGroup, setIsGroup] = useState(false);
-  const [groupSize, setGroupSize] = useState<number | "">("");
-  const [randomizeQuestions, setRandomizeQuestions] = useState(false);
-  const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(false);
-  const [maxAttempts, setMaxAttempts] = useState<number | "">("");
+  const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>(
+    initialAssessment?.assignedStudentIds ?? [],
+  );
+  const [isGroup, setIsGroup] = useState(initialAssessment?.isGroup ?? false);
+  const [groupSize, setGroupSize] = useState<number | "">(
+    initialAssessment?.groupSize ?? "",
+  );
+  const [randomizeQuestions, setRandomizeQuestions] = useState(
+    initialAssessment?.randomizeQuestions ?? false,
+  );
+  const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(
+    initialAssessment?.allowMultipleAttempts ?? false,
+  );
+  const [maxAttempts, setMaxAttempts] = useState<number | "">(
+    initialAssessment?.maxAttempts ?? "",
+  );
 
   // 6. Submission Settings
-  const [submissionMethod, setSubmissionMethod] =
-    useState<NonNullable<Assessment["submissionMethod"]>>("online");
-  const [allowedFileTypes, setAllowedFileTypes] = useState<string[]>([]);
-  const [maxFileSizeMb, setMaxFileSizeMb] = useState<number | "">("");
-  const [allowResubmission, setAllowResubmission] = useState(false);
-  const [requireStudentComments, setRequireStudentComments] = useState(false);
+  const [submissionMethod, setSubmissionMethod] = useState<
+    NonNullable<Assessment["submissionMethod"]>
+  >(initialAssessment?.submissionMethod ?? "online");
+  const [allowedFileTypes, setAllowedFileTypes] = useState<string[]>(
+    initialAssessment?.allowedFileTypes ?? [],
+  );
+  const [maxFileSizeMb, setMaxFileSizeMb] = useState<number | "">(
+    initialAssessment?.maxFileSizeMb ?? "",
+  );
+  const [allowResubmission, setAllowResubmission] = useState(
+    initialAssessment?.allowResubmission ?? false,
+  );
+  const [requireStudentComments, setRequireStudentComments] = useState(
+    initialAssessment?.requireStudentComments ?? false,
+  );
 
   // 7. Results & Feedback
-  const [showScoreImmediately, setShowScoreImmediately] = useState(true);
-  const [releaseResultsDate, setReleaseResultsDate] = useState("");
-  const [showCorrectAnswers, setShowCorrectAnswers] = useState(false);
-  const [teacherFeedback, setTeacherFeedback] = useState("");
-  const [allowStudentReview, setAllowStudentReview] = useState(false);
+  const [showScoreImmediately, setShowScoreImmediately] = useState(
+    initialAssessment?.showScoreImmediately ?? true,
+  );
+  const [releaseResultsDate, setReleaseResultsDate] = useState(
+    initialAssessment?.releaseResultsDate ?? "",
+  );
+  const [showCorrectAnswers, setShowCorrectAnswers] = useState(
+    initialAssessment?.showCorrectAnswers ?? false,
+  );
+  const [teacherFeedback, setTeacherFeedback] = useState(
+    initialAssessment?.teacherFeedback ?? "",
+  );
+  const [allowStudentReview, setAllowStudentReview] = useState(
+    initialAssessment?.allowStudentReview ?? false,
+  );
 
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>(
-    {
-      basic: true,
-      scheduling: false,
-      grading: false,
-      format: false,
-      studentGroup: false,
-      submission: false,
-      results: false,
-    },
+    isEditing
+      ? {
+          basic: true,
+          scheduling: true,
+          grading: true,
+          format: true,
+          studentGroup: true,
+          submission: true,
+          results: true,
+        }
+      : {
+          basic: true,
+          scheduling: false,
+          grading: false,
+          format: false,
+          studentGroup: false,
+          submission: false,
+          results: false,
+        },
   );
   const toggleSection = (key: SectionKey) =>
     setOpenSections((s) => ({ ...s, [key]: !s[key] }));
@@ -185,7 +260,7 @@ export function CreateAssessmentForm({
   const handleCreateAssessment = async (e: React.FormEvent) => {
     e.preventDefault();
     const newAssessment: Assessment = {
-      id: generateId("ass"),
+      id: initialAssessment?.id || generateId("ass"),
       courseId,
       title,
       type,
@@ -250,7 +325,12 @@ export function CreateAssessmentForm({
       allowStudentReview,
     };
     await addAssessment(newAssessment);
-    resetForm();
+
+    if (isEditing) {
+      onCancel?.();
+    } else {
+      resetForm();
+    }
   };
 
   return (
@@ -259,7 +339,8 @@ export function CreateAssessmentForm({
       className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4"
     >
       <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center">
-        <Plus className="w-5 h-5 mr-2 text-indigo-400" /> Create New Assessment
+        <Plus className="w-5 h-5 mr-2 text-indigo-400" />
+        {isEditing ? "Edit Assessment" : "Create New Assessment"}
       </h3>
 
       {/* 1. Basic Assessment Information */}
@@ -850,19 +931,30 @@ export function CreateAssessmentForm({
         </Field>
       </FormSection>
 
-      <button
-        type="submit"
-        className="px-5 py-2.5 mt-2 bg-indigo-600 hover:bg-indigo-500 text-slate-100 dark:text-white rounded-lg font-bold transition w-full sm:w-auto"
-      >
-        Publish Assessment
-      </button>
+      <div className="flex items-center gap-3 mt-2">
+        <button
+          type="submit"
+          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 dark:text-white rounded-lg font-bold transition w-full sm:w-auto"
+        >
+          {isEditing ? "Save Changes" : "Publish Assessment"}
+        </button>
+        {isEditing && (
+          <button
+            type="button"
+            onClick={() => onCancel?.()}
+            className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg font-bold transition w-full sm:w-auto"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 }
 
 // import React, { useState } from "react";
 // // import { Assessment, AssessmentType, Submission } from "../../../types";
-// import { Assessment, AssessmentType } from "../../../types";
+// import { Assessment, AssessmentQuestion, AssessmentType } from "../../../types";
 // import {
 //   Plus,
 //   Paperclip,
@@ -888,6 +980,7 @@ export function CreateAssessmentForm({
 //   FILE_TYPE_OPTIONS,
 //   ASSESSMENT_TYPES,
 // } from "./Constants";
+// import { QuestionBuilder } from "./Questionbuilder";
 
 // type OrgMember = { id?: string; email?: string; name: string };
 
@@ -942,6 +1035,7 @@ export function CreateAssessmentForm({
 //   const [pointsPerQuestion, setPointsPerQuestion] = useState<number | "">("");
 //   const [referenceMaterials, setReferenceMaterials] = useState("");
 //   const [attachments, setAttachments] = useState<string[]>([]);
+//   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
 
 //   // 5. Student / Group Settings
 //   const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
@@ -977,6 +1071,9 @@ export function CreateAssessmentForm({
 //       results: false,
 //     },
 //   );
+
+//   const [isPublishing, setIsPublishing] = useState(false);
+
 //   const toggleSection = (key: SectionKey) =>
 //     setOpenSections((s) => ({ ...s, [key]: !s[key] }));
 
@@ -1020,6 +1117,7 @@ export function CreateAssessmentForm({
 //     setPointsPerQuestion("");
 //     setReferenceMaterials("");
 //     setAttachments([]);
+//     setQuestions([]);
 
 //     setAssignedStudentIds([]);
 //     setIsGroup(false);
@@ -1041,73 +1139,156 @@ export function CreateAssessmentForm({
 //     setAllowStudentReview(false);
 //   };
 
+//   // const handleCreateAssessment = async (e: React.FormEvent) => {
+//   //   e.preventDefault();
+//   //   const newAssessment: Assessment = {
+//   //     id: generateId("ass"),
+//   //     courseId,
+//   //     title,
+//   //     type,
+//   //     subject: subject || undefined,
+//   //     gradeLevel: gradeLevel || undefined,
+//   //     description: description || undefined,
+//   //     instructorName: instructorName || undefined,
+
+//   //     startDate: startDate || undefined,
+//   //     dueDate,
+//   //     startTime: startTime || undefined,
+//   //     endTime: endTime || undefined,
+//   //     durationMinutes:
+//   //       durationMinutes === "" ? undefined : Number(durationMinutes),
+
+//   //     maxScore: Number(maxScore),
+//   //     passingScore: passingScore === "" ? undefined : Number(passingScore),
+//   //     gradingType,
+//   //     weight: weight === "" ? undefined : Number(weight),
+
+//   //     questionType: isQuestionBased ? questionType : undefined,
+//   //     numberOfQuestions:
+//   //       isQuestionBased && numberOfQuestions !== ""
+//   //         ? Number(numberOfQuestions)
+//   //         : undefined,
+//   //     pointsPerQuestion:
+//   //       isQuestionBased && pointsPerQuestion !== ""
+//   //         ? Number(pointsPerQuestion)
+//   //         : undefined,
+//   //     attachments: attachments.length > 0 ? attachments : undefined,
+//   //     referenceMaterials: referenceMaterials || undefined,
+//   //     questions:
+//   //       isQuestionBased && questions.length > 0 ? questions : undefined,
+
+//   //     assignedStudentIds:
+//   //       assignedStudentIds.length > 0 ? assignedStudentIds : undefined,
+//   //     isGroup: supportsGroup ? isGroup : false,
+//   //     groupSize:
+//   //       supportsGroup && isGroup && groupSize !== ""
+//   //         ? Number(groupSize)
+//   //         : undefined,
+//   //     randomizeQuestions: isQuestionBased ? randomizeQuestions : undefined,
+//   //     allowMultipleAttempts,
+//   //     maxAttempts:
+//   //       allowMultipleAttempts && maxAttempts !== ""
+//   //         ? Number(maxAttempts)
+//   //         : undefined,
+
+//   //     submissionMethod,
+//   //     allowedFileTypes:
+//   //       submissionMethod !== "in_class" && allowedFileTypes.length > 0
+//   //         ? allowedFileTypes
+//   //         : undefined,
+//   //     maxFileSizeMb: maxFileSizeMb === "" ? undefined : Number(maxFileSizeMb),
+//   //     allowResubmission,
+//   //     requireStudentComments,
+
+//   //     showScoreImmediately,
+//   //     releaseResultsDate: releaseResultsDate || undefined,
+//   //     showCorrectAnswers,
+//   //     teacherFeedback: teacherFeedback || undefined,
+//   //     allowStudentReview,
+//   //   };
+//   //   await addAssessment(newAssessment);
+//   //   resetForm();
+//   // };
+
 //   const handleCreateAssessment = async (e: React.FormEvent) => {
 //     e.preventDefault();
-//     const newAssessment: Assessment = {
-//       id: generateId("ass"),
-//       courseId,
-//       title,
-//       type,
-//       subject: subject || undefined,
-//       gradeLevel: gradeLevel || undefined,
-//       description: description || undefined,
-//       instructorName: instructorName || undefined,
 
-//       startDate: startDate || undefined,
-//       dueDate,
-//       startTime: startTime || undefined,
-//       endTime: endTime || undefined,
-//       durationMinutes:
-//         durationMinutes === "" ? undefined : Number(durationMinutes),
+//     if (isPublishing) return;
 
-//       maxScore: Number(maxScore),
-//       passingScore: passingScore === "" ? undefined : Number(passingScore),
-//       gradingType,
-//       weight: weight === "" ? undefined : Number(weight),
+//     setIsPublishing(true);
 
-//       questionType: isQuestionBased ? questionType : undefined,
-//       numberOfQuestions:
-//         isQuestionBased && numberOfQuestions !== ""
-//           ? Number(numberOfQuestions)
-//           : undefined,
-//       pointsPerQuestion:
-//         isQuestionBased && pointsPerQuestion !== ""
-//           ? Number(pointsPerQuestion)
-//           : undefined,
-//       attachments: attachments.length > 0 ? attachments : undefined,
-//       referenceMaterials: referenceMaterials || undefined,
+//     try {
+//       const newAssessment: Assessment = {
+//         id: generateId("ass"),
+//         courseId,
+//         title,
+//         type,
+//         subject: subject || undefined,
+//         gradeLevel: gradeLevel || undefined,
+//         description: description || undefined,
+//         instructorName: instructorName || undefined,
 
-//       assignedStudentIds:
-//         assignedStudentIds.length > 0 ? assignedStudentIds : undefined,
-//       isGroup: supportsGroup ? isGroup : false,
-//       groupSize:
-//         supportsGroup && isGroup && groupSize !== ""
-//           ? Number(groupSize)
-//           : undefined,
-//       randomizeQuestions: isQuestionBased ? randomizeQuestions : undefined,
-//       allowMultipleAttempts,
-//       maxAttempts:
-//         allowMultipleAttempts && maxAttempts !== ""
-//           ? Number(maxAttempts)
-//           : undefined,
+//         startDate: startDate || undefined,
+//         dueDate,
+//         startTime: startTime || undefined,
+//         endTime: endTime || undefined,
+//         durationMinutes:
+//           durationMinutes === "" ? undefined : Number(durationMinutes),
 
-//       submissionMethod,
-//       allowedFileTypes:
-//         submissionMethod !== "in_class" && allowedFileTypes.length > 0
-//           ? allowedFileTypes
-//           : undefined,
-//       maxFileSizeMb: maxFileSizeMb === "" ? undefined : Number(maxFileSizeMb),
-//       allowResubmission,
-//       requireStudentComments,
+//         maxScore: Number(maxScore),
+//         passingScore: passingScore === "" ? undefined : Number(passingScore),
+//         gradingType,
+//         weight: weight === "" ? undefined : Number(weight),
 
-//       showScoreImmediately,
-//       releaseResultsDate: releaseResultsDate || undefined,
-//       showCorrectAnswers,
-//       teacherFeedback: teacherFeedback || undefined,
-//       allowStudentReview,
-//     };
-//     await addAssessment(newAssessment);
-//     resetForm();
+//         questionType: isQuestionBased ? questionType : undefined,
+//         numberOfQuestions:
+//           isQuestionBased && numberOfQuestions !== ""
+//             ? Number(numberOfQuestions)
+//             : undefined,
+//         pointsPerQuestion:
+//           isQuestionBased && pointsPerQuestion !== ""
+//             ? Number(pointsPerQuestion)
+//             : undefined,
+//         attachments: attachments.length > 0 ? attachments : undefined,
+//         referenceMaterials: referenceMaterials || undefined,
+//         questions:
+//           isQuestionBased && questions.length > 0 ? questions : undefined,
+
+//         assignedStudentIds:
+//           assignedStudentIds.length > 0 ? assignedStudentIds : undefined,
+//         isGroup: supportsGroup ? isGroup : false,
+//         groupSize:
+//           supportsGroup && isGroup && groupSize !== ""
+//             ? Number(groupSize)
+//             : undefined,
+//         randomizeQuestions: isQuestionBased ? randomizeQuestions : undefined,
+//         allowMultipleAttempts,
+//         maxAttempts:
+//           allowMultipleAttempts && maxAttempts !== ""
+//             ? Number(maxAttempts)
+//             : undefined,
+
+//         submissionMethod,
+//         allowedFileTypes:
+//           submissionMethod !== "in_class" && allowedFileTypes.length > 0
+//             ? allowedFileTypes
+//             : undefined,
+//         maxFileSizeMb: maxFileSizeMb === "" ? undefined : Number(maxFileSizeMb),
+//         allowResubmission,
+//         requireStudentComments,
+
+//         showScoreImmediately,
+//         releaseResultsDate: releaseResultsDate || undefined,
+//         showCorrectAnswers,
+//         teacherFeedback: teacherFeedback || undefined,
+//         allowStudentReview,
+//       };
+
+//       await addAssessment(newAssessment);
+//       resetForm();
+//     } finally {
+//       setIsPublishing(false);
+//     }
 //   };
 
 //   return (
@@ -1328,53 +1509,67 @@ export function CreateAssessmentForm({
 //         onToggle={() => toggleSection("format")}
 //       >
 //         {isQuestionBased ? (
-//           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-//             <Field label="Question Type">
-//               <select
-//                 value={questionType}
-//                 onChange={(e) =>
-//                   setQuestionType(
-//                     e.target.value as NonNullable<Assessment["questionType"]>,
-//                   )
-//                 }
-//                 className={inputClass}
-//               >
-//                 {QUESTION_TYPES.map((q) => (
-//                   <option key={q.value} value={q.value}>
-//                     {q.label}
-//                   </option>
-//                 ))}
-//               </select>
-//             </Field>
-//             <Field label="Number of Questions">
-//               <input
-//                 type="number"
-//                 min={0}
-//                 value={numberOfQuestions}
-//                 onChange={(e) =>
-//                   setNumberOfQuestions(
-//                     e.target.value === "" ? "" : Number(e.target.value),
-//                   )
-//                 }
-//                 className={inputClass}
-//                 placeholder="e.g. 20"
+//           <>
+//             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+//               <Field label="Question Type (quick estimate)">
+//                 <select
+//                   value={questionType}
+//                   onChange={(e) =>
+//                     setQuestionType(
+//                       e.target.value as NonNullable<Assessment["questionType"]>,
+//                     )
+//                   }
+//                   className={inputClass}
+//                 >
+//                   {QUESTION_TYPES.map((q) => (
+//                     <option key={q.value} value={q.value}>
+//                       {q.label}
+//                     </option>
+//                   ))}
+//                 </select>
+//               </Field>
+//               <Field label="Number of Questions">
+//                 <input
+//                   type="number"
+//                   min={0}
+//                   value={numberOfQuestions}
+//                   onChange={(e) =>
+//                     setNumberOfQuestions(
+//                       e.target.value === "" ? "" : Number(e.target.value),
+//                     )
+//                   }
+//                   className={inputClass}
+//                   placeholder="e.g. 20"
+//                 />
+//               </Field>
+//               <Field label="Points per Question">
+//                 <input
+//                   type="number"
+//                   min={0}
+//                   value={pointsPerQuestion}
+//                   onChange={(e) =>
+//                     setPointsPerQuestion(
+//                       e.target.value === "" ? "" : Number(e.target.value),
+//                     )
+//                   }
+//                   className={inputClass}
+//                   placeholder="e.g. 5"
+//                 />
+//               </Field>
+//             </div>
+
+//             <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+//               <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">
+//                 Questions
+//               </h4>
+//               <QuestionBuilder
+//                 questions={questions}
+//                 onChange={setQuestions}
+//                 targetMaxScore={maxScore}
+//                 onSyncMaxScore={(total) => setMaxScore(total)}
 //               />
-//             </Field>
-//             <Field label="Points per Question">
-//               <input
-//                 type="number"
-//                 min={0}
-//                 value={pointsPerQuestion}
-//                 onChange={(e) =>
-//                   setPointsPerQuestion(
-//                     e.target.value === "" ? "" : Number(e.target.value),
-//                   )
-//                 }
-//                 className={inputClass}
-//                 placeholder="e.g. 5"
-//               />
-//             </Field>
-//           </div>
+//             </div>
+//           </>
 //         ) : (
 //           <p className="text-sm text-slate-500 dark:text-slate-400 italic">
 //             Question-level settings apply to Quiz, Test, and Exam types.
@@ -1695,9 +1890,21 @@ export function CreateAssessmentForm({
 
 //       <button
 //         type="submit"
-//         className="px-5 py-2.5 mt-2 bg-indigo-600 hover:bg-indigo-500 text-slate-100 dark:text-white rounded-lg font-bold transition w-full sm:w-auto"
+//         disabled={isPublishing}
+//         className={`cursor-pointer px-5 py-2.5 mt-2 rounded-lg font-bold transition w-full sm:w-auto flex items-center justify-center gap-2 ${
+//           isPublishing
+//             ? "bg-indigo-400 cursor-not-allowed"
+//             : "bg-indigo-600 hover:bg-indigo-500"
+//         } text-slate-100 dark:text-white`}
 //       >
-//         Publish Assessment
+//         {isPublishing ? (
+//           <>
+//             <span className="cursor-pointer w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+//             Publishing...
+//           </>
+//         ) : (
+//           "Publish Assessment"
+//         )}
 //       </button>
 //     </form>
 //   );

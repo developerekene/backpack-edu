@@ -8,7 +8,7 @@ import {
   BarChart3,
   Users,
   GraduationCap,
-  Star
+  Star,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
@@ -31,18 +31,22 @@ const Home = () => {
         </div>
 
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 dark:text-white mb-6 tracking-tight leading-tight">
-          Education, <span className="text-indigo-600 dark:text-indigo-400">Without Borders.</span>
+          Education,{" "}
+          <span className="text-indigo-600 dark:text-indigo-400">
+            Without Borders.
+          </span>
         </h1>
 
         <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed mb-8 max-w-2xl mx-auto">
-          Backpack connects educational organizations with students across Africa.
-          Upload courses, track student progress, and accept payments in multiple regional currencies.
+          Backpack connects educational organizations with students across
+          Africa. Upload courses, track student progress, and accept payments in
+          multiple regional currencies.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-md mx-auto sm:max-w-none">
           <Link
             to="/signup"
-            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-md hover:shadow-indigo-500/20 active:scale-95"
+            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white dark:text-white px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-md hover:shadow-indigo-500/20 active:scale-95"
           >
             Launch Your Future <ArrowRight className="w-5 h-5 ml-2" />
           </Link>
@@ -53,7 +57,6 @@ const Home = () => {
             Access Portal
           </Link>
         </div>
-
       </div>
 
       {/* Feature Grid */}
@@ -62,9 +65,13 @@ const Home = () => {
           <div className="w-12 h-12 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-xl flex items-center justify-center mb-6">
             <Globe className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Pan-African Reach</h3>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">
+            Pan-African Reach
+          </h3>
           <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm sm:text-base">
-            Empower students across the continent with accessible education, breaking down geographical barriers and fostering a unified learning community.
+            Empower students across the continent with accessible education,
+            breaking down geographical barriers and fostering a unified learning
+            community.
           </p>
         </div>
 
@@ -72,18 +79,26 @@ const Home = () => {
           <div className="w-12 h-12 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-xl flex items-center justify-center mb-6">
             <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Immersive Curriculum</h3>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">
+            Immersive Curriculum
+          </h3>
           <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm sm:text-base">
-            Deliver rich, engaging modules with live video classes, collaborative workspaces, and automated grading systems that do the heavy lifting for you.
+            Deliver rich, engaging modules with live video classes,
+            collaborative workspaces, and automated grading systems that do the
+            heavy lifting for you.
           </p>
         </div>
         <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 p-6 sm:p-8 rounded-2xl shadow-sm hover:shadow-md transition-all">
           <div className="w-12 h-12 bg-amber-500/10 dark:bg-amber-500/20 rounded-xl flex items-center justify-center mb-6">
             <GraduationCap className="w-6 h-6 text-amber-600 dark:text-amber-400" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Intelligent Insights</h3>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">
+            Intelligent Insights
+          </h3>
           <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm sm:text-base">
-            Track student brilliance with dynamic academic transcripts. Build automated scorecards that measure progress and simulate intelligent career routing.
+            Track student brilliance with dynamic academic transcripts. Build
+            automated scorecards that measure progress and simulate intelligent
+            career routing.
           </p>
         </div>
       </div>
@@ -96,12 +111,13 @@ const Home = () => {
               Built for Schools, Academies & Independent Instructors
             </h2>
             <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base max-w-xl">
-              Onboard instructor staff, manage enrolled student rosters, and create structured courses.
+              Onboard instructor staff, manage enrolled student rosters, and
+              create structured courses.
             </p>
           </div>
           <Link
             to="/onboard"
-            className="self-start md:self-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white font-semibold text-sm rounded-xl transition shadow-sm"
+            className="self-start md:self-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white dark:text-white font-semibold text-sm rounded-xl transition shadow-sm"
           >
             Get Started Now
           </Link>
@@ -110,17 +126,23 @@ const Home = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
             <ShieldCheck className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-            <h4 className="font-bold text-slate-900 dark:text-white text-lg">Staff Onboarding</h4>
+            <h4 className="font-bold text-slate-900 dark:text-white text-lg">
+              Staff Onboarding
+            </h4>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Register instructors into faculty departments with streamlined administrative access and course ownership.
+              Register instructors into faculty departments with streamlined
+              administrative access and course ownership.
             </p>
           </div>
 
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
             <GraduationCap className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
-            <h4 className="font-bold text-slate-900 dark:text-white text-lg">Student Management</h4>
+            <h4 className="font-bold text-slate-900 dark:text-white text-lg">
+              Student Management
+            </h4>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Onboard students directly into cohorts or programs with auto-course enrollment and progress metrics.
+              Onboard students directly into cohorts or programs with
+              auto-course enrollment and progress metrics.
             </p>
           </div>
         </div>
@@ -151,7 +173,6 @@ const Home = () => {
 
         {/* Features */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
           {/* Course Management */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
             <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
@@ -161,9 +182,9 @@ const Home = () => {
             </h4>
 
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Create structured courses, organize learning materials, and
-              give instructors the tools they need to deliver engaging
-              learning experiences.
+              Create structured courses, organize learning materials, and give
+              instructors the tools they need to deliver engaging learning
+              experiences.
             </p>
           </div>
 
@@ -191,9 +212,8 @@ const Home = () => {
             </h4>
 
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Give instructors a dedicated workspace to manage their
-              courses, students, learning content, and day-to-day teaching
-              activities.
+              Give instructors a dedicated workspace to manage their courses,
+              students, learning content, and day-to-day teaching activities.
             </p>
           </div>
 
@@ -211,7 +231,6 @@ const Home = () => {
               accessible place.
             </p>
           </div>
-
         </div>
       </div>
 
@@ -220,7 +239,6 @@ const Home = () => {
       {/* ========================================== */}
       <section className="py-20 sm:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-
           {/* Header */}
           <div className="text-center max-w-2xl mx-auto mb-12">
             <span className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider">
@@ -232,30 +250,25 @@ const Home = () => {
             </h2>
 
             <p className="mt-4 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-              Hear from students, instructors, and learning communities
-              using the platform to build better learning experiences.
+              Hear from students, instructors, and learning communities using
+              the platform to build better learning experiences.
             </p>
           </div>
 
           {/* Testimonials */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
             {/* Testimonial 1 */}
             <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all duration-300">
-
               <div className="flex items-center gap-1 text-amber-400">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className="w-4 h-4 fill-current"
-                  />
+                  <Star key={star} className="w-4 h-4 fill-current" />
                 ))}
               </div>
 
               <p className="mt-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                "The platform makes it much easier to organize courses
-                and keep track of what students are learning. Everything
-                feels structured and easy to manage."
+                "The platform makes it much easier to organize courses and keep
+                track of what students are learning. Everything feels structured
+                and easy to manage."
               </p>
 
               <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
@@ -279,20 +292,16 @@ const Home = () => {
 
             {/* Testimonial 2 */}
             <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all duration-300">
-
               <div className="flex items-center gap-1 text-amber-400">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className="w-4 h-4 fill-current"
-                  />
+                  <Star key={star} className="w-4 h-4 fill-current" />
                 ))}
               </div>
 
               <p className="mt-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                "I like having my courses and learning progress in one
-                place. It gives me a clearer picture of what I have
-                completed and what I still need to work on."
+                "I like having my courses and learning progress in one place. It
+                gives me a clearer picture of what I have completed and what I
+                still need to work on."
               </p>
 
               <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
@@ -316,20 +325,16 @@ const Home = () => {
 
             {/* Testimonial 3 */}
             <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-purple-300 dark:hover:border-purple-500/30 transition-all duration-300">
-
               <div className="flex items-center gap-1 text-amber-400">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className="w-4 h-4 fill-current"
-                  />
+                  <Star key={star} className="w-4 h-4 fill-current" />
                 ))}
               </div>
 
               <p className="mt-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                "Managing students and course content is significantly
-                simpler. The platform gives us the structure we need
-                without making the learning process complicated."
+                "Managing students and course content is significantly simpler.
+                The platform gives us the structure we need without making the
+                learning process complicated."
               </p>
 
               <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
@@ -350,7 +355,6 @@ const Home = () => {
                 </div>
               </div>
             </article>
-
           </div>
 
           {/* Bottom CTA */}
@@ -367,7 +371,6 @@ const Home = () => {
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-
         </div>
       </section>
 
@@ -375,17 +378,30 @@ const Home = () => {
       {courses.length > 0 && (
         <div className="px-4 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Featured Courses</h2>
-            <Link to="/explore" className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm hover:underline flex items-center">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+              Featured Courses
+            </h2>
+            <Link
+              to="/explore"
+              className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm hover:underline flex items-center"
+            >
               View All <ArrowRight className="w-4 h-4 ml-1" />
             </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {courses.slice(0, 3).map((course) => {
-              const org = organizations.find((o) => o.id === course.orgId || o.ownerId === course.orgId || `org_${o.ownerId}` === course.orgId);
+              const org = organizations.find(
+                (o) =>
+                  o.id === course.orgId ||
+                  o.ownerId === course.orgId ||
+                  `org_${o.ownerId}` === course.orgId,
+              );
               return (
-                <div key={course.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between hover:border-indigo-500 transition group shadow-sm">
+                <div
+                  key={course.id}
+                  className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between hover:border-indigo-500 transition group shadow-sm"
+                >
                   <div>
                     <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block mb-2">
                       {org?.name || "Partner Organization"}
@@ -400,7 +416,9 @@ const Home = () => {
 
                   <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
                     <span className="font-bold text-sm text-slate-900 dark:text-white">
-                      {course.price > 0 ? `${course.currency} ${course.price}` : "Free Enrollment"}
+                      {course.price > 0
+                        ? `${course.currency} ${course.price}`
+                        : "Free Enrollment"}
                     </span>
                     <Link
                       to={`/course/${course.id}`}
