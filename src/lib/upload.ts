@@ -4,12 +4,35 @@
 export const uploadFile = async (file: File): Promise<string> => {
   console.log("Mock upload to local storage for testing:", file.name);
 
-  // For videos, use Object URL to prevent crashing localStorage/Base64 limits
+ 
   if (file.type.startsWith('video/')) {
-    return Promise.resolve(URL.createObjectURL(file));
+    const cloudName = "dt2gk3gcn";
+    const uploadPreset = "synod_preset";
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+
+    try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Cloudinary error response:", errText);
+        throw new Error(`Cloudinary upload failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.secure_url;
+    } catch (error) {
+      console.error("Cloudinary upload error:", error);
+      throw error;
+    }
   }
 
-  // For docs and images, use Base64 so it can be saved in local state/storage
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {

@@ -103,7 +103,7 @@ export const Navbar = () => {
 
 
   const getLinkStyle = (path: string) =>
-    `text-sm font-medium transition-colors ${pathname === path ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+    `text-sm font-medium transition-colors whitespace-nowrap ${pathname === path ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
     }`;
 
   const getMobileLinkStyle = (path: string) =>
@@ -339,7 +339,7 @@ export const Navbar = () => {
           )}
 
           {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-6 pl-2">
+          <div className="hidden lg:flex items-center space-x-4 pl-2">
             <Link to="/" className={getLinkStyle("/")}>{currentUser ? "Dashboard" : "Home"}</Link>
 
             {currentUser && currentUser.role === 'student' && (
@@ -370,7 +370,7 @@ export const Navbar = () => {
             {currentUser && currentUser.role === 'organization' && (
               <Link
                 to="/onboard"
-                className="px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg text-xs font-bold transition duration-200 flex items-center border border-indigo-200 dark:border-indigo-800/60 shadow-sm"
+                className="px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg text-xs font-bold transition duration-200 flex items-center border border-indigo-200 dark:border-indigo-800/60 shadow-sm whitespace-nowrap"
               >
                 <Briefcase className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400" />
                 <span>Organization Setup</span>
@@ -378,8 +378,8 @@ export const Navbar = () => {
             )}
 
             {currentUser ? (
-              <div className="flex items-center space-x-4 ml-2 border-l border-slate-200 dark:border-slate-700 pl-4">
-                <Link to="/profile" className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition">
+              <div className="flex items-center space-x-3 ml-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                <Link to="/profile" className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition whitespace-nowrap">
                   {currentUser.role === 'student' ? <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> : <Briefcase className="w-4 h-4 text-amber-500 dark:text-amber-400" />}
                   <span>{currentUser.name}</span>
                 </Link>
@@ -402,7 +402,7 @@ export const Navbar = () => {
           {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none md:hidden"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none lg:hidden"
             aria-label="Toggle mobile menu"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -412,7 +412,7 @@ export const Navbar = () => {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-2 animate-in slide-in-from-top-2">
+        <div className="lg:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-2 animate-in slide-in-from-top-2">
           <Link to="/" onClick={closeMenu} className={getMobileLinkStyle("/")}>{currentUser ? "Dashboard" : "Home"}</Link>
 
           {currentUser && currentUser.role === 'student' && (

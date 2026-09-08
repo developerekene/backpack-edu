@@ -48,6 +48,7 @@ interface AppState {
   scheduleEvents: ScheduleEvent[];
   messages: ChatMessage[];
   notifications: AppNotification[];
+  isLoadingApp: boolean;
 
   addOrganization: (org: Organization) => Promise<void>;
   updateOrganization: (
@@ -148,26 +149,37 @@ const getUserData = (
   return (data.user as Record<string, unknown>) || {};
 };
 
+const loadCache = <T,>(key: string, fallback: T): T => {
+  try {
+    const cached = localStorage.getItem(`bp_cache_${key}`);
+    return cached ? JSON.parse(cached) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser } = useAuth();
 
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoadingApp, setIsLoadingApp] = useState(true);
+  const [organizations, setOrganizations] = useState<Organization[]>(() => loadCache("organizations", []));
+  const [courses, setCourses] = useState<Course[]>(() => loadCache("courses", []));
   const [enrollmentRequests, setEnrollmentRequests] = useState<
     EnrollmentRequest[]
-  >([]);
-  const [orgJoinRequests, setOrgJoinRequests] = useState<OrgJoinRequest[]>([]);
-  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
-  const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
+  >(() => loadCache("enrollmentRequests", []));
+  const [orgJoinRequests, setOrgJoinRequests] = useState<OrgJoinRequest[]>(() => loadCache("orgJoinRequests", []));
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>(() => loadCache("orgMembers", []));
+  const [userProgress, setUserProgress] = useState<UserProgress[]>(() => loadCache("userProgress", []));
+  const [materials, setMaterials] = useState<Material[]>(() => loadCache("materials", []));
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
-  >([]);
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  >(() => loadCache("attendanceRecords", []));
+  const [assessments, setAssessments] = useState<Assessment[]>(() => loadCache("assessments", []));
+  const [submissions, setSubmissions] = useState<Submission[]>(() => loadCache("submissions", []));
+  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(() => loadCache("scheduleEvents", []));
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadCache("messages", []));
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => loadCache("notifications", []));
+
 
   // Helper to update personalInformation within the user object of a backpack document
   const updateBackpackPersonalInfo = async (
@@ -378,20 +390,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           return Array.from(map.values());
         };
 
-        setOrganizations(dedupeById(allOrganizations));
-        setCourses(dedupeById(allCourses));
-        setEnrollmentRequests(dedupeById(allEnrollments));
-        setOrgJoinRequests(dedupeById(allOrgJoinRequests));
-        setUserProgress(dedupeById(allProgress));
-        setMaterials(dedupeById(allMaterials));
-        setAttendanceRecords(allAttendance);
-        setAssessments(dedupeById(allAssessments));
-        setSubmissions(dedupeById(allSubmissions));
-        setScheduleEvents(dedupeById(allScheduleEvents));
-        setOrgMembers(dedupeById(allMembers));
-        setMessages(dedupeById(allMessages));
+        const updateAndCache = (key: string, data: any, setter: any) => {
+          setter(data);
+          try {
+            localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data));
+          } catch (e) {}
+        };
+
+        updateAndCache("organizations", dedupeById(allOrganizations), setOrganizations);
+        updateAndCache("courses", dedupeById(allCourses), setCourses);
+        updateAndCache("enrollmentRequests", dedupeById(allEnrollments), setEnrollmentRequests);
+        updateAndCache("orgJoinRequests", dedupeById(allOrgJoinRequests), setOrgJoinRequests);
+        updateAndCache("userProgress", dedupeById(allProgress), setUserProgress);
+        updateAndCache("materials", dedupeById(allMaterials), setMaterials);
+        updateAndCache("attendanceRecords", allAttendance, setAttendanceRecords);
+        updateAndCache("assessments", dedupeById(allAssessments), setAssessments);
+        updateAndCache("submissions", dedupeById(allSubmissions), setSubmissions);
+        updateAndCache("scheduleEvents", dedupeById(allScheduleEvents), setScheduleEvents);
+        updateAndCache("orgMembers", dedupeById(allMembers), setOrgMembers);
+        updateAndCache("messages", dedupeById(allMessages), setMessages);
       } catch (err) {
         console.error("loadAllBackpackData failed:", err);
+      } finally {
+        setIsLoadingApp(false);
       }
     };
 
@@ -1185,6 +1206,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppContext.Provider
       value={{
+        isLoadingApp,
         organizations,
         courses,
         enrollmentRequests,
