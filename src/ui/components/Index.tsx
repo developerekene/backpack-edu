@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "../pages/Dashboard";
 import ExploreOrgs from "../pages/ExploreOrgs";
+import Events from "../pages/Events";
 import Home from "../pages/Home";
 import Onboarding from "../pages/Onboarding";
 import CourseUpload from "../pages/CourseUpload";
@@ -113,6 +114,14 @@ const Index: React.FC = () => {
                     element={
                       <ProtectedRoute>
                         <Lunch />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/events"
+                    element={
+                      <ProtectedRoute>
+                        <Events />
                       </ProtectedRoute>
                     }
                   />
