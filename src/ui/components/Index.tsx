@@ -23,7 +23,7 @@ import { GlobalLoader } from "./GlobalLoader";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, firebaseUser, loading } = useAuth();
-  
+
   if (loading && !currentUser) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
@@ -31,9 +31,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
-  if (!currentUser && !firebaseUser && !loading) return <Navigate to="/login" replace />;
-  
+
+  if (!currentUser && !firebaseUser && !loading)
+    return <Navigate to="/login" replace />;
+
   return <>{children}</>;
 };
 
@@ -119,14 +120,7 @@ const Index: React.FC = () => {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
-                    path="/events"
-                    element={
-                      <ProtectedRoute>
-                        <Events />
-                      </ProtectedRoute>
-                    }
-                  />
+                  <Route path="/events" element={<Events />} />
                 </Routes>
               </main>
             </div>

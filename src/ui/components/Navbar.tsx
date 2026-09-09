@@ -216,18 +216,6 @@ export const Navbar = () => {
 
         {/* Global Right Controls (Theme, Notifications, Hamburger) */}
         <div className="flex items-center space-x-2 sm:space-x-4">
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
-            title="Toggle theme"
-          >
-            {theme === "dark" ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
-          </button>
-
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-5 pl-2">
             <Link to="/" className={getLinkStyle("/")}>
@@ -249,6 +237,16 @@ export const Navbar = () => {
               <User className="w-3.5 h-3.5" />
               <span>About Us</span>
             </Link>
+
+            {!currentUser && (
+              <Link
+                to="/events"
+                className={`${getLinkStyle("/events")} flex items-center space-x-1`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span>Events</span>
+              </Link>
+            )}
 
             {currentUser && (
               <div className="relative" ref={moreRef}>
@@ -373,6 +371,18 @@ export const Navbar = () => {
                   onNavigate={navigate}
                 />
 
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                  title="Toggle theme"
+                >
+                  {theme === "dark" ? (
+                    <Sun className="w-4 h-4" />
+                  ) : (
+                    <Moon className="w-4 h-4" />
+                  )}
+                </button>
+
                 {/*<button
                   onClick={handleLogout}
                   className="flex items-center p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition"
@@ -489,6 +499,17 @@ export const Navbar = () => {
             <span>About Us</span>
           </Link>
 
+          {!currentUser && (
+            <Link
+              to="/events"
+              onClick={closeMenu}
+              className={`${getMobileLinkStyle("/events")} flex items-center space-x-2`}
+            >
+              <CalendarDays className="w-4 h-4 text-indigo-500" />
+              <span>Events</span>
+            </Link>
+          )}
+
           {currentUser && currentUser.role === "organization" && (
             <Link
               to="/onboard"
@@ -534,7 +555,18 @@ export const Navbar = () => {
                     onClick={handleLogout}
                     className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold"
                   >
-                    <LogOut className="w-3.5 h-3.5 mr-1" /> Logout
+                    <LogOut className="w-3.5 h-3.5 mr-1" />
+                  </button>
+                  <button
+                    onClick={toggleTheme}
+                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                    title="Toggle theme"
+                  >
+                    {theme === "dark" ? (
+                      <Sun className="w-4 h-4" />
+                    ) : (
+                      <Moon className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
