@@ -15,7 +15,11 @@ const resources = [
   { name: "Careers", link: "/careers" },
   { name: "Impact Report", link: "/impact-report" },
   { name: "Privacy Policy", link: "/privacy-policy" },
-  { name: "Terms of Service", link: "/terms-of-service" },
+  {
+    name: "Terms of Service",
+    link: "/terms-of-service",
+  },
+  { name: "Events", link: "/events" },
 ];
 
 const Footer: React.FC = () => {
