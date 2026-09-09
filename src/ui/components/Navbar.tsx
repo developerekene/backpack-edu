@@ -19,11 +19,6 @@ import {
   ShieldCheck,
   AlertCircle,
   Rocket,
-  ChevronDown,
-  MoreHorizontal,
-  Settings,
-  Plus,
-  CalendarDays,
 } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import {
@@ -50,12 +45,12 @@ export const Navbar = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(
     getNotificationPermission(),
   );
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
-  const moreRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
 
   const activeLiveCalls = scheduleEvents.filter((e) => e.isActive);
 
@@ -104,6 +99,13 @@ export const Navbar = () => {
   const unreadCount =
     userNotifications.filter((n) => !n.read).length + activeLiveCalls.length;
 
+  const handleToggleNotifications = () => {
+    if (!notificationsOpen) {
+      setPushPermission(getNotificationPermission());
+    }
+    setNotificationsOpen(!notificationsOpen);
+  };
+
   const handleRequestPush = async () => {
     const perm = await requestPushPermission();
     setPushPermission(perm);
@@ -140,8 +142,11 @@ export const Navbar = () => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
-        setMoreOpen(false);
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target as Node)
+      ) {
+        setNotificationsOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -149,7 +154,7 @@ export const Navbar = () => {
   }, []);
 
   const getLinkStyle = (path: string) =>
-    `text-sm font-medium transition-colors ${
+    `text-sm font-medium transition-colors whitespace-nowrap ${
       pathname === path
         ? "text-indigo-600 dark:text-indigo-400 font-semibold"
         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -169,28 +174,6 @@ export const Navbar = () => {
   };
 
   const closeMenu = () => setMobileMenuOpen(false);
-  const closeMore = () => setMoreOpen(false);
-
-  const moreActive =
-    pathname === "/explore" ||
-    pathname === "/upload-course" ||
-    pathname === "/profile" ||
-    pathname === "/settings" ||
-    pathname === "/onboard" ||
-    pathname === "/events";
-
-  const moreTriggerStyle = `flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
-    moreActive
-      ? "bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/60 font-semibold"
-      : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60"
-  }`;
-
-  const moreItemStyle = (path: string) =>
-    `flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-      pathname === path
-        ? "bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-semibold"
-        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60"
-    }`;
 
   return (
     <nav className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700/60 sticky top-0 z-50 px-4 sm:px-6 py-3.5">
@@ -228,11 +211,258 @@ export const Navbar = () => {
             )}
           </button>
 
+          {currentUser && (
+            <div className="relative" ref={notificationRef}>
+              <button
+                onClick={handleToggleNotifications}
+                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors relative"
+                title="Notifications & Push Alerts"
+                aria-label="Notifications"
+              >
+                <Bell className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white dark:border-slate-800 animate-pulse shadow-sm">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[92vw] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
+                    <div className="flex items-center space-x-2">
+                      <Bell className="w-4 h-4 text-indigo-500" />
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                        Notifications
+                      </h4>
+                      {unreadCount > 0 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400">
+                          {unreadCount} unread
+                        </span>
+                      )}
+                    </div>
+                    {userNotifications.length > 0 && (
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={markAllNotificationsRead}
+                          className="text-[11px] text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold flex items-center"
+                          title="Mark all as read"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5 mr-0.5" /> Read
+                        </button>
+                        <button
+                          onClick={clearNotifications}
+                          className="text-[11px] text-slate-400 hover:text-red-500 font-semibold p-1"
+                          title="Clear all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Browser Push Notification Permission Card */}
+                  <div className="p-3 bg-indigo-50/80 dark:bg-slate-900/80 rounded-xl border border-indigo-100 dark:border-slate-700 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>Desktop Push Alerts</span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          pushPermission === "granted"
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            : pushPermission === "denied"
+                              ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                        }`}
+                      >
+                        {pushPermission === "granted"
+                          ? "Enabled"
+                          : pushPermission === "denied"
+                            ? "Blocked"
+                            : "Action Required"}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                      Get real-time browser push notifications for upcoming live
+                      classes, enrollments, and grading updates.
+                    </p>
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      {pushPermission !== "granted" ? (
+                        <button
+                          onClick={handleRequestPush}
+                          className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center justify-center space-x-1.5"
+                        >
+                          <Bell className="w-3.5 h-3.5" />
+                          <span>Enable Push Notifications</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleSendTestPush}
+                          className="w-full py-1.5 px-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition flex items-center justify-center space-x-1.5"
+                        >
+                          <Send className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>Send Test Push Notification</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {testPushStatus && (
+                      <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 text-center animate-pulse">
+                        {testPushStatus}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Active Live Class Alerts */}
+                  {activeLiveCalls.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mr-1.5" />
+                        Active Live Class ({activeLiveCalls.length})
+                      </div>
+                      {activeLiveCalls.map((evt) => {
+                        const course = courses.find(
+                          (c) => c.id === evt.courseId,
+                        );
+                        return (
+                          <div
+                            key={evt.id}
+                            className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col gap-2"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                  {evt.title}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-bold uppercase">
+                                  LIVE NOW
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 truncate mt-0.5">
+                                {course?.title || "Classroom Session"}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setNotificationsOpen(false);
+                                navigate(`/course/${evt.courseId}`);
+                              }}
+                              className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1.5"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              <span>Join Live Class</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* In-App Notifications List */}
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1 divide-y divide-slate-100 dark:divide-slate-700/50">
+                    {userNotifications.length === 0 ? (
+                      <div className="text-center py-6 space-y-1">
+                        <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                          No notifications yet.
+                        </p>
+                      </div>
+                    ) : (
+                      userNotifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => {
+                            markNotificationRead(notif.id);
+                            if (notif.linkUrl) {
+                              setNotificationsOpen(false);
+                              if (notif.linkUrl.includes("#")) {
+                                const [path, hash] = notif.linkUrl.split("#");
+                                navigate(path);
+                                setTimeout(() => {
+                                  const el = document.getElementById(hash);
+                                  if (el)
+                                    el.scrollIntoView({ behavior: "smooth" });
+                                }, 200);
+                              } else {
+                                navigate(notif.linkUrl);
+                              }
+                            }
+                          }}
+                          className={`pt-2 pb-2 px-2 rounded-xl transition cursor-pointer flex items-start space-x-2.5 ${
+                            !notif.read
+                              ? "bg-indigo-50/70 dark:bg-indigo-950/40"
+                              : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                          }`}
+                        >
+                          <div className="mt-1">
+                            {!notif.read ? (
+                              <span className="w-2 h-2 rounded-full bg-indigo-600 block" />
+                            ) : (
+                              <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 block" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <h5
+                                className={`text-xs font-bold truncate ${!notif.read ? "text-indigo-950 dark:text-indigo-200" : "text-slate-800 dark:text-slate-200"}`}
+                              >
+                                {notif.title}
+                              </h5>
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap ml-1">
+                                {notif.createdAt}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 mt-0.5">
+                              {notif.message}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-5 pl-2">
+          <div className="hidden lg:flex items-center space-x-4 pl-2">
             <Link to="/" className={getLinkStyle("/")}>
               {currentUser ? "Dashboard" : "Home"}
             </Link>
+
+            {currentUser && currentUser.role === "student" && (
+              <Link to="/explore" className={getLinkStyle("/explore")}>
+                Explore Orgs
+              </Link>
+            )}
+
+            {currentUser &&
+              (currentUser.role === "organization" ||
+                currentUser.role === "instructor") && (
+                <Link
+                  to="/upload-course"
+                  className={getLinkStyle("/upload-course")}
+                >
+                  Add Course
+                </Link>
+              )}
+
+            {currentUser && (
+              <>
+                <Link to="/profile" className={getLinkStyle("/profile")}>
+                  Profile
+                </Link>
+                <Link to="/settings" className={getLinkStyle("/settings")}>
+                  Settings
+                </Link>
+              </>
+            )}
 
             <Link
               to="/lunch"
@@ -250,105 +480,21 @@ export const Navbar = () => {
               <span>About Us</span>
             </Link>
 
-            {currentUser && (
-              <div className="relative" ref={moreRef}>
-                <button
-                  onClick={() => setMoreOpen((o) => !o)}
-                  className={moreTriggerStyle}
-                  title="More options"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                  <span>More</span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                      moreOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {moreOpen && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
-                    {currentUser.role === "student" && (
-                      <Link
-                        to="/explore"
-                        onClick={closeMore}
-                        className={moreItemStyle("/explore")}
-                      >
-                        <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                        <span>Explore Orgs</span>
-                      </Link>
-                    )}
-
-                    {(currentUser.role === "organization" ||
-                      currentUser.role === "instructor") && (
-                      <Link
-                        to="/upload-course"
-                        onClick={closeMore}
-                        className={moreItemStyle("/upload-course")}
-                      >
-                        <Plus className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                        <span>Add Course</span>
-                      </Link>
-                    )}
-
-                    <Link
-                      to="/profile"
-                      onClick={closeMore}
-                      className={moreItemStyle("/profile")}
-                    >
-                      <User className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      <span>Profile</span>
-                    </Link>
-
-                    <Link
-                      to="/settings"
-                      onClick={closeMore}
-                      className={moreItemStyle("/settings")}
-                    >
-                      <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      <span>Settings</span>
-                    </Link>
-
-                    <Link
-                      to="/events"
-                      onClick={closeMore}
-                      className={moreItemStyle("/events")}
-                    >
-                      <CalendarDays className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                      <span>Events</span>
-                    </Link>
-
-                    {currentUser.role === "organization" && (
-                      <Link
-                        to="/onboard"
-                        onClick={closeMore}
-                        className={moreItemStyle("/onboard")}
-                      >
-                        <Briefcase className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                        <span>Organization Setup</span>
-                      </Link>
-                    )}
-
-                    {/* Divider + Logout */}
-                    <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Logout</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+            {currentUser && currentUser.role === "organization" && (
+              <Link
+                to="/onboard"
+                className="px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg text-xs font-bold transition duration-200 flex items-center border border-indigo-200 dark:border-indigo-800/60 shadow-sm whitespace-nowrap"
+              >
+                <Briefcase className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Organization Setup</span>
+              </Link>
             )}
 
             {currentUser ? (
-              <div className="flex items-center space-x-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3">
+              <div className="flex items-center space-x-3 ml-2 border-l border-slate-200 dark:border-slate-700 pl-4">
                 <Link
                   to="/profile"
-                  onClick={closeMore}
-                  className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition pr-1"
+                  className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition whitespace-nowrap"
                 >
                   {currentUser.role === "student" ? (
                     <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
@@ -357,30 +503,13 @@ export const Navbar = () => {
                   )}
                   <span>{currentUser.name}</span>
                 </Link>
-
-                <NotificationsBell
-                  unreadCount={unreadCount}
-                  userNotifications={userNotifications}
-                  pushPermission={pushPermission}
-                  testPushStatus={testPushStatus}
-                  activeLiveCalls={activeLiveCalls}
-                  courses={courses}
-                  onRequestPush={handleRequestPush}
-                  onSendTestPush={handleSendTestPush}
-                  onMarkAllRead={markAllNotificationsRead}
-                  onClearNotifications={clearNotifications}
-                  onMarkRead={markNotificationRead}
-                  onNavigate={navigate}
-                />
-
-                {/*<button
+                <button
                   onClick={handleLogout}
-                  className="flex items-center p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition"
+                  className="flex items-center px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
                   title="Logout"
                 >
-                  <LogOut className="w-4 h-4" />
-                  
-                </button>*/}
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               </div>
             ) : (
               <div className="flex space-x-3">
@@ -403,7 +532,7 @@ export const Navbar = () => {
           {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none md:hidden"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none lg:hidden"
             aria-label="Toggle mobile menu"
           >
             {mobileMenuOpen ? (
@@ -417,7 +546,7 @@ export const Navbar = () => {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-2 animate-in slide-in-from-top-2">
+        <div className="lg:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-2 animate-in slide-in-from-top-2">
           <Link to="/" onClick={closeMenu} className={getMobileLinkStyle("/")}>
             {currentUser ? "Dashboard" : "Home"}
           </Link>
@@ -459,14 +588,6 @@ export const Navbar = () => {
                 className={getMobileLinkStyle("/settings")}
               >
                 Settings
-              </Link>
-              <Link
-                to="/events"
-                onClick={closeMenu}
-                className={`${getMobileLinkStyle("/events")} flex items-center space-x-2`}
-              >
-                <CalendarDays className="w-4 h-4 text-indigo-500" />
-                <span>Events</span>
               </Link>
             </>
           )}
@@ -512,31 +633,12 @@ export const Navbar = () => {
                     {currentUser.name} ({currentUser.role})
                   </span>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <NotificationsBell
-                    unreadCount={unreadCount}
-                    userNotifications={userNotifications}
-                    pushPermission={pushPermission}
-                    testPushStatus={testPushStatus}
-                    activeLiveCalls={activeLiveCalls}
-                    courses={courses}
-                    onRequestPush={handleRequestPush}
-                    onSendTestPush={handleSendTestPush}
-                    onMarkAllRead={markAllNotificationsRead}
-                    onClearNotifications={clearNotifications}
-                    onMarkRead={markNotificationRead}
-                    onNavigate={(to) => {
-                      setMobileMenuOpen(false);
-                      navigate(to);
-                    }}
-                  />
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold"
-                  >
-                    <LogOut className="w-3.5 h-3.5 mr-1" /> Logout
-                  </button>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold"
+                >
+                  <LogOut className="w-3.5 h-3.5 mr-1" /> Logout
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 px-2 pt-2">
@@ -560,293 +662,5 @@ export const Navbar = () => {
         </div>
       )}
     </nav>
-  );
-};
-
-/* ============================================================= */
-/* Notifications Bell — self-contained, reused on desktop + mobile */
-/* ============================================================= */
-
-interface NavNotifItem {
-  id: string;
-  title: string;
-  message: string;
-  createdAt?: string;
-  read?: boolean;
-  linkUrl?: string;
-  userId?: string;
-}
-
-interface NavLiveItem {
-  id: string;
-  courseId?: string;
-  title: string;
-}
-
-interface NavCourseItem {
-  id: string;
-  title?: string;
-}
-
-interface NotificationsBellProps {
-  unreadCount: number;
-  userNotifications: NavNotifItem[];
-  pushPermission: NotificationPermission;
-  testPushStatus: string | null;
-  activeLiveCalls: NavLiveItem[];
-  courses: NavCourseItem[];
-  onRequestPush: () => void;
-  onSendTestPush: () => void;
-  onMarkAllRead: () => void;
-  onClearNotifications: () => void;
-  onMarkRead: (id: string) => void;
-  onNavigate: (to: string) => void;
-}
-
-const NotificationsBell: React.FC<NotificationsBellProps> = ({
-  unreadCount,
-  userNotifications,
-  pushPermission,
-  testPushStatus,
-  activeLiveCalls,
-  courses,
-  onRequestPush,
-  onSendTestPush,
-  onMarkAllRead,
-  onClearNotifications,
-  onMarkRead,
-  onNavigate,
-}) => {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        wrapperRef.current &&
-        !wrapperRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={wrapperRef}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors relative"
-        title="Notifications & Push Alerts"
-        aria-label="Notifications"
-      >
-        <Bell className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white dark:border-slate-800 animate-pulse shadow-sm">
-            {unreadCount}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[92vw] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
-            <div className="flex items-center space-x-2">
-              <Bell className="w-4 h-4 text-indigo-500" />
-              <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                Notifications
-              </h4>
-              {unreadCount > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400">
-                  {unreadCount} unread
-                </span>
-              )}
-            </div>
-            {userNotifications.length > 0 && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={onMarkAllRead}
-                  className="text-[11px] text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold flex items-center"
-                  title="Mark all as read"
-                >
-                  <CheckCheck className="w-3.5 h-3.5 mr-0.5" /> Read
-                </button>
-                <button
-                  onClick={onClearNotifications}
-                  className="text-[11px] text-slate-400 hover:text-red-500 font-semibold p-1"
-                  title="Clear all"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Browser Push Notification Permission Card */}
-          <div className="p-3 bg-indigo-50/80 dark:bg-slate-900/80 rounded-xl border border-indigo-100 dark:border-slate-700 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span>Desktop Push Alerts</span>
-              </div>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                  pushPermission === "granted"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                    : pushPermission === "denied"
-                      ? "bg-red-500/10 text-red-500 border border-red-500/20"
-                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                }`}
-              >
-                {pushPermission === "granted"
-                  ? "Enabled"
-                  : pushPermission === "denied"
-                    ? "Blocked"
-                    : "Action Required"}
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
-              Get real-time browser push notifications for upcoming live
-              classes, enrollments, and grading updates.
-            </p>
-
-            <div className="flex items-center justify-between gap-2 pt-1">
-              {pushPermission !== "granted" ? (
-                <button
-                  onClick={onRequestPush}
-                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center justify-center space-x-1.5"
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>Enable Push Notifications</span>
-                </button>
-              ) : (
-                <button
-                  onClick={onSendTestPush}
-                  className="w-full py-1.5 px-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition flex items-center justify-center space-x-1.5"
-                >
-                  <Send className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Send Test Push Notification</span>
-                </button>
-              )}
-            </div>
-
-            {testPushStatus && (
-              <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 text-center animate-pulse">
-                {testPushStatus}
-              </p>
-            )}
-          </div>
-
-          {/* Active Live Class Alerts */}
-          {activeLiveCalls.length > 0 && (
-            <div className="space-y-2 pt-1">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mr-1.5" />
-                Active Live Class ({activeLiveCalls.length})
-              </div>
-              {activeLiveCalls.map((evt) => {
-                const course = courses.find((c) => c.id === evt.courseId);
-                return (
-                  <div
-                    key={evt.id}
-                    className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col gap-2"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          {evt.title}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-bold uppercase">
-                          LIVE NOW
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300 truncate mt-0.5">
-                        {course?.title || "Classroom Session"}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setOpen(false);
-                        if (evt.courseId) onNavigate(`/course/${evt.courseId}`);
-                      }}
-                      className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1.5"
-                    >
-                      <Video className="w-3.5 h-3.5" />
-                      <span>Join Live Class</span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* In-App Notifications List */}
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1 divide-y divide-slate-100 dark:divide-slate-700/50">
-            {userNotifications.length === 0 ? (
-              <div className="text-center py-6 space-y-1">
-                <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  No notifications yet.
-                </p>
-              </div>
-            ) : (
-              userNotifications.map((notif) => (
-                <div
-                  key={notif.id}
-                  onClick={() => {
-                    onMarkRead(notif.id);
-                    if (notif.linkUrl) {
-                      setOpen(false);
-                      if (notif.linkUrl.includes("#")) {
-                        const [path, hash] = notif.linkUrl.split("#");
-                        onNavigate(path);
-                        setTimeout(() => {
-                          const el = document.getElementById(hash);
-                          if (el) el.scrollIntoView({ behavior: "smooth" });
-                        }, 200);
-                      } else {
-                        onNavigate(notif.linkUrl);
-                      }
-                    }
-                  }}
-                  className={`pt-2 pb-2 px-2 rounded-xl transition cursor-pointer flex items-start space-x-2.5 ${
-                    !notif.read
-                      ? "bg-indigo-50/70 dark:bg-indigo-950/40"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
-                  }`}
-                >
-                  <div className="mt-1">
-                    {!notif.read ? (
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 block" />
-                    ) : (
-                      <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 block" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h5
-                        className={`text-xs font-bold truncate ${!notif.read ? "text-indigo-950 dark:text-indigo-200" : "text-slate-800 dark:text-slate-200"}`}
-                      >
-                        {notif.title}
-                      </h5>
-                      <span className="text-[10px] text-slate-400 whitespace-nowrap ml-1">
-                        {notif.createdAt}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 mt-0.5">
-                      {notif.message}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
   );
 };

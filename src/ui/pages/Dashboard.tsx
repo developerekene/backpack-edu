@@ -956,13 +956,13 @@ const Dashboard = () => {
                       Managed by Organization
                     </span>
                   )}
-                  {/* <Link
+                  <Link
                     to={`/course/${course.id}`}
                     className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
                   >
                     View Classroom &rarr;
-                  </Link> */}
-                  <div className="flex items-center space-x-3">
+                  </Link>
+                  {/* <div className="flex items-center space-x-3">
                     <Link
                       to={`/course/${course.id}`}
                       className="text-slate-500 dark:text-slate-400 hover:underline font-bold"
@@ -975,7 +975,7 @@ const Dashboard = () => {
                     >
                       View Classroom &rarr;
                     </Link>
-                  </div>
+                  </div> */}
                 </div>
               </div>
             );
