@@ -12,6 +12,7 @@ import {
   UploadCloud,
   Eye,
   BookOpen,
+  AlertCircle,
 } from "lucide-react";
 import { FileUpload } from "../FileUpload";
 import { generateId } from "../../../lib/id";
@@ -38,6 +39,43 @@ type SectionKey =
   | "studentGroup"
   | "submission"
   | "results";
+
+type FormErrors = Partial<{
+  title: string;
+  dueDate: string;
+  endTime: string;
+  maxScore: string;
+  passingScore: string;
+  weight: string;
+  questions: string;
+  groupSize: string;
+  maxAttempts: string;
+  maxFileSizeMb: string;
+}>;
+
+const FIELD_SECTION: Record<keyof FormErrors, SectionKey> = {
+  title: "basic",
+  dueDate: "scheduling",
+  endTime: "scheduling",
+  maxScore: "grading",
+  passingScore: "grading",
+  weight: "grading",
+  questions: "format",
+  groupSize: "studentGroup",
+  maxAttempts: "studentGroup",
+  maxFileSizeMb: "submission",
+};
+
+function ErrorText({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p className="text-xs text-red-500 mt-1 flex items-center">
+      <AlertCircle className="w-3 h-3 mr-1 shrink-0" /> {message}
+    </p>
+  );
+}
+
+const errorInputClass = "border-red-400 focus:ring-red-400";
 
 export function CreateAssessmentForm({
   courseId,
@@ -109,9 +147,9 @@ export function CreateAssessmentForm({
   const [pointsPerQuestion, setPointsPerQuestion] = useState<number | "">(
     initialAssessment?.pointsPerQuestion ?? "",
   );
-  const [referenceMaterials, setReferenceMaterials] = useState(
-    initialAssessment?.referenceMaterials ?? "",
-  );
+  // const [referenceMaterials, setReferenceMaterials] = useState(
+  //   initialAssessment?.referenceMaterials ?? "",
+  // );
   const [attachments, setAttachments] = useState<string[]>(
     initialAssessment?.attachments ?? [],
   );
@@ -171,6 +209,8 @@ export function CreateAssessmentForm({
     initialAssessment?.allowStudentReview ?? false,
   );
 
+  const [errors, setErrors] = useState<FormErrors>({});
+
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>(
     isEditing
       ? {
@@ -211,6 +251,100 @@ export function CreateAssessmentForm({
     );
   };
 
+  const clearError = (key: keyof FormErrors) => {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleQuestionsChange = (qs: AssessmentQuestion[]) => {
+    setQuestions(qs);
+    clearError("questions");
+  };
+
+  const validateForm = (): FormErrors => {
+    const errs: FormErrors = {};
+
+    if (!title.trim()) {
+      errs.title = "Assessment title is required.";
+    }
+
+    if (!dueDate) {
+      errs.dueDate = "Due date is required.";
+    } else if (startDate && startDate > dueDate) {
+      errs.dueDate = "Due date can't be before the start date.";
+    }
+
+    if (startTime && endTime && startTime >= endTime) {
+      errs.endTime = "End time must be after start time.";
+    }
+
+    if (!maxScore || Number(maxScore) <= 0) {
+      errs.maxScore = "Maximum score must be greater than 0.";
+    }
+    if (
+      passingScore !== "" &&
+      maxScore &&
+      Number(passingScore) > Number(maxScore)
+    ) {
+      errs.passingScore = "Passing score can't exceed the maximum score.";
+    }
+    if (weight !== "" && (Number(weight) < 0 || Number(weight) > 100)) {
+      errs.weight = "Weight must be between 0 and 100.";
+    }
+
+    if (isQuestionBased && questions.length > 0) {
+      const issues: string[] = [];
+      questions.forEach((q, i) => {
+        const label = `Question ${i + 1}`;
+        if (!q.prompt.trim()) {
+          issues.push(`${label}: question text can't be empty.`);
+        }
+        if (!q.points || q.points <= 0) {
+          issues.push(`${label}: points must be greater than 0.`);
+        }
+        if (q.format === "objective" && q.questionType === "multiple_choice") {
+          const opts = q.options || [];
+          if (opts.length < 2) {
+            issues.push(`${label}: add at least two options.`);
+          } else if (opts.some((o) => !o.text.trim())) {
+            issues.push(`${label}: every option needs text.`);
+          } else if (!opts.some((o) => o.isCorrect)) {
+            issues.push(`${label}: mark one option as correct.`);
+          }
+        }
+      });
+      if (issues.length > 0) {
+        errs.questions = issues.join(" ");
+      }
+    }
+
+    if (supportsGroup && isGroup) {
+      if (groupSize === "" || Number(groupSize) < 2) {
+        errs.groupSize = "Group size must be at least 2.";
+      }
+    }
+
+    if (allowMultipleAttempts) {
+      if (maxAttempts === "" || Number(maxAttempts) < 1) {
+        errs.maxAttempts = "Enter how many attempts are allowed.";
+      }
+    }
+
+    if (
+      submissionMethod !== "in_class" &&
+      maxFileSizeMb !== "" &&
+      Number(maxFileSizeMb) <= 0
+    ) {
+      errs.maxFileSizeMb = "Max file size must be greater than 0.";
+    }
+
+    return errs;
+  };
+
   const resetForm = () => {
     setTitle("");
     setType("assignment");
@@ -233,7 +367,7 @@ export function CreateAssessmentForm({
     setQuestionType("multiple_choice");
     setNumberOfQuestions("");
     setPointsPerQuestion("");
-    setReferenceMaterials("");
+    // setReferenceMaterials("");
     setAttachments([]);
     setQuestions([]);
 
@@ -255,10 +389,30 @@ export function CreateAssessmentForm({
     setShowCorrectAnswers(false);
     setTeacherFeedback("");
     setAllowStudentReview(false);
+
+    setErrors({});
   };
 
   const handleCreateAssessment = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      // Auto-expand every section that contains an error, so a validation
+      // failure inside a collapsed section is never invisible to the user.
+      setOpenSections((prev) => {
+        const next = { ...prev };
+        (Object.keys(validationErrors) as (keyof FormErrors)[]).forEach(
+          (key) => {
+            next[FIELD_SECTION[key]] = true;
+          },
+        );
+        return next;
+      });
+      return;
+    }
+
     const newAssessment: Assessment = {
       id: initialAssessment?.id || generateId("ass"),
       courseId,
@@ -291,7 +445,7 @@ export function CreateAssessmentForm({
           ? Number(pointsPerQuestion)
           : undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
-      referenceMaterials: referenceMaterials || undefined,
+      // referenceMaterials: referenceMaterials || undefined,
       questions:
         isQuestionBased && questions.length > 0 ? questions : undefined,
 
@@ -336,12 +490,20 @@ export function CreateAssessmentForm({
   return (
     <form
       onSubmit={handleCreateAssessment}
+      noValidate
       className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4"
     >
       <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center">
         <Plus className="w-5 h-5 mr-2 text-indigo-400" />
         {isEditing ? "Edit Assessment" : "Create New Assessment"}
       </h3>
+
+      {Object.keys(errors).length > 0 && (
+        <div className="flex items-center bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-xl p-3 text-sm text-red-600 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+          Please fix the highlighted fields below before publishing.
+        </div>
+      )}
 
       {/* 1. Basic Assessment Information */}
       <FormSection
@@ -353,13 +515,16 @@ export function CreateAssessmentForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Assessment Title">
             <input
-              required
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={inputClass}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                clearError("title");
+              }}
+              className={`${inputClass} ${errors.title ? errorInputClass : ""}`}
               placeholder="e.g. Midterm Exam"
             />
+            <ErrorText message={errors.title} />
           </Field>
           <Field label="Assessment Type">
             <select
@@ -425,24 +590,33 @@ export function CreateAssessmentForm({
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                clearError("dueDate");
+              }}
               className={inputClass}
             />
           </Field>
           <Field label="Due Date">
             <input
-              required
               type="date"
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className={inputClass}
+              onChange={(e) => {
+                setDueDate(e.target.value);
+                clearError("dueDate");
+              }}
+              className={`${inputClass} ${errors.dueDate ? errorInputClass : ""}`}
             />
+            <ErrorText message={errors.dueDate} />
           </Field>
           <Field label="Start Time">
             <input
               type="time"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => {
+                setStartTime(e.target.value);
+                clearError("endTime");
+              }}
               className={inputClass}
             />
           </Field>
@@ -450,9 +624,13 @@ export function CreateAssessmentForm({
             <input
               type="time"
               value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className={inputClass}
+              onChange={(e) => {
+                setEndTime(e.target.value);
+                clearError("endTime");
+              }}
+              className={`${inputClass} ${errors.endTime ? errorInputClass : ""}`}
             />
+            <ErrorText message={errors.endTime} />
           </Field>
           <Field
             label="Duration (minutes)"
@@ -488,27 +666,33 @@ export function CreateAssessmentForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Maximum Score">
             <input
-              required
               type="number"
               min={1}
               value={maxScore}
-              onChange={(e) => setMaxScore(Number(e.target.value))}
-              className={inputClass}
+              onChange={(e) => {
+                setMaxScore(Number(e.target.value));
+                clearError("maxScore");
+                clearError("passingScore");
+              }}
+              className={`${inputClass} ${errors.maxScore ? errorInputClass : ""}`}
             />
+            <ErrorText message={errors.maxScore} />
           </Field>
           <Field label="Passing Score">
             <input
               type="number"
               min={0}
               value={passingScore}
-              onChange={(e) =>
+              onChange={(e) => {
                 setPassingScore(
                   e.target.value === "" ? "" : Number(e.target.value),
-                )
-              }
-              className={inputClass}
+                );
+                clearError("passingScore");
+              }}
+              className={`${inputClass} ${errors.passingScore ? errorInputClass : ""}`}
               placeholder="e.g. 60"
             />
+            <ErrorText message={errors.passingScore} />
           </Field>
           <Field label="Grading Type">
             <select
@@ -534,12 +718,14 @@ export function CreateAssessmentForm({
               min={0}
               max={100}
               value={weight}
-              onChange={(e) =>
-                setWeight(e.target.value === "" ? "" : Number(e.target.value))
-              }
-              className={inputClass}
+              onChange={(e) => {
+                setWeight(e.target.value === "" ? "" : Number(e.target.value));
+                clearError("weight");
+              }}
+              className={`${inputClass} ${errors.weight ? errorInputClass : ""}`}
               placeholder="e.g. 20"
             />
+            <ErrorText message={errors.weight} />
           </Field>
         </div>
       </FormSection>
@@ -605,9 +791,15 @@ export function CreateAssessmentForm({
               <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">
                 Questions
               </h4>
+              {errors.questions && (
+                <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-lg text-xs text-red-600 dark:text-red-300 flex items-start">
+                  <AlertCircle className="w-3.5 h-3.5 mr-1.5 mt-0.5 shrink-0" />
+                  <span>{errors.questions}</span>
+                </div>
+              )}
               <QuestionBuilder
                 questions={questions}
-                onChange={setQuestions}
+                onChange={handleQuestionsChange}
                 targetMaxScore={maxScore}
                 onSyncMaxScore={(total) => setMaxScore(total)}
               />
@@ -619,7 +811,7 @@ export function CreateAssessmentForm({
           </p>
         )}
 
-        <Field label="Reference Materials">
+        {/* <Field label="Reference Materials">
           <textarea
             value={referenceMaterials}
             onChange={(e) => setReferenceMaterials(e.target.value)}
@@ -627,7 +819,7 @@ export function CreateAssessmentForm({
             className={inputClass}
             placeholder="Chapters, links, or notes students may reference"
           />
-        </Field>
+        </Field> */}
 
         <Field label="Attachments / Resources">
           <div className="space-y-2">
@@ -717,14 +909,16 @@ export function CreateAssessmentForm({
                   type="number"
                   min={2}
                   value={groupSize}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setGroupSize(
                       e.target.value === "" ? "" : Number(e.target.value),
-                    )
-                  }
-                  className={inputClass + " md:w-40"}
+                    );
+                    clearError("groupSize");
+                  }}
+                  className={`${inputClass} md:w-40 ${errors.groupSize ? errorInputClass : ""}`}
                   placeholder="e.g. 4"
                 />
+                <ErrorText message={errors.groupSize} />
               </Field>
             )}
           </>
@@ -763,14 +957,16 @@ export function CreateAssessmentForm({
               type="number"
               min={1}
               value={maxAttempts}
-              onChange={(e) =>
+              onChange={(e) => {
                 setMaxAttempts(
                   e.target.value === "" ? "" : Number(e.target.value),
-                )
-              }
-              className={inputClass + " md:w-40"}
+                );
+                clearError("maxAttempts");
+              }}
+              className={`${inputClass} md:w-40 ${errors.maxAttempts ? errorInputClass : ""}`}
               placeholder="e.g. 2"
             />
+            <ErrorText message={errors.maxAttempts} />
           </Field>
         )}
       </FormSection>
@@ -826,14 +1022,16 @@ export function CreateAssessmentForm({
                 type="number"
                 min={1}
                 value={maxFileSizeMb}
-                onChange={(e) =>
+                onChange={(e) => {
                   setMaxFileSizeMb(
                     e.target.value === "" ? "" : Number(e.target.value),
-                  )
-                }
-                className={inputClass + " md:w-40"}
+                  );
+                  clearError("maxFileSizeMb");
+                }}
+                className={`${inputClass} md:w-40 ${errors.maxFileSizeMb ? errorInputClass : ""}`}
                 placeholder="e.g. 25"
               />
+              <ErrorText message={errors.maxFileSizeMb} />
             </Field>
           </>
         )}
@@ -934,7 +1132,7 @@ export function CreateAssessmentForm({
       <div className="flex items-center gap-3 mt-2">
         <button
           type="submit"
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 dark:text-white rounded-lg font-bold transition w-full sm:w-auto"
+          className="cursor-pointer px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 dark:text-white rounded-lg font-bold transition w-full sm:w-auto"
         >
           {isEditing ? "Save Changes" : "Publish Assessment"}
         </button>
@@ -942,7 +1140,7 @@ export function CreateAssessmentForm({
           <button
             type="button"
             onClick={() => onCancel?.()}
-            className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg font-bold transition w-full sm:w-auto"
+            className="cursor-pointer px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg font-bold transition w-full sm:w-auto"
           >
             Cancel
           </button>
