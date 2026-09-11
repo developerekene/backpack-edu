@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "../pages/Dashboard";
 import ExploreOrgs from "../pages/ExploreOrgs";
+import Events from "../pages/Events";
 import Home from "../pages/Home";
 import Onboarding from "../pages/Onboarding";
 import CourseUpload from "../pages/CourseUpload";
@@ -18,20 +19,22 @@ import { AuthProvider, useAuth } from "../../store/AuthContext";
 import { ThemeProvider } from "../../store/ThemeContext";
 import AboutUs from "../pages/AboutUs";
 import Policy from "../pages/Policy";
+import { GlobalLoader } from "./GlobalLoader";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, firebaseUser, loading } = useAuth();
-  if (loading) {
+
+  if (loading && !currentUser) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 space-y-3">
-        <div className="w-8 h-8 border-3 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-          Loading your workspace...
-        </p>
+      <div className="flex flex-col items-center justify-center py-24">
+        {/* We rely on GlobalLoader for visual loading indicators */}
       </div>
     );
   }
-  if (!currentUser && !firebaseUser) return <Navigate to="/login" replace />;
+
+  if (!currentUser && !firebaseUser && !loading)
+    return <Navigate to="/login" replace />;
+
   return <>{children}</>;
 };
 
@@ -41,6 +44,7 @@ const Index: React.FC = () => {
       <AuthProvider>
         <AppProvider>
           <BrowserRouter>
+            <GlobalLoader />
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
               <Navbar />
               <main className="flex-1 max-w-7xl w-full mx-auto p-6">
@@ -116,6 +120,7 @@ const Index: React.FC = () => {
                       </ProtectedRoute>
                     }
                   />
+                  <Route path="/events" element={<Events />} />
                 </Routes>
               </main>
             </div>

@@ -493,7 +493,7 @@ const ExploreOrgs = () => {
                               if (!currentUser) navigate("/login");
                               else setEnrollModalCourse(course);
                             }}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm"
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white dark:text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm"
                           >
                             Apply / Enroll{" "}
                             <Send className="w-3.5 h-3.5 ml-1.5" />
