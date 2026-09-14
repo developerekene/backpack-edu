@@ -235,6 +235,7 @@ export interface UserProgress {
   userId: string;
   courseId: string;
   completedModuleIds: string[];
+  completedItemIds?: string[];
   performanceScore: number;
 }
 
