@@ -569,10 +569,10 @@ const Home = () => {
                 Terms
               </Link>
               <Link
-                to="/contact"
+                to="/events"
                 className="text-slate-500 dark:text-slate-400 hover:text-indigo-600"
               >
-                Contact
+                Events
               </Link>
             </div>
           </div>

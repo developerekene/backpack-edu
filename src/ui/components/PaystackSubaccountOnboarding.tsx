@@ -1,8 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../store/AuthContext';
-import { useAppContext } from '../../store/AppContext';
-import { ShieldCheck, CheckCircle2, AlertCircle, RefreshCw, Sparkles, CreditCard, ArrowRight, Banknote, HelpCircle, Edit3, Lock } from 'lucide-react';
-import { PaystackSubaccount } from '../../types';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../../store/AuthContext";
+import { useAppContext } from "../../store/AppContext";
+import {
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Sparkles,
+  CreditCard,
+  ArrowRight,
+  Banknote,
+  HelpCircle,
+  Edit3,
+  Lock,
+} from "lucide-react";
+import { PaystackSubaccount } from "../../types";
 
 interface BankOption {
   name: string;
@@ -15,8 +27,12 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   const { organizations, updateOrganization } = useAppContext();
 
   // Determine current provider entity (Organization or Instructor)
-  const isOrg = currentUser?.role === 'organization';
-  const myOrg = isOrg ? organizations.find(o => o.ownerId === currentUser.id || o.id === currentUser.id) : null;
+  const isOrg = currentUser?.role === "organization";
+  const myOrg = isOrg
+    ? organizations.find(
+        (o) => o.ownerId === currentUser.id || o.id === currentUser.id,
+      )
+    : null;
   const currentSubaccount: PaystackSubaccount | undefined = isOrg
     ? myOrg?.paystackSubaccount
     : currentUser?.paystackSubaccount;
@@ -26,30 +42,43 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   // Form State
   const [banks, setBanks] = useState<BankOption[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
-  const [selectedBankCode, setSelectedBankCode] = useState(currentSubaccount?.bank_code || '');
-  const [selectedBankName, setSelectedBankName] = useState(currentSubaccount?.bank_name || '');
-  const [accountNumber, setAccountNumber] = useState(currentSubaccount?.account_number || '');
-  const [businessName, setBusinessName] = useState(
-    currentSubaccount?.business_name || (isOrg ? myOrg?.name || currentUser?.name || '' : currentUser?.name || '')
+  const [selectedBankCode, setSelectedBankCode] = useState(
+    currentSubaccount?.bank_code || "",
   );
-  const [providerPercentage, setProviderPercentage] = useState<number>(currentSubaccount?.percentage_charge || 90);
+  const [selectedBankName, setSelectedBankName] = useState(
+    currentSubaccount?.bank_name || "",
+  );
+  const [accountNumber, setAccountNumber] = useState(
+    currentSubaccount?.account_number || "",
+  );
+  const [businessName, setBusinessName] = useState(
+    currentSubaccount?.business_name ||
+      (isOrg
+        ? myOrg?.name || currentUser?.name || ""
+        : currentUser?.name || ""),
+  );
+  const [providerPercentage, setProviderPercentage] = useState<number>(
+    currentSubaccount?.percentage_charge || 90,
+  );
 
   // Account Resolution state
   const [resolvingAccount, setResolvingAccount] = useState(false);
-  const [resolvedAccountName, setResolvedAccountName] = useState(currentSubaccount?.account_name || '');
-  const [resolutionError, setResolutionError] = useState('');
+  const [resolvedAccountName, setResolvedAccountName] = useState(
+    currentSubaccount?.account_name || "",
+  );
+  const [resolutionError, setResolutionError] = useState("");
 
   // Subaccount Creation state
   const [submitting, setSubmitting] = useState(false);
-  const [subaccountError, setSubaccountError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [subaccountError, setSubaccountError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Fetch Banks
   useEffect(() => {
     const fetchBanks = async () => {
       setLoadingBanks(true);
       try {
-        const res = await fetch('/api/paystack/banks?country=nigeria');
+        const res = await fetch("/api/paystack/banks?country=nigeria");
         if (res.ok) {
           const json = await res.json();
           if (json.banks) {
@@ -75,10 +104,10 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   const handleBankChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const code = e.target.value;
     setSelectedBankCode(code);
-    const found = banks.find(b => b.code === code);
+    const found = banks.find((b) => b.code === code);
     if (found) setSelectedBankName(found.name);
-    setResolvedAccountName('');
-    setResolutionError('');
+    setResolvedAccountName("");
+    setResolutionError("");
   };
 
   // Resolve Bank Account
@@ -93,16 +122,21 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     }
 
     setResolvingAccount(true);
-    setResolutionError('');
-    setResolvedAccountName('');
+    setResolutionError("");
+    setResolvedAccountName("");
 
     try {
-      const res = await fetch(`/api/paystack/resolve-account?account_number=${accountNumber}&bank_code=${selectedBankCode}`);
+      const res = await fetch(
+        `/api/paystack/resolve-account?account_number=${accountNumber}&bank_code=${selectedBankCode}`,
+      );
       const json = await res.json();
       if (json.success && json.account_name) {
         setResolvedAccountName(json.account_name);
       } else {
-        setResolutionError(json.message || "Unable to verify bank account. Please check details.");
+        setResolutionError(
+          json.message ||
+            "Unable to verify bank account. Please check details.",
+        );
       }
     } catch (err) {
       console.error("Resolve account error:", err);
@@ -116,8 +150,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   const handleRegisterSubaccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setSubaccountError('');
-    setSuccessMessage('');
+    setSubaccountError("");
+    setSuccessMessage("");
 
     if (!accountNumber || accountNumber.length < 10) {
       setSubaccountError("Account number must be 10 digits.");
@@ -141,9 +175,9 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         primary_contact_name: currentUser?.name,
       };
 
-      const res = await fetch('/api/paystack/subaccount', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/paystack/subaccount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -154,9 +188,13 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
           subaccount_code: json.subaccount_code,
           business_name: businessName.trim(),
           bank_code: selectedBankCode,
-          bank_name: selectedBankName || banks.find(b => b.code === selectedBankCode)?.name || 'Settlement Bank',
+          bank_name:
+            selectedBankName ||
+            banks.find((b) => b.code === selectedBankCode)?.name ||
+            "Settlement Bank",
           account_number: accountNumber.trim(),
-          account_name: resolvedAccountName || json.account_name || businessName.trim(),
+          account_name:
+            resolvedAccountName || json.account_name || businessName.trim(),
           percentage_charge: providerPercentage,
           is_verified: true,
           updatedAt: new Date().toISOString(),
@@ -164,15 +202,21 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
 
         // Save to Database
         if (isOrg && myOrg) {
-          await updateOrganization(myOrg.id, { paystackSubaccount: newSubaccountData });
+          await updateOrganization(myOrg.id, {
+            paystackSubaccount: newSubaccountData,
+          });
         } else if (currentUser) {
           await updateCurrentUser({ paystackSubaccount: newSubaccountData });
         }
 
-        setSuccessMessage(`Subaccount ${json.subaccount_code} successfully registered! Payments will now be automatically split upon student checkout.`);
+        setSuccessMessage(
+          `Subaccount ${json.subaccount_code} successfully registered! Payments will now be automatically split upon student checkout.`,
+        );
         setIsEditing(false);
       } else {
-        setSubaccountError(json.message || "Failed to create Paystack subaccount.");
+        setSubaccountError(
+          json.message || "Failed to create Paystack subaccount.",
+        );
       }
     } catch (err: unknown) {
       console.error("Subaccount registration error:", err);
@@ -197,7 +241,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             Provider Payout & Bank Subaccount
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-xs mt-0.5">
-            Connect your bank account to automatically receive direct payouts for course enrollments and installments.
+            Connect your bank account to automatically receive direct payouts
+            for course enrollments and installments.
           </p>
         </div>
 
@@ -233,36 +278,56 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <span className="inline-flex items-center px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Active Payout Subaccount
+                <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Active Payout
+                Subaccount
               </span>
-              <h3 className="text-xl font-bold text-white pt-2">{currentSubaccount.business_name}</h3>
-              <p className="text-xs text-slate-300 font-mono">Code: {currentSubaccount.subaccount_code}</p>
+              <h3 className="text-xl font-bold text-white pt-2">
+                {currentSubaccount.business_name}
+              </h3>
+              <p className="text-xs text-slate-300 font-mono">
+                Code: {currentSubaccount.subaccount_code}
+              </p>
             </div>
 
             <div className="text-right">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Provider Split Share</span>
-              <span className="text-2xl font-black text-emerald-400">{currentSubaccount.percentage_charge}%</span>
-              <span className="text-[10px] text-slate-400 block">({100 - currentSubaccount.percentage_charge}% Platform Fee)</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                Provider Split Share
+              </span>
+              <span className="text-2xl font-black text-emerald-400">
+                {currentSubaccount.percentage_charge}%
+              </span>
+              <span className="text-[10px] text-slate-400 block">
+                ({100 - currentSubaccount.percentage_charge}% Platform Fee)
+              </span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-700/80 text-xs">
             <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Settlement Bank</span>
-              <span className="font-bold text-white text-sm">{currentSubaccount.bank_name || 'Bank'}</span>
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+                Settlement Bank
+              </span>
+              <span className="font-bold text-white text-sm">
+                {currentSubaccount.bank_name || "Bank"}
+              </span>
             </div>
 
             <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Account Number</span>
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+                Account Number
+              </span>
               <span className="font-mono font-bold text-white text-sm">
                 **** {currentSubaccount.account_number.slice(-4)}
               </span>
             </div>
 
             <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Account Holder Name</span>
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+                Account Holder Name
+              </span>
               <span className="font-bold text-emerald-300 text-sm truncate block">
-                {currentSubaccount.account_name || currentSubaccount.business_name}
+                {currentSubaccount.account_name ||
+                  currentSubaccount.business_name}
               </span>
             </div>
           </div>
@@ -270,7 +335,10 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
           <div className="bg-indigo-500/20 border border-indigo-500/30 p-3 rounded-xl text-indigo-200 text-[11px] flex items-center space-x-2">
             <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
             <span>
-              Automatic Split Active: When students enroll in courses, Paystack divides the payment at checkout and settles {currentSubaccount.percentage_charge}% straight to this bank account!
+              Automatic Split Active: When students enroll in courses, Paystack
+              divides the payment at checkout and settles{" "}
+              {currentSubaccount.percentage_charge}% straight to this bank
+              account!
             </span>
           </div>
         </div>
@@ -282,7 +350,11 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             <div>
               <p className="font-bold text-sm">How Split Payouts Work</p>
               <p className="mt-0.5 text-slate-600 dark:text-indigo-300">
-                Provide your official bank account details below. We generate a verified Paystack Subaccount code (`ACCT_...`) so student tuition payments are automatically split. Your provider share goes straight into your bank account on standard payout schedules.
+                Provide your official bank account details below. We generate a
+                verified Paystack Subaccount code (`ACCT_...`) so student
+                tuition payments are automatically split. Your provider share
+                goes straight into your bank account on standard payout
+                schedules.
               </p>
             </div>
           </div>
@@ -304,11 +376,13 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                 type="text"
                 required
                 value={businessName}
-                onChange={e => setBusinessName(e.target.value)}
+                onChange={(e) => setBusinessName(e.target.value)}
                 placeholder="e.g. Harvard Business School or Prof. Jane Doe"
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
               />
-              <p className="text-[10px] text-slate-500 mt-1">Official name displayed on Paystack receipts</p>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Official name displayed on Paystack receipts
+              </p>
             </div>
 
             {/* Bank Select */}
@@ -325,7 +399,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                 {loadingBanks ? (
                   <option value="">Loading supported banks...</option>
                 ) : (
-                  banks.map(b => (
+                  banks.map((b) => (
                     <option key={b.code} value={b.code}>
                       {b.name}
                     </option>
@@ -337,17 +411,18 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             {/* NUBAN Account Number & Resolve */}
             <div className="md:col-span-2 space-y-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                10-Digit Account Number (NUBAN) <span className="text-red-500">*</span>
+                10-Digit Account Number (NUBAN){" "}
+                <span className="text-red-500">*</span>
               </label>
               <div className="flex space-x-2">
                 <input
                   type="text"
                   maxLength={10}
                   value={accountNumber}
-                  onChange={e => {
-                    setAccountNumber(e.target.value.replace(/\D/g, ''));
-                    setResolvedAccountName('');
-                    setResolutionError('');
+                  onChange={(e) => {
+                    setAccountNumber(e.target.value.replace(/\D/g, ""));
+                    setResolvedAccountName("");
+                    setResolutionError("");
                   }}
                   placeholder="e.g. 0123456789"
                   className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500"
@@ -375,7 +450,10 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
               {resolvedAccountName && (
                 <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 p-2.5 rounded-xl text-xs font-semibold flex items-center space-x-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                  <span>Verified Account Name: <strong className="uppercase">{resolvedAccountName}</strong></span>
+                  <span>
+                    Verified Account Name:{" "}
+                    <strong className="uppercase">{resolvedAccountName}</strong>
+                  </span>
                 </div>
               )}
 
@@ -393,7 +471,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                   Provider Revenue Share Split
                 </label>
                 <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg">
-                  {providerPercentage}% Provider / {100 - providerPercentage}% Platform Fee
+                  {providerPercentage}% Provider / {100 - providerPercentage}%
+                  Platform Fee
                 </span>
               </div>
 
@@ -403,7 +482,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                 max={98}
                 step={1}
                 value={providerPercentage}
-                onChange={e => setProviderPercentage(Number(e.target.value))}
+                onChange={(e) => setProviderPercentage(Number(e.target.value))}
                 className="w-full accent-indigo-600 cursor-pointer"
               />
 
@@ -414,7 +493,11 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
               </div>
 
               <p className="text-[11px] text-slate-600 dark:text-slate-400 pt-1">
-                💡 Example: On a ₦100,000 tuition fee payment, ₦{((100000 * providerPercentage) / 100).toLocaleString()} goes directly to your bank account, and ₦{((100000 * (100 - providerPercentage)) / 100).toLocaleString()} goes to platform administration.
+                💡 Example: On a ₦100,000 tuition fee payment, ₦
+                {((100000 * providerPercentage) / 100).toLocaleString()} goes
+                directly to your bank account, and ₦
+                {((100000 * (100 - providerPercentage)) / 100).toLocaleString()}{" "}
+                goes to platform administration.
               </p>
             </div>
           </div>
@@ -434,7 +517,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-900 dark:text-white text-xs font-extrabold rounded-xl transition shadow-md flex items-center space-x-2"
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white dark:text-white text-xs font-extrabold rounded-xl transition shadow-md flex items-center space-x-2"
             >
               {submitting ? (
                 <>

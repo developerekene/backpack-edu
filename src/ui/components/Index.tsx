@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "../pages/Dashboard";
 import ExploreOrgs from "../pages/ExploreOrgs";
+import Events from "../pages/Events";
 import Home from "../pages/Home";
 import Onboarding from "../pages/Onboarding";
 import CourseUpload from "../pages/CourseUpload";
@@ -22,7 +23,7 @@ import { GlobalLoader } from "./GlobalLoader";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, firebaseUser, loading } = useAuth();
-  
+
   if (loading && !currentUser) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
@@ -30,9 +31,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
-  if (!currentUser && !firebaseUser && !loading) return <Navigate to="/login" replace />;
-  
+
+  if (!currentUser && !firebaseUser && !loading)
+    return <Navigate to="/login" replace />;
+
   return <>{children}</>;
 };
 
@@ -118,6 +120,7 @@ const Index: React.FC = () => {
                       </ProtectedRoute>
                     }
                   />
+                  <Route path="/events" element={<Events />} />
                 </Routes>
               </main>
             </div>

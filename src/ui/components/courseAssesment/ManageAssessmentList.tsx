@@ -19,6 +19,7 @@ export function ManageAssessmentsList({
   courseSubmissions,
   orgMembers,
   updateSubmissionScore,
+  addSubmission,
   addAssessment,
   instructorDefaultName,
 }: {
@@ -30,6 +31,7 @@ export function ManageAssessmentsList({
     score: number,
     note: string,
   ) => Promise<void> | void;
+  addSubmission: (submission: Submission) => Promise<void> | void;
   addAssessment: (assessment: Assessment) => Promise<void> | void;
   instructorDefaultName?: string;
 }) {
@@ -39,13 +41,77 @@ export function ManageAssessmentsList({
   const [gradingScores, setGradingScores] = useState<Record<string, number>>(
     {},
   );
-  const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
+  const [toggledSubIds, setToggledSubIds] = useState<Set<string>>(new Set());
+  // Unsaved-in-this-render essay score edits, keyed by submission id then
+  // question id. These layer on top of `sub.essayScores` (the persisted
+  // values) so typing feels instant while saving still happens on blur.
+  const [pendingEssayEdits, setPendingEssayEdits] = useState<
+    Record<string, Record<string, number>>
+  >({});
   const [previewAssessment, setPreviewAssessment] = useState<Assessment | null>(
     null,
   );
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(
     null,
   );
+
+  const isExpandedFor = (sub: Submission) => {
+    const defaultOpen = !!sub.pendingEssayGrading && sub.status !== "graded";
+    const toggled = toggledSubIds.has(sub.id);
+    return toggled ? !defaultOpen : defaultOpen;
+  };
+  const toggleExpand = (id: string) => {
+    setToggledSubIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const mergedEssayScores = (sub: Submission): Record<string, number> => ({
+    ...(sub.essayScores || {}),
+    ...(pendingEssayEdits[sub.id] || {}),
+  });
+
+  const updateEssayEdit = (
+    subId: string,
+    questionId: string,
+    value: number,
+  ) => {
+    setPendingEssayEdits((prev) => ({
+      ...prev,
+      [subId]: { ...(prev[subId] || {}), [questionId]: value },
+    }));
+  };
+
+  const essayTotalFor = (sub: Submission) =>
+    Object.values(mergedEssayScores(sub)).reduce(
+      (a, b) => a + (Number(b) || 0),
+      0,
+    );
+  const combinedTotalFor = (sub: Submission) =>
+    (sub.autoGradedPoints || 0) + essayTotalFor(sub);
+
+  // Persist essay scores in progress without finalizing the grade. Called
+  // on blur so a paused grading session isn't lost on refresh.
+  const persistEssayProgress = async (sub: Submission) => {
+    const merged = mergedEssayScores(sub);
+    // Nothing to save yet, or nothing changed from what's already stored.
+    if (JSON.stringify(merged) === JSON.stringify(sub.essayScores || {}))
+      return;
+    await addSubmission({ ...sub, essayScores: merged });
+  };
+
+  const handleSaveEssayGrade = async (sub: Submission) => {
+    const merged = mergedEssayScores(sub);
+    await addSubmission({ ...sub, essayScores: merged });
+    await updateSubmissionScore(
+      sub.id,
+      combinedTotalFor(sub),
+      "Graded by instructor",
+    );
+  };
 
   const scoreFor = (sub: Submission) =>
     gradingScores[sub.id] !== undefined
@@ -139,12 +205,17 @@ export function ManageAssessmentsList({
                   ) : (
                     <div className="space-y-3">
                       {subs.map((sub) => {
-                        const student = orgMembers.find(
-                          (m) => m.email === sub.userId || m.id === sub.userId,
-                        ) || { name: "Unknown Student" };
+                        const student = sub.userName
+                          ? { name: sub.userName }
+                          : orgMembers.find(
+                              (m) =>
+                                m.email === sub.userId || m.id === sub.userId,
+                            ) || { name: "Unknown Student" };
                         const hasAnswers =
                           sub.answers && Object.keys(sub.answers).length > 0;
-                        const isExpanded = expandedSubId === sub.id;
+                        const isExpanded = isExpandedFor(sub);
+                        const needsEssayGrading =
+                          sub.pendingEssayGrading && sub.status !== "graded";
 
                         return (
                           <div
@@ -155,12 +226,11 @@ export function ManageAssessmentsList({
                               <div className="mb-1 sm:mb-0">
                                 <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                                   {student.name}
-                                  {sub.pendingEssayGrading &&
-                                    sub.status !== "graded" && (
-                                      <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full border border-amber-500/20">
-                                        Essay Pending
-                                      </span>
-                                    )}
+                                  {needsEssayGrading && (
+                                    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full border border-amber-500/20">
+                                      Essay Pending
+                                    </span>
+                                  )}
                                   {sub.feedback ===
                                     "Auto-graded — objective questions only." && (
                                     <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-500/20">
@@ -200,11 +270,7 @@ export function ManageAssessmentsList({
                                   )}
                                 {hasAnswers && (
                                   <button
-                                    onClick={() =>
-                                      setExpandedSubId(
-                                        isExpanded ? null : sub.id,
-                                      )
-                                    }
+                                    onClick={() => toggleExpand(sub.id)}
                                     className="mt-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center"
                                   >
                                     {isExpanded ? (
@@ -223,6 +289,10 @@ export function ManageAssessmentsList({
                                   <div className="font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
                                     {sub.score} / {ass.maxScore}
                                   </div>
+                                ) : hasAnswers ? (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                                    Score essay questions below
+                                  </span>
                                 ) : (
                                   <>
                                     <input
@@ -257,6 +327,9 @@ export function ManageAssessmentsList({
                                     if (!q) return null;
 
                                     if (q.format === "essay") {
+                                      const currentEssayScore =
+                                        mergedEssayScores(sub)[questionId] ??
+                                        "";
                                       return (
                                         <div
                                           key={questionId}
@@ -274,6 +347,44 @@ export function ManageAssessmentsList({
                                           {q.rubric && (
                                             <p className="mt-1 text-xs text-slate-400 italic">
                                               Grading notes: {q.rubric}
+                                            </p>
+                                          )}
+                                          {sub.status !== "graded" ? (
+                                            <div className="mt-2 flex items-center gap-2">
+                                              <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                                                Score:
+                                              </label>
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                max={q.points}
+                                                value={currentEssayScore}
+                                                onChange={(e) =>
+                                                  updateEssayEdit(
+                                                    sub.id,
+                                                    questionId,
+                                                    Number(e.target.value),
+                                                  )
+                                                }
+                                                onBlur={() =>
+                                                  persistEssayProgress(sub)
+                                                }
+                                                placeholder="0"
+                                                className="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-sm text-center outline-none focus:border-indigo-500"
+                                              />
+                                              <span className="text-xs text-slate-400">
+                                                / {q.points}
+                                              </span>
+                                              {sub.essayScores?.[questionId] !==
+                                                undefined && (
+                                                <span className="text-[10px] text-slate-400 italic">
+                                                  saved
+                                                </span>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                                              Included in final grade
                                             </p>
                                           )}
                                         </div>
@@ -363,6 +474,25 @@ export function ManageAssessmentsList({
                                       </div>
                                     );
                                   },
+                                )}
+
+                                {needsEssayGrading && (
+                                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                      Objective: {sub.autoGradedPoints ?? 0}/
+                                      {sub.autoGradedMax ?? 0} (auto) + Essay:{" "}
+                                      {essayTotalFor(sub)} pts entered ={" "}
+                                      <strong>
+                                        {combinedTotalFor(sub)} / {ass.maxScore}
+                                      </strong>
+                                    </span>
+                                    <button
+                                      onClick={() => handleSaveEssayGrade(sub)}
+                                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold transition shrink-0"
+                                    >
+                                      Save Grade
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             )}

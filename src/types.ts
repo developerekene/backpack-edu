@@ -400,6 +400,7 @@ export interface Submission {
   autoGradedPoints?: number;
   autoGradedMax?: number;
   pendingEssayGrading?: boolean;
+  essayScores?: Record<string, number>;
 }
 
 export interface ScheduleEvent {

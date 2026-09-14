@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Assessment, Submission } from "../../../types";
-import { Award, Paperclip, X, CheckCircle2, Circle } from "lucide-react";
+import { Award, Paperclip, X, CheckCircle2, Circle, Info } from "lucide-react";
 import { ProctoringSession } from "../ProctoringSession";
 import { FileUpload } from "../FileUpload";
 import { generateId } from "../../../lib/id";
@@ -41,12 +41,14 @@ export function StudentTranscriptView({
   courseAssessments,
   courseSubmissions,
   currentUserId,
+  currentUserName,
   addSubmission,
 }: {
   courseId: string;
   courseAssessments: Assessment[];
   courseSubmissions: Submission[];
   currentUserId: string | undefined;
+  currentUserName?: string;
   addSubmission: (submission: Submission) => Promise<void> | void;
 }) {
   const [submissionContent, setSubmissionContent] = useState("");
@@ -90,6 +92,7 @@ export function StudentTranscriptView({
       id: generateId("sub"),
       assessmentId,
       userId: currentUserId,
+      userName: currentUserName,
       courseId,
       submittedAt: new Date().toISOString(),
       content: submissionContent,
@@ -113,6 +116,7 @@ export function StudentTranscriptView({
       id: generateId("sub"),
       assessmentId: ass.id,
       userId: currentUserId,
+      userName: currentUserName,
       courseId,
       submittedAt: new Date().toISOString(),
       content: "",
@@ -204,9 +208,53 @@ export function StudentTranscriptView({
                       <span>Score: {ass.maxScore} pts</span>
                     </div>
                     {ass.description && (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-xl">
-                        {ass.description}
-                      </p>
+                      <div className="mt-3 bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-3.5 max-w-xl">
+                        <p className="text-xs font-bold uppercase tracking-wide text-indigo-500 dark:text-indigo-400 mb-1.5 flex items-center">
+                          <Info className="w-3.5 h-3.5 mr-1.5" /> Instructions
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                          {ass.description}
+                        </p>
+                      </div>
+                    )}
+                    {ass.attachments && ass.attachments.length > 0 && (
+                      <div className="mt-3 max-w-xl">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+                          Attachments
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {ass.attachments.map((url, i) => {
+                            const isImage = url.startsWith("data:image/");
+                            return isImage ? (
+                              <a
+                                key={i}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`Attachment ${i + 1}`}
+                                className="block border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden hover:opacity-90 transition"
+                              >
+                                <img
+                                  src={url}
+                                  alt={`Attachment ${i + 1}`}
+                                  className="w-20 h-20 object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                key={i}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2"
+                              >
+                                <Paperclip className="w-4 h-4 mr-1.5 shrink-0" />
+                                Attachment {i + 1}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                   {sub ? (
@@ -357,7 +405,7 @@ export function StudentTranscriptView({
                             (ass.type === "exam" || ass.type === "test") &&
                             activeProctoringId !== ass.id
                           }
-                          className="cursor-pointer w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-bold transition"
+                          className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-bold transition"
                         >
                           Submit Answers
                         </button>
