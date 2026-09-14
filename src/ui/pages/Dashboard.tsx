@@ -540,11 +540,19 @@ const Dashboard = () => {
                   (p) =>
                     p.courseId === course.id && p.userId === currentUser.id,
                 );
-                const completedCount = progress?.completedModuleIds.length || 0;
-                const percent =
-                  course.modules.length > 0
-                    ? (completedCount / course.modules.length) * 100
-                    : 0;
+                
+                let totalTrackables = course.modules.length;
+                let completedTrackables = (progress?.completedModuleIds || []).filter(id => course.modules.some(m => m.id === id)).length;
+
+                course.modules.forEach(mod => {
+                  if (mod.items) {
+                    totalTrackables += mod.items.length;
+                    const completedItemsCount = (progress?.completedItemIds || []).filter(id => mod.items?.some(i => i.id === id)).length;
+                    completedTrackables += completedItemsCount;
+                  }
+                });
+
+                const percent = totalTrackables > 0 ? (completedTrackables / totalTrackables) * 100 : 0;
 
                 return (
                   <div

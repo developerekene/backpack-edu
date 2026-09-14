@@ -112,29 +112,35 @@ const CourseDetails = () => {
   );
   const courseMaterials = materials.filter((m) => m.courseId === courseId);
 
-  const progressPercentage =
-    course && course.modules.length > 0
-      ? ((progress?.completedModuleIds.length || 0) / course.modules.length) *
-        100
-      : 0;
+  let totalTrackables = course?.modules.length || 0;
+  let completedTrackables = (progress?.completedModuleIds || []).filter(id => course?.modules.some(m => m.id === id)).length;
+
+  course?.modules.forEach(mod => {
+    if (mod.items) {
+      totalTrackables += mod.items.length;
+      const completedItemsCount = (progress?.completedItemIds || []).filter(id => mod.items?.some(i => i.id === id)).length;
+      completedTrackables += completedItemsCount;
+    }
+  });
+
+  const progressPercentage = totalTrackables > 0 ? (completedTrackables / totalTrackables) * 100 : 0;
 
   // Access check logic
-  const isStudent = currentUser?.role === "student";
   const isOrganization = currentUser?.role === "organization";
 
   const myOrgMemberRecords = orgMembers.filter(
     (m) => m.email?.toLowerCase() === currentUser?.email?.toLowerCase(),
   );
-  const onboardedCourseIds = myOrgMemberRecords.flatMap(
-    (m) => m.courseIds || [],
+  
+  const hasInstructorAccess = myOrgMemberRecords.some(
+    (m) => m.role === "instructor" && m.courseIds?.includes(courseId as string)
   );
 
   const myEnrollment = enrollmentRequests.find(
     (r) => r.userId === currentUser?.id && r.courseId === courseId,
   );
-  const myInvite = orgMembers.find(
+  const myInvite = myOrgMemberRecords.find(
     (m) =>
-      m.email?.toLowerCase() === currentUser?.email?.toLowerCase() &&
       m.status === "invited" &&
       (m.courseIds?.includes(courseId as string) || m.orgId === course?.orgId),
   );
@@ -143,13 +149,17 @@ const CourseDetails = () => {
     !course || course.price === 0 || myEnrollment?.paymentStatus === "paid";
   const hasStudentAccess = isStudentApproved && isStudentPaidOrFree;
 
-  const hasInstructorAccess = onboardedCourseIds.includes(courseId as string);
   const hasOrgAccess =
     isOrganization &&
     (course?.orgId === currentUser?.id ||
       course?.orgId === `org_${currentUser?.id}`);
 
   const hasAccess = hasStudentAccess || hasInstructorAccess || hasOrgAccess;
+  
+  const isStudent = 
+    myOrgMemberRecords.some((m) => m.role === "student" && m.courseIds?.includes(courseId as string)) ||
+    myEnrollment?.status === "approved" || 
+    (currentUser?.role === "student" && !hasInstructorAccess && !hasOrgAccess);
   const canStartVideoCall =
     !isStudent &&
     (hasOrgAccess ||
