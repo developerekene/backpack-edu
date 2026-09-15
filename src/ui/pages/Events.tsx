@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   Clock,
@@ -11,97 +12,52 @@ import {
   GraduationCap,
   Globe,
   Info,
+  Lock,
+  CheckCircle2,
+  LogIn,
+  Pencil,
+  Trash2,
 } from "lucide-react";
+import { useAuth } from "../../store/AuthContext";
+import { useEventContext } from "../../store/EventContext";
+import type { AppEvent } from "../../store/EventContext";
+import { EventCreation } from "../components/EventCreation";
+import { EventDetailsModel } from "../components/EventDetailsModel";
+import {
+  courseTypeLabel,
+  EVENT_MODE_BADGE_STYLES,
+  EVENT_MODE_LABELS,
+  normaliseEventMode,
+} from "../../lib/eventMeta";
+import {
+  canJoinEvent,
+  eventAudienceLabel,
+  resolveEnrolledCourse,
+  useMyCourses,
+} from "../../lib/eventEligibility";
 
 /* ============================================================= */
-/* Draft types & sample data                                     */
+/* Helpers                                                       */
 /* ============================================================= */
 
-type EventMode = "live" | "online" | "hybrid";
+type EventFilter = "all" | "online" | "onsite";
 
-interface DraftEvent {
-  id: string;
-  title: string;
-  description: string;
-  day: string;
-  month: string;
-  dateLabel: string;
-  time: string;
-  location: string;
-  mode: EventMode;
-  attendees: number;
-  host: string;
-  course?: string;
-}
+/** Split an ISO date into a short day + month for the date block. */
+const formatDateParts = (date: string) => {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return { day: "--", month: "---" };
+  return {
+    day: parsed.toLocaleDateString(undefined, { day: "2-digit" }),
+    month: parsed
+      .toLocaleDateString(undefined, { month: "short" })
+      .toUpperCase(),
+  };
+};
 
-/* Draft sample data — replace with real data later (e.g. scheduleEvents) */
-const DRAFT_EVENTS: DraftEvent[] = [
-  {
-    id: "evt-1",
-    title: "Orientation & Platform Tour",
-    description:
-      "A guided walkthrough of Backpack for new students, instructors, and organizations joining this semester.",
-    day: "12",
-    month: "SEP",
-    dateLabel: "Today",
-    time: "10:00 AM",
-    location: "Main Auditorium / Zoom",
-    mode: "hybrid",
-    attendees: 128,
-    host: "Backpack Learning Team",
-    course: "Welcome Series",
-  },
-  {
-    id: "evt-2",
-    title: "Live Class: Introduction to Data Science",
-    description:
-      "Instructor-led live session covering core data science concepts, tools, and a hands-on walkthrough.",
-    day: "15",
-    month: "SEP",
-    dateLabel: "Upcoming",
-    time: "02:00 PM",
-    location: "Online (LiveKit)",
-    mode: "online",
-    attendees: 84,
-    host: "Dr. Ada Okafor",
-    course: "Data Science 101",
-  },
-  {
-    id: "evt-3",
-    title: "End of Term Project Showcase",
-    description:
-      "Students present their term projects. Instructors and partner organizations are invited to join as judges.",
-    day: "22",
-    month: "SEP",
-    dateLabel: "Upcoming",
-    time: "11:00 AM",
-    location: "Academy Hall",
-    mode: "live",
-    attendees: 210,
-    host: "Lagos STEM Academy",
-  },
-  {
-    id: "evt-4",
-    title: "Instructor Workshop: Engaging Remote Learners",
-    description:
-      "A practical workshop for instructors on keeping remote and hybrid learners engaged through the platform.",
-    day: "28",
-    month: "SEP",
-    dateLabel: "Upcoming",
-    time: "03:00 PM",
-    location: "Online (LiveKit)",
-    mode: "online",
-    attendees: 46,
-    host: "Backpack Educator Network",
-  },
-];
-
-const modeStyles: Record<EventMode, string> = {
-  live: "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
-  online:
-    "bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400",
-  hybrid:
-    "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400",
+const isToday = (date: string) => {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.toDateString() === new Date().toDateString();
 };
 
 /* ============================================================= */
@@ -109,12 +65,80 @@ const modeStyles: Record<EventMode, string> = {
 /* ============================================================= */
 
 const Events: React.FC = () => {
-  const [filter, setFilter] = useState<"all" | EventMode>("all");
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const { myCourseIds, myCourseTypes, myCourses } = useMyCourses();
+  const {
+    events,
+    markAttendance,
+    removeAttendance,
+    isAttending,
+    getAttendanceCount,
+    deleteEvent,
+  } = useEventContext();
 
-  const visibleEvents =
-    filter === "all"
-      ? DRAFT_EVENTS
-      : DRAFT_EVENTS.filter((e) => e.mode === filter);
+  const [filter, setFilter] = useState<EventFilter>("all");
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<AppEvent | null>(null);
+  const [detailsEvent, setDetailsEvent] = useState<AppEvent | null>(null);
+
+  const isOrganization = currentUser?.role === "organization";
+
+  /**
+   * Course events are limited to that course's students, level events to
+   * students at that level, and general events are open to any signed-in user.
+   */
+  const canJoin = (event: AppEvent) =>
+    Boolean(currentUser) && canJoinEvent(event, myCourseIds, myCourseTypes);
+
+  const sortedEvents = useMemo(
+    () =>
+      [...events].sort((a, b) =>
+        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
+      ),
+    [events],
+  );
+
+  /* Filter tabs work off the event's mode: All / Online / Onsite. */
+  const visibleEvents = useMemo(() => {
+    if (filter === "all") return sortedEvents;
+    return sortedEvents.filter(
+      (event) => normaliseEventMode(event.mode) === filter,
+    );
+  }, [filter, sortedEvents]);
+
+  const handleJoinToggle = (event: AppEvent) => {
+    if (!currentUser) {
+      navigate("/login");
+      return;
+    }
+    if (!canJoin(event)) return;
+
+    if (isAttending(event.id, currentUser.id)) {
+      removeAttendance(event.id, currentUser.id);
+    } else {
+      /* Store the course the person is enrolled in for this event. */
+      const enrolledCourse = resolveEnrolledCourse(event, myCourses);
+
+      markAttendance(event.id, {
+        id: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
+        role: currentUser.role,
+        courseId: enrolledCourse?.id,
+        courseTitle: enrolledCourse?.title,
+      });
+    }
+  };
+
+  /* Organizations can remove their events. */
+  const handleDeleteEvent = (event: AppEvent) => {
+    const confirmed = window.confirm(
+      `Delete "${event.title}"? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    deleteEvent(event.id);
+  };
 
   return (
     <div className="pb-12">
@@ -132,68 +156,69 @@ const Events: React.FC = () => {
           </span>
 
           <h1 className="mt-4 text-3xl sm:text-4xl font-extrabold text-white leading-tight tracking-tight">
-            Events &amp; Live Sessions{" "}
-            <span className="text-indigo-400">— Draft</span>
+            Events &amp; Live Sessions
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm sm:text-base text-slate-300 leading-relaxed">
-            A draft page for scheduling live classes, orientations, workshops,
-            and institutional events. Students, instructors, and organizations
-            can find and join everything happening on Backpack.
+            Live classes, orientations, workshops, and institutional events.
+            Anyone can browse — sign in to join an event and mark your
+            attendance.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-3 text-xs">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-slate-200">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              {DRAFT_EVENTS.length} events shown
-            </span>
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-slate-200">
-              <Video className="w-3.5 h-3.5 text-emerald-400" />
-              Live + Online + Hybrid
+              {events.length} {events.length === 1 ? "event" : "events"}
             </span>
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-slate-200">
               <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              For all roles
+              Browse freely — no account needed
+            </span>
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-slate-200">
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              {currentUser
+                ? `${myCourseIds.length} of your courses`
+                : "Sign in to join events"}
             </span>
           </div>
         </div>
       </section>
 
       {/* ========================================== */}
-      {/* TOOLBAR: Filter + Create (draft)           */}
+      {/* TOOLBAR: Filter + Create (organizations)   */}
       {/* ========================================== */}
       <div className="mt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Filter chips */}
         <div className="inline-flex items-center gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60">
           {[
             { key: "all" as const, label: "All Events" },
-            { key: "live" as const, label: "Live" },
             { key: "online" as const, label: "Online" },
-            { key: "hybrid" as const, label: "Hybrid" },
-          ].map((t) => (
+            { key: "onsite" as const, label: "Onsite" },
+          ].map((tab) => (
             <button
-              key={t.key}
-              onClick={() => setFilter(t.key)}
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                filter === t.key
+                filter === tab.key
                   ? "bg-indigo-600 text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-300"
               }`}
             >
-              {t.label}
+              {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Create button (draft placeholder) */}
-        <button
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-sm opacity-80 cursor-not-allowed"
-          title="Coming soon"
-          disabled
-        >
-          <Plus className="w-4 h-4" />
-          Create Event
-        </button>
+        {/* Create button — organizations only */}
+        {isOrganization && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Create Event
+          </button>
+        )}
       </div>
 
       {/* ========================================== */}
@@ -203,11 +228,35 @@ const Events: React.FC = () => {
         <div className="mt-8 text-center rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/40 py-16 px-6">
           <CalendarDays className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
           <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">
-            No events in this view yet
+            {filter === "all"
+              ? "No events in this view yet"
+              : `No ${EVENT_MODE_LABELS[filter]} events right now`}
           </h3>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-            Try a different filter, or check back soon for scheduled sessions.
+            {filter === "all"
+              ? "Try again later, or check back soon for scheduled sessions."
+              : 'Switch to "All Events" to see everything happening on Backpack.'}
           </p>
+
+          {!currentUser && (
+            <button
+              onClick={() => navigate("/login")}
+              className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition"
+            >
+              <LogIn className="w-4 h-4" />
+              Sign in
+            </button>
+          )}
+
+          {isOrganization && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition"
+            >
+              <Plus className="w-4 h-4" />
+              Create the first event
+            </button>
+          )}
         </div>
       ) : (
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -224,42 +273,71 @@ const Events: React.FC = () => {
                   {/* Date block */}
                   <div className="shrink-0 w-16 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-center py-3">
                     <p className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 leading-none">
-                      {evt.day}
+                      {formatDateParts(evt.date).day}
                     </p>
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400/80">
-                      {evt.month}
+                      {formatDateParts(evt.date).month}
                     </p>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${modeStyles[evt.mode]}`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${
+                          EVENT_MODE_BADGE_STYLES[normaliseEventMode(evt.mode)]
+                        }`}
                       >
-                        {evt.mode === "live" && (
+                        {isToday(evt.date) && (
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         )}
-                        {evt.mode}
+                        {EVENT_MODE_LABELS[normaliseEventMode(evt.mode)]}
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-400">
-                        {evt.dateLabel}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          {isToday(evt.date) ? "Today" : "Upcoming"}
+                        </span>
+
+                        {/* Edit / Delete — organizations only */}
+                        {isOrganization && (
+                          <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200 dark:border-slate-700">
+                            <button
+                              onClick={() => setEditingEvent(evt)}
+                              title="Edit event"
+                              aria-label="Edit event"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEvent(evt)}
+                              title="Delete event"
+                              aria-label="Delete event"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <h3 className="mt-2 text-lg font-bold text-slate-900 dark:text-white leading-snug">
                       {evt.title}
                     </h3>
-                    {evt.course && (
-                      <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
-                        <GraduationCap className="w-3 h-3" />
-                        {evt.course}
-                      </p>
-                    )}
+
+                    <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                      <GraduationCap className="w-3 h-3" />
+                      {evt.courseTitle ||
+                        `${courseTypeLabel(evt.courseType)} students`}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      {evt.subject}
+                    </p>
                   </div>
                 </div>
 
                 <p className="mt-4 text-sm text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">
-                  {evt.description}
+                  {evt.description || evt.subject}
                 </p>
 
                 {/* Meta */}
@@ -274,28 +352,82 @@ const Events: React.FC = () => {
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-                    {evt.attendees} attending
+                    {getAttendanceCount(evt.id)} attending
                   </span>
                   <span className="inline-flex items-center gap-1.5 truncate">
                     <GraduationCap className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-                    {evt.host}
+                    {evt.createdBy?.name || "Organization"}
                   </span>
                 </div>
 
                 {/* Actions */}
                 <div className="mt-5 flex items-center gap-3">
+                  {!currentUser ? (
+                    <button
+                      onClick={() => navigate("/login")}
+                      className="inline-flex items-center justify-center gap-2 flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-sm"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Sign in to join
+                    </button>
+                  ) : !canJoin(evt) ? (
+                    <button
+                      disabled
+                      title={`Only students enrolled in ${
+                        evt.courseTitle || "this course"
+                      } can join`}
+                      className="inline-flex items-center justify-center gap-2 flex-1 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-sm font-semibold cursor-not-allowed"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Enrolled students only
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleJoinToggle(evt)}
+                      className={`inline-flex items-center justify-center gap-2 flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm ${
+                        isAttending(evt.id, currentUser.id)
+                          ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                          : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                      }`}
+                    >
+                      {isAttending(evt.id, currentUser.id) ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          Attending — leave
+                        </>
+                      ) : (
+                        <>
+                          <Video className="w-4 h-4" />
+                          Join Event
+                        </>
+                      )}
+                    </button>
+                  )}
+
                   <button
-                    className="inline-flex items-center justify-center gap-2 flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-sm"
-                    title="Draft — connects to live session / calendar later"
+                    onClick={() => setDetailsEvent(evt)}
+                    className="inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:border-indigo-300 hover:text-indigo-600 dark:hover:text-indigo-300 transition"
                   >
-                    <Video className="w-4 h-4" />
-                    Join Event
-                  </button>
-                  <button className="inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:border-indigo-300 hover:text-indigo-600 dark:hover:text-indigo-300 transition">
                     Details
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
+
+                {/* Status hints */}
+                {currentUser && !canJoin(evt) && (
+                  <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                    <Lock className="w-3 h-3" />
+                    Only students {eventAudienceLabel(evt)} can join
+                  </p>
+                )}
+                {currentUser &&
+                  canJoin(evt) &&
+                  isAttending(evt.id, currentUser.id) && (
+                    <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="w-3 h-3" />
+                      You're attending this event
+                    </p>
+                  )}
               </div>
             </article>
           ))}
@@ -303,21 +435,40 @@ const Events: React.FC = () => {
       )}
 
       {/* ========================================== */}
-      {/* DRAFT NOTE                                */}
+      {/* HOW IT WORKS                              */}
       {/* ========================================== */}
       <div className="mt-10 flex items-start gap-3 rounded-2xl border border-sky-200 dark:border-sky-500/20 bg-sky-50 dark:bg-sky-500/10 p-5 text-sky-700 dark:text-sky-300">
         <Info className="w-5 h-5 shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-bold">Draft scaffold</p>
-          <p className="mt-1 text-sm leading-relaxed">
-            This is a working draft using sample event data. Next steps: hook it
-            up to live scheduled sessions (e.g.{" "}
-            <code className="font-mono text-xs">scheduleEvents</code>), add
-            event creation for organizations &amp; instructors, notifications,
-            and RSVP / join handling.
+        <div className="space-y-1">
+          <p className="text-sm font-bold">How joining works</p>
+          <p className="text-sm leading-relaxed">
+            Anyone can browse events. You must be signed in to join, and
+            course-linked events can only be joined by students enrolled in that
+            course. Events are created by organizations.
           </p>
         </div>
       </div>
+
+      {/* Create Event modal — organizations only */}
+      {showCreate && isOrganization && (
+        <EventCreation onClose={() => setShowCreate(false)} />
+      )}
+
+      {/* Edit Event modal — organizations only */}
+      {editingEvent && isOrganization && (
+        <EventCreation
+          event={editingEvent}
+          onClose={() => setEditingEvent(null)}
+        />
+      )}
+
+      {/* Event details modal — resolves its own eligibility */}
+      {detailsEvent && (
+        <EventDetailsModel
+          event={detailsEvent}
+          onClose={() => setDetailsEvent(null)}
+        />
+      )}
     </div>
   );
 };
