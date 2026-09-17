@@ -282,6 +282,33 @@ export interface ChatMessage {
   fileType?: "image" | "video" | "document";
 }
 
+export interface DiscussionChannel {
+  id: string;
+  courseId: string;
+  name: string;
+  description?: string;
+  pinned?: boolean;
+  order?: number;
+  createdAt: string;
+}
+
+export interface DiscussionMessage {
+  id: string;
+  channelId: string;
+  courseId: string;
+  parentId?: string;
+  senderId: string;
+  senderName: string;
+  senderRole?: "instructor" | "ta" | "student";
+  text: string;
+  fileUrl?: string;
+  fileType?: "image" | "video" | "document";
+  reactions?: Record<string, string[]>;
+  verified?: boolean;
+  replyCount?: number;
+  createdAt: number;
+}
+
 // export interface Assessment {
 //   id: string;
 //   courseId: string;
