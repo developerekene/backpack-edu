@@ -156,6 +156,9 @@ export interface Course {
     gradeLevel?: string;
     authorizedSealUrl?: string;
     qualificationTitle?: string;
+    themeColor?: string;
+    textColor?: string;
+    layout?: 'classic' | 'modern' | 'minimal' | 'elegant' | 'creative';
   };
 }
 
