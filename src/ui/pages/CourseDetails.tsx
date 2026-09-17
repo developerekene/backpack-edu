@@ -30,7 +30,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { LiveKitCall } from "../components/LiveKitCall";
-import { ChatMessage } from "../../types";
+// import { ChatMessage } from "../../types";
 import { LunchGames } from "../components/LunchGames";
 import { CourseAssessments } from "../components/courseAssesment/CourseAssessments";
 import { CourseSchedule } from "../components/CourseSchedule";
@@ -44,6 +44,7 @@ import { AdmissionSessionManagerModal } from "../components/AdmissionSessionMana
 import { CourseModulesTab } from "../components/CourseModulesTab";
 import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
+import { CourseDiscussions } from "../components/discussion/Coursediscussions ";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
@@ -54,7 +55,7 @@ const CourseDetails = () => {
     addMaterial,
     updateMaterial,
     deleteMaterial,
-    sendMessage,
+    // sendMessage,
     enrollmentRequests,
     addEnrollmentRequest,
     updateEnrollmentRequest,
@@ -82,17 +83,19 @@ const CourseDetails = () => {
   const [showSessionModal, setShowSessionModal] = useState(false);
 
   // Chat state
-  const [chatMsg, setChatMsg] = useState("");
-  const [chatAttachmentUrl, setChatAttachmentUrl] = useState("");
-  const [chatAttachmentType, setChatAttachmentType] = useState<
-    "image" | "video" | "document" | undefined
-  >(undefined);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  // const [chatMsg, setChatMsg] = useState("");
+  // const [chatAttachmentUrl, setChatAttachmentUrl] = useState("");
+  // const [chatAttachmentType, setChatAttachmentType] = useState<
+  //   "image" | "video" | "document" | undefined
+  // >(undefined);
+  // const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   // Materials state
   const [newMatTitle, setNewMatTitle] = useState("");
   const [newMatUrl, setNewMatUrl] = useState("");
-  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(
+    null,
+  );
   const [editingMaterialTitle, setEditingMaterialTitle] = useState("");
   const [alertConfig, setAlertConfig] = useState<{
     isOpen: boolean;
@@ -113,17 +116,22 @@ const CourseDetails = () => {
   const courseMaterials = materials.filter((m) => m.courseId === courseId);
 
   let totalTrackables = course?.modules.length || 0;
-  let completedTrackables = (progress?.completedModuleIds || []).filter(id => course?.modules.some(m => m.id === id)).length;
+  let completedTrackables = (progress?.completedModuleIds || []).filter((id) =>
+    course?.modules.some((m) => m.id === id),
+  ).length;
 
-  course?.modules.forEach(mod => {
+  course?.modules.forEach((mod) => {
     if (mod.items) {
       totalTrackables += mod.items.length;
-      const completedItemsCount = (progress?.completedItemIds || []).filter(id => mod.items?.some(i => i.id === id)).length;
+      const completedItemsCount = (progress?.completedItemIds || []).filter(
+        (id) => mod.items?.some((i) => i.id === id),
+      ).length;
       completedTrackables += completedItemsCount;
     }
   });
 
-  const progressPercentage = totalTrackables > 0 ? (completedTrackables / totalTrackables) * 100 : 0;
+  const progressPercentage =
+    totalTrackables > 0 ? (completedTrackables / totalTrackables) * 100 : 0;
 
   // Access check logic
   const isOrganization = currentUser?.role === "organization";
@@ -131,9 +139,9 @@ const CourseDetails = () => {
   const myOrgMemberRecords = orgMembers.filter(
     (m) => m.email?.toLowerCase() === currentUser?.email?.toLowerCase(),
   );
-  
+
   const hasInstructorAccess = myOrgMemberRecords.some(
-    (m) => m.role === "instructor" && m.courseIds?.includes(courseId as string)
+    (m) => m.role === "instructor" && m.courseIds?.includes(courseId as string),
   );
 
   const myEnrollment = enrollmentRequests.find(
@@ -155,10 +163,12 @@ const CourseDetails = () => {
       course?.orgId === `org_${currentUser?.id}`);
 
   const hasAccess = hasStudentAccess || hasInstructorAccess || hasOrgAccess;
-  
-  const isStudent = 
-    myOrgMemberRecords.some((m) => m.role === "student" && m.courseIds?.includes(courseId as string)) ||
-    myEnrollment?.status === "approved" || 
+
+  const isStudent =
+    myOrgMemberRecords.some(
+      (m) => m.role === "student" && m.courseIds?.includes(courseId as string),
+    ) ||
+    myEnrollment?.status === "approved" ||
     (currentUser?.role === "student" && !hasInstructorAccess && !hasOrgAccess);
   const canStartVideoCall =
     !isStudent &&
@@ -512,34 +522,35 @@ const CourseDetails = () => {
     setAlertConfig({
       isOpen: true,
       title: "Delete Material",
-      message: "Are you sure you want to delete this material? This action cannot be undone.",
+      message:
+        "Are you sure you want to delete this material? This action cannot be undone.",
       onConfirm: async () => {
         await deleteMaterial(id);
       },
     });
   };
 
-  const handleSendMsg = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!chatMsg.trim() && !chatAttachmentUrl) || !currentUser) return;
+  // const handleSendMsg = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   if ((!chatMsg.trim() && !chatAttachmentUrl) || !currentUser) return;
 
-    const newMsg: ChatMessage = {
-      id: generateId("msg"),
-      courseId: course.id,
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      text: chatMsg,
-      timestamp: new Date().getTime(),
-      fileUrl: chatAttachmentUrl,
-      fileType: chatAttachmentType,
-    };
+  //   const newMsg: ChatMessage = {
+  //     id: generateId("msg"),
+  //     courseId: course.id,
+  //     senderId: currentUser.id,
+  //     senderName: currentUser.name,
+  //     text: chatMsg,
+  //     timestamp: new Date().getTime(),
+  //     fileUrl: chatAttachmentUrl,
+  //     fileType: chatAttachmentType,
+  //   };
 
-    await sendMessage(newMsg);
-    setChatMessages([...chatMessages, newMsg]); // Local optimistic update
-    setChatMsg("");
-    setChatAttachmentUrl("");
-    setChatAttachmentType(undefined);
-  };
+  //   await sendMessage(newMsg);
+  //   setChatMessages([...chatMessages, newMsg]); // Local optimistic update
+  //   setChatMsg("");
+  //   setChatAttachmentUrl("");
+  //   setChatAttachmentType(undefined);
+  // };
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -872,7 +883,9 @@ const CourseDetails = () => {
                               <input
                                 type="text"
                                 value={editingMaterialTitle}
-                                onChange={(e) => setEditingMaterialTitle(e.target.value)}
+                                onChange={(e) =>
+                                  setEditingMaterialTitle(e.target.value)
+                                }
                                 className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-slate-900 dark:text-white mb-1"
                                 onClick={(e) => e.preventDefault()}
                                 onKeyDown={(e) => {
@@ -896,7 +909,7 @@ const CourseDetails = () => {
                             </p>
                           </div>
                         </a>
-                        
+
                         {!isStudent && (
                           <div className="flex items-center space-x-2 ml-4">
                             {editingMaterialId === mat.id ? (
@@ -952,7 +965,7 @@ const CourseDetails = () => {
               </div>
             )}
 
-            {activeTab === "chat" && (
+            {/* {activeTab === "chat" && (
               <div className="flex flex-col h-[500px]">
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">
@@ -1055,6 +1068,10 @@ const CourseDetails = () => {
                   </form>
                 </div>
               </div>
+            )} */}
+
+            {activeTab === "chat" && (
+              <CourseDiscussions courseId={course.id} isStudent={isStudent} />
             )}
 
             {activeTab === "people" && !isStudent && (
