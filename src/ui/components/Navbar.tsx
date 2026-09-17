@@ -371,18 +371,6 @@ export const Navbar = () => {
                   onNavigate={navigate}
                 />
 
-                <button
-                  onClick={toggleTheme}
-                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
-                  title="Toggle theme"
-                >
-                  {theme === "dark" ? (
-                    <Sun className="w-4 h-4" />
-                  ) : (
-                    <Moon className="w-4 h-4" />
-                  )}
-                </button>
-
                 {/*<button
                   onClick={handleLogout}
                   className="flex items-center p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition"
@@ -408,6 +396,18 @@ export const Navbar = () => {
                 </Link>
               </div>
             )}
+
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+              title="Toggle theme"
+            >
+              {theme === "dark" ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+            </button>
           </div>
 
           {/* Mobile Hamburger Button */}
@@ -557,17 +557,6 @@ export const Navbar = () => {
                   >
                     <LogOut className="w-3.5 h-3.5 mr-1" />
                   </button>
-                  <button
-                    onClick={toggleTheme}
-                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
-                    title="Toggle theme"
-                  >
-                    {theme === "dark" ? (
-                      <Sun className="w-4 h-4" />
-                    ) : (
-                      <Moon className="w-4 h-4" />
-                    )}
-                  </button>
                 </div>
               </div>
             ) : (
@@ -589,6 +578,17 @@ export const Navbar = () => {
               </div>
             )}
           </div>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Toggle theme"
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
         </div>
       )}
     </nav>
