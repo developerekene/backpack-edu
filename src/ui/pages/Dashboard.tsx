@@ -20,7 +20,6 @@ import {
   Mail,
   UserCheck,
   Paperclip,
-  Bell,
   Trash2,
   Building2,
 } from "lucide-react";
@@ -34,6 +33,7 @@ import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanne
 import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
 import { AssessmentsOverview } from "../components/courseAssesment/AssessmentOverview";
+import { generateId } from "../../lib/id";
 
 const Dashboard = () => {
   const {
@@ -540,19 +540,30 @@ const Dashboard = () => {
                   (p) =>
                     p.courseId === course.id && p.userId === currentUser.id,
                 );
-                
-                let totalTrackables = course.modules.length;
-                let completedTrackables = (progress?.completedModuleIds || []).filter(id => course.modules.some(m => m.id === id)).length;
 
-                course.modules.forEach(mod => {
+                let totalTrackables = course.modules.length;
+                let completedTrackables = (
+                  progress?.completedModuleIds || []
+                ).filter((id) =>
+                  course.modules.some((m) => m.id === id),
+                ).length;
+
+                course.modules.forEach((mod) => {
                   if (mod.items) {
                     totalTrackables += mod.items.length;
-                    const completedItemsCount = (progress?.completedItemIds || []).filter(id => mod.items?.some(i => i.id === id)).length;
+                    const completedItemsCount = (
+                      progress?.completedItemIds || []
+                    ).filter((id) =>
+                      mod.items?.some((i) => i.id === id),
+                    ).length;
                     completedTrackables += completedItemsCount;
                   }
                 });
 
-                const percent = totalTrackables > 0 ? (completedTrackables / totalTrackables) * 100 : 0;
+                const percent =
+                  totalTrackables > 0
+                    ? (completedTrackables / totalTrackables) * 100
+                    : 0;
 
                 return (
                   <div
@@ -1025,8 +1036,25 @@ const Dashboard = () => {
           isReapplication={true}
           previousRequest={reapplyReq}
           onClose={() => setReapplyReq(null)}
-          onEnroll={async (reqData) => {
-            await addEnrollmentRequest(reqData);
+          onEnroll={async (paymentMethod, documents, additionalDocs, studentNotes, sessionId, sessionName) => {
+            if (!currentUser) return;
+            const course = courses.find((c) => c.id === reapplyReq.courseId)!;
+            await addEnrollmentRequest({
+              id: generateId("req"),
+              userId: currentUser.id,
+              userName: currentUser.name,
+              orgId: course.orgId,
+              courseId: course.id,
+              courseTitle: course.title,
+              status: "pending",
+              paymentMethod,
+              documents,
+              additionalDocuments: additionalDocs,
+              studentNotes,
+              sessionId,
+              sessionName,
+              appliedAt: new Date().toISOString(),
+            });
             setReapplyReq(null);
           }}
         />
