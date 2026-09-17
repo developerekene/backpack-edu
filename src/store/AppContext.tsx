@@ -29,6 +29,8 @@ import {
   AppNotification,
   AdmissionSession,
   ReapplicationRecord,
+  DiscussionChannel,
+  DiscussionMessage,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
@@ -47,6 +49,8 @@ interface AppState {
   submissions: Submission[];
   scheduleEvents: ScheduleEvent[];
   messages: ChatMessage[];
+  discussionChannels: DiscussionChannel[];
+  discussionMessages: DiscussionMessage[];
   notifications: AppNotification[];
   isLoadingApp: boolean;
 
@@ -99,6 +103,15 @@ interface AppState {
   deleteMaterial: (id: string) => Promise<void>;
   addAttendanceRecord: (record: AttendanceRecord) => Promise<void>;
   sendMessage: (msg: ChatMessage) => Promise<void>;
+  addDiscussionChannel: (channel: DiscussionChannel) => Promise<void>;
+  addDiscussionMessage: (message: DiscussionMessage) => Promise<void>;
+  toggleMessageReaction: (
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ) => Promise<void>;
+  setMessageVerified: (messageId: string, verified: boolean) => Promise<void>;
+  refreshData: () => Promise<void>;
   addAssessment: (assessment: Assessment) => Promise<void>;
   addSubmission: (submission: Submission) => Promise<void>;
   updateSubmissionScore: (
@@ -162,24 +175,51 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser } = useAuth();
 
   const [isLoadingApp, setIsLoadingApp] = useState(true);
-  const [organizations, setOrganizations] = useState<Organization[]>(() => loadCache("organizations", []));
-  const [courses, setCourses] = useState<Course[]>(() => loadCache("courses", []));
+  const [organizations, setOrganizations] = useState<Organization[]>(() =>
+    loadCache("organizations", []),
+  );
+  const [courses, setCourses] = useState<Course[]>(() =>
+    loadCache("courses", []),
+  );
   const [enrollmentRequests, setEnrollmentRequests] = useState<
     EnrollmentRequest[]
   >(() => loadCache("enrollmentRequests", []));
-  const [orgJoinRequests, setOrgJoinRequests] = useState<OrgJoinRequest[]>(() => loadCache("orgJoinRequests", []));
-  const [orgMembers, setOrgMembers] = useState<OrgMember[]>(() => loadCache("orgMembers", []));
-  const [userProgress, setUserProgress] = useState<UserProgress[]>(() => loadCache("userProgress", []));
-  const [materials, setMaterials] = useState<Material[]>(() => loadCache("materials", []));
+  const [orgJoinRequests, setOrgJoinRequests] = useState<OrgJoinRequest[]>(() =>
+    loadCache("orgJoinRequests", []),
+  );
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>(() =>
+    loadCache("orgMembers", []),
+  );
+  const [userProgress, setUserProgress] = useState<UserProgress[]>(() =>
+    loadCache("userProgress", []),
+  );
+  const [materials, setMaterials] = useState<Material[]>(() =>
+    loadCache("materials", []),
+  );
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
   >(() => loadCache("attendanceRecords", []));
-  const [assessments, setAssessments] = useState<Assessment[]>(() => loadCache("assessments", []));
-  const [submissions, setSubmissions] = useState<Submission[]>(() => loadCache("submissions", []));
-  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(() => loadCache("scheduleEvents", []));
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadCache("messages", []));
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => loadCache("notifications", []));
-
+  const [assessments, setAssessments] = useState<Assessment[]>(() =>
+    loadCache("assessments", []),
+  );
+  const [submissions, setSubmissions] = useState<Submission[]>(() =>
+    loadCache("submissions", []),
+  );
+  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(() =>
+    loadCache("scheduleEvents", []),
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    loadCache("messages", []),
+  );
+  const [discussionChannels, setDiscussionChannels] = useState<
+    DiscussionChannel[]
+  >(() => loadCache("discussionChannels", []));
+  const [discussionMessages, setDiscussionMessages] = useState<
+    DiscussionMessage[]
+  >(() => loadCache("discussionMessages", []));
+  const [notifications, setNotifications] = useState<AppNotification[]>(() =>
+    loadCache("notifications", []),
+  );
 
   // Helper to update personalInformation within the user object of a backpack document
   const updateBackpackPersonalInfo = async (
@@ -281,141 +321,171 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Fetch all global data and user-specific data from backpack documents
-  useEffect(() => {
-    const loadAllBackpackData = async () => {
-      try {
-        const backpackSnap = await getDocs(collection(db, "backpack"));
+  // useEffect(() => {
+  const loadAllBackpackData = async () => {
+    try {
+      const backpackSnap = await getDocs(collection(db, "backpack"));
 
-        const allOrganizations: Organization[] = [];
-        const allCourses: Course[] = [];
-        const allEnrollments: EnrollmentRequest[] = [];
-        const allOrgJoinRequests: OrgJoinRequest[] = [];
-        const allMembers: OrgMember[] = [];
-        const allProgress: UserProgress[] = [];
-        const allMaterials: Material[] = [];
-        const allAttendance: AttendanceRecord[] = [];
-        const allAssessments: Assessment[] = [];
-        const allSubmissions: Submission[] = [];
-        const allScheduleEvents: ScheduleEvent[] = [];
-        const allMessages: ChatMessage[] = [];
+      const allOrganizations: Organization[] = [];
+      const allCourses: Course[] = [];
+      const allEnrollments: EnrollmentRequest[] = [];
+      const allOrgJoinRequests: OrgJoinRequest[] = [];
+      const allMembers: OrgMember[] = [];
+      const allProgress: UserProgress[] = [];
+      const allMaterials: Material[] = [];
+      const allAttendance: AttendanceRecord[] = [];
+      const allAssessments: Assessment[] = [];
+      const allSubmissions: Submission[] = [];
+      const allScheduleEvents: ScheduleEvent[] = [];
+      const allMessages: ChatMessage[] = [];
+      const allDiscussionChannels: DiscussionChannel[] = [];
+      const allDiscussionMessages: DiscussionMessage[] = [];
 
-        backpackSnap.docs.forEach((docSnap) => {
-          const data = docSnap.data();
-          const userObj = getUserData(data);
-          const personalInfo =
-            (userObj.personalInformation as Record<string, unknown>) || {};
+      backpackSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const userObj = getUserData(data);
+        const personalInfo =
+          (userObj.personalInformation as Record<string, unknown>) || {};
 
-          // Extract organization from user.personalInformation map
-          if (
-            personalInfo.role === "organization" ||
-            personalInfo.orgType ||
-            personalInfo.registrationId ||
-            personalInfo.accreditationStatus ||
-            personalInfo.isAccredited
-          ) {
-            allOrganizations.push({
-              id: (personalInfo.id as string) || docSnap.id,
-              name:
-                (personalInfo.fullname as string) ||
-                (personalInfo.name as string) ||
-                "Unnamed Organization",
-              description: (personalInfo.description as string) || "",
-              logoUrl: personalInfo.logoUrl as string | undefined,
-              ownerId: (personalInfo.ownerId as string) || docSnap.id,
-              baseCurrency: (personalInfo.baseCurrency as string) || "USD",
-              location: personalInfo.location as string | undefined,
-              orgType:
-                (personalInfo.orgType as "basic" | "higher" | "vocational") ||
-                "basic",
-              kycVerified: (personalInfo.kycVerified as boolean) ?? false,
-              kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
-              address: personalInfo.address as string | undefined,
-              registrationId: personalInfo.registrationId as string | undefined,
-              isAccredited: (personalInfo.isAccredited as boolean) ?? false,
-              accreditingBody: personalInfo.accreditingBody as
-                | string
-                | undefined,
-              accreditationStatus:
-                (personalInfo.accreditationStatus as
-                  | "accredited"
-                  | "pending"
-                  | "unaccredited") ||
-                (personalInfo.isAccredited ? "accredited" : "unaccredited"),
-              accreditationDocUrl: personalInfo.accreditationDocUrl as
-                | string
-                | undefined,
-              motto: personalInfo.motto as string | undefined,
-              phone: personalInfo.phone as string | undefined,
-              website: personalInfo.website as string | undefined,
-              themeColor: personalInfo.themeColor as string | undefined,
-              academicHighlights: personalInfo.academicHighlights as
-                | string[]
-                | undefined,
-              isDeleted: (personalInfo.isDeleted as boolean) ?? false,
-              paystackSubaccount:
-                personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
-            });
-          }
-
-          if (Array.isArray(userObj.courses))
-            allCourses.push(...userObj.courses);
-          if (Array.isArray(userObj.enrollmentRequests))
-            allEnrollments.push(...userObj.enrollmentRequests);
-          if (Array.isArray(userObj.orgJoinRequests))
-            allOrgJoinRequests.push(...userObj.orgJoinRequests);
-          if (Array.isArray(userObj.orgMembers))
-            allMembers.push(...userObj.orgMembers);
-          if (Array.isArray(userObj.userProgress))
-            allProgress.push(...userObj.userProgress);
-          if (Array.isArray(userObj.materials))
-            allMaterials.push(...userObj.materials);
-          if (Array.isArray(userObj.attendance))
-            allAttendance.push(...userObj.attendance);
-          if (Array.isArray(userObj.assessments))
-            allAssessments.push(...userObj.assessments);
-          if (Array.isArray(userObj.submissions))
-            allSubmissions.push(...userObj.submissions);
-          if (Array.isArray(userObj.scheduleEvents))
-            allScheduleEvents.push(...userObj.scheduleEvents);
-          if (Array.isArray(userObj.messages))
-            allMessages.push(...userObj.messages);
-        });
-
-        // Deduplicate arrays by id
-        const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
-          const map = new Map<string, T>();
-          arr.forEach((item) => {
-            if (item.id) map.set(item.id, item);
+        // Extract organization from user.personalInformation map
+        if (
+          personalInfo.role === "organization" ||
+          personalInfo.orgType ||
+          personalInfo.registrationId ||
+          personalInfo.accreditationStatus ||
+          personalInfo.isAccredited
+        ) {
+          allOrganizations.push({
+            id: (personalInfo.id as string) || docSnap.id,
+            name:
+              (personalInfo.fullname as string) ||
+              (personalInfo.name as string) ||
+              "Unnamed Organization",
+            description: (personalInfo.description as string) || "",
+            logoUrl: personalInfo.logoUrl as string | undefined,
+            ownerId: (personalInfo.ownerId as string) || docSnap.id,
+            baseCurrency: (personalInfo.baseCurrency as string) || "USD",
+            location: personalInfo.location as string | undefined,
+            orgType:
+              (personalInfo.orgType as "basic" | "higher" | "vocational") ||
+              "basic",
+            kycVerified: (personalInfo.kycVerified as boolean) ?? false,
+            kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
+            address: personalInfo.address as string | undefined,
+            registrationId: personalInfo.registrationId as string | undefined,
+            isAccredited: (personalInfo.isAccredited as boolean) ?? false,
+            accreditingBody: personalInfo.accreditingBody as string | undefined,
+            accreditationStatus:
+              (personalInfo.accreditationStatus as
+                | "accredited"
+                | "pending"
+                | "unaccredited") ||
+              (personalInfo.isAccredited ? "accredited" : "unaccredited"),
+            accreditationDocUrl: personalInfo.accreditationDocUrl as
+              | string
+              | undefined,
+            motto: personalInfo.motto as string | undefined,
+            phone: personalInfo.phone as string | undefined,
+            website: personalInfo.website as string | undefined,
+            themeColor: personalInfo.themeColor as string | undefined,
+            academicHighlights: personalInfo.academicHighlights as
+              | string[]
+              | undefined,
+            isDeleted: (personalInfo.isDeleted as boolean) ?? false,
+            paystackSubaccount:
+              personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
           });
-          return Array.from(map.values());
-        };
+        }
 
-        const updateAndCache = (key: string, data: any, setter: any) => {
-          setter(data);
-          try {
-            localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data));
-          } catch (e) {}
-        };
+        if (Array.isArray(userObj.courses)) allCourses.push(...userObj.courses);
+        if (Array.isArray(userObj.enrollmentRequests))
+          allEnrollments.push(...userObj.enrollmentRequests);
+        if (Array.isArray(userObj.orgJoinRequests))
+          allOrgJoinRequests.push(...userObj.orgJoinRequests);
+        if (Array.isArray(userObj.orgMembers))
+          allMembers.push(...userObj.orgMembers);
+        if (Array.isArray(userObj.userProgress))
+          allProgress.push(...userObj.userProgress);
+        if (Array.isArray(userObj.materials))
+          allMaterials.push(...userObj.materials);
+        if (Array.isArray(userObj.attendance))
+          allAttendance.push(...userObj.attendance);
+        if (Array.isArray(userObj.assessments))
+          allAssessments.push(...userObj.assessments);
+        if (Array.isArray(userObj.submissions))
+          allSubmissions.push(...userObj.submissions);
+        if (Array.isArray(userObj.scheduleEvents))
+          allScheduleEvents.push(...userObj.scheduleEvents);
+        if (Array.isArray(userObj.messages))
+          allMessages.push(...userObj.messages);
+        if (Array.isArray(userObj.discussionChannels))
+          allDiscussionChannels.push(...userObj.discussionChannels);
+        if (Array.isArray(userObj.discussionMessages))
+          allDiscussionMessages.push(...userObj.discussionMessages);
+      });
 
-        updateAndCache("organizations", dedupeById(allOrganizations), setOrganizations);
-        updateAndCache("courses", dedupeById(allCourses), setCourses);
-        updateAndCache("enrollmentRequests", dedupeById(allEnrollments), setEnrollmentRequests);
-        updateAndCache("orgJoinRequests", dedupeById(allOrgJoinRequests), setOrgJoinRequests);
-        updateAndCache("userProgress", dedupeById(allProgress), setUserProgress);
-        updateAndCache("materials", dedupeById(allMaterials), setMaterials);
-        updateAndCache("attendanceRecords", allAttendance, setAttendanceRecords);
-        updateAndCache("assessments", dedupeById(allAssessments), setAssessments);
-        updateAndCache("submissions", dedupeById(allSubmissions), setSubmissions);
-        updateAndCache("scheduleEvents", dedupeById(allScheduleEvents), setScheduleEvents);
-        updateAndCache("orgMembers", dedupeById(allMembers), setOrgMembers);
-        updateAndCache("messages", dedupeById(allMessages), setMessages);
-      } catch (err) {
-        console.error("loadAllBackpackData failed:", err);
-      } finally {
-        setIsLoadingApp(false);
-      }
-    };
+      // Deduplicate arrays by id
+      const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
+        const map = new Map<string, T>();
+        arr.forEach((item) => {
+          if (item.id) map.set(item.id, item);
+        });
+        return Array.from(map.values());
+      };
 
+      const updateAndCache = (key: string, data: any, setter: any) => {
+        setter(data);
+        try {
+          localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data));
+        } catch (e) {}
+      };
+
+      updateAndCache(
+        "organizations",
+        dedupeById(allOrganizations),
+        setOrganizations,
+      );
+      updateAndCache("courses", dedupeById(allCourses), setCourses);
+      updateAndCache(
+        "enrollmentRequests",
+        dedupeById(allEnrollments),
+        setEnrollmentRequests,
+      );
+      updateAndCache(
+        "orgJoinRequests",
+        dedupeById(allOrgJoinRequests),
+        setOrgJoinRequests,
+      );
+      updateAndCache("userProgress", dedupeById(allProgress), setUserProgress);
+      updateAndCache("materials", dedupeById(allMaterials), setMaterials);
+      updateAndCache("attendanceRecords", allAttendance, setAttendanceRecords);
+      updateAndCache("assessments", dedupeById(allAssessments), setAssessments);
+      updateAndCache("submissions", dedupeById(allSubmissions), setSubmissions);
+      updateAndCache(
+        "scheduleEvents",
+        dedupeById(allScheduleEvents),
+        setScheduleEvents,
+      );
+      updateAndCache("orgMembers", dedupeById(allMembers), setOrgMembers);
+      updateAndCache("messages", dedupeById(allMessages), setMessages);
+      updateAndCache(
+        "discussionChannels",
+        dedupeById(allDiscussionChannels),
+        setDiscussionChannels,
+      );
+      updateAndCache(
+        "discussionMessages",
+        dedupeById(allDiscussionMessages),
+        setDiscussionMessages,
+      );
+    } catch (err) {
+      console.error("loadAllBackpackData failed:", err);
+    } finally {
+      setIsLoadingApp(false);
+    }
+  };
+
+  useEffect(() => {
     loadAllBackpackData();
   }, [currentUser]);
 
@@ -1203,6 +1273,113 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setMessages((prev) => [...prev, msg]);
   };
 
+  const addDiscussionChannel = async (channel: DiscussionChannel) => {
+    const cleaned = sanitizeForFirestore(channel);
+    const course = courses.find((c) => c.id === channel.courseId);
+    const targetUid = course?.orgId || currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<DiscussionChannel>(
+        targetUid,
+        "discussionChannels",
+        (list) => [...list.filter((c) => c.id !== channel.id), cleaned],
+      );
+    }
+    setDiscussionChannels((prev) => [
+      ...prev.filter((c) => c.id !== channel.id),
+      cleaned,
+    ]);
+  };
+
+  const addDiscussionMessage = async (message: DiscussionMessage) => {
+    const cleaned = sanitizeForFirestore(message);
+    const course = courses.find((c) => c.id === message.courseId);
+    const targetUid = course?.orgId || currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<DiscussionMessage>(
+        targetUid,
+        "discussionMessages",
+        (list) => [...list.filter((m) => m.id !== message.id), cleaned],
+      );
+    }
+    setDiscussionMessages((prev) => [
+      ...prev.filter((m) => m.id !== message.id),
+      cleaned,
+    ]);
+
+    if (message.parentId) {
+      const parent = discussionMessages.find((m) => m.id === message.parentId);
+      if (parent) {
+        const updatedParent = {
+          ...parent,
+          replyCount: (parent.replyCount || 0) + 1,
+        };
+        const parentCourse = courses.find((c) => c.id === parent.courseId);
+        const parentTargetUid = parentCourse?.orgId || currentUser?.id || "";
+        if (parentTargetUid) {
+          await updateBackpackUserField<DiscussionMessage>(
+            parentTargetUid,
+            "discussionMessages",
+            (list) => list.map((m) => (m.id === parent.id ? updatedParent : m)),
+          );
+        }
+        setDiscussionMessages((prev) =>
+          prev.map((m) => (m.id === parent.id ? updatedParent : m)),
+        );
+      }
+    }
+  };
+
+  const toggleMessageReaction = async (
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ) => {
+    const message = discussionMessages.find((m) => m.id === messageId);
+    if (!message) return;
+
+    const current = message.reactions?.[emoji] || [];
+    const hasReacted = current.includes(userId);
+    const updatedEmojiList = hasReacted
+      ? current.filter((id) => id !== userId)
+      : [...current, userId];
+    const updatedMessage: DiscussionMessage = {
+      ...message,
+      reactions: { ...(message.reactions || {}), [emoji]: updatedEmojiList },
+    };
+
+    const course = courses.find((c) => c.id === message.courseId);
+    const targetUid = course?.orgId || currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<DiscussionMessage>(
+        targetUid,
+        "discussionMessages",
+        (list) => list.map((m) => (m.id === messageId ? updatedMessage : m)),
+      );
+    }
+    setDiscussionMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? updatedMessage : m)),
+    );
+  };
+
+  const setMessageVerified = async (messageId: string, verified: boolean) => {
+    const message = discussionMessages.find((m) => m.id === messageId);
+    if (!message) return;
+    const updatedMessage = { ...message, verified };
+
+    const course = courses.find((c) => c.id === message.courseId);
+    const targetUid = course?.orgId || currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<DiscussionMessage>(
+        targetUid,
+        "discussionMessages",
+        (list) => list.map((m) => (m.id === messageId ? updatedMessage : m)),
+      );
+    }
+    setDiscussionMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? updatedMessage : m)),
+    );
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1219,6 +1396,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         submissions,
         scheduleEvents,
         messages,
+        discussionChannels,
+        discussionMessages,
         notifications,
         addOrganization,
         updateOrganization,
@@ -1243,6 +1422,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         deleteMaterial,
         addAttendanceRecord,
         sendMessage,
+        addDiscussionChannel,
+        addDiscussionMessage,
+        toggleMessageReaction,
+        setMessageVerified,
+        refreshData: loadAllBackpackData,
         addAssessment,
         addSubmission,
         updateSubmissionScore,
@@ -1297,32 +1481,12 @@ export const useAppContext = () => {
 //   OrgJoinRequest,
 //   OrgMember,
 //   AppNotification,
+//   AdmissionSession,
+//   ReapplicationRecord,
 // } from "../types";
 // import { useAuth } from "./AuthContext";
 // import { sendPushNotification } from "../lib/pushNotifications";
-// import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-// import { db } from '../lib/firebase';
-// import { collection, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
-// import {
-//   Assessment,
-//   Submission,
-//   ScheduleEvent,
-//   Organization,
-//   Course,
-//   EnrollmentRequest,
-//   UserProgress,
-//   AttendanceRecord,
-//   Material,
-//   ChatMessage,
-//   OrgJoinRequest,
-//   OrgMember,
-//   AppNotification,
-//   AdmissionSession,
-//   ReapplicationRecord
-// } from '../types';
-// import { useAuth } from './AuthContext';
-// import { sendPushNotification } from '../lib/pushNotifications';
-// import { generateId } from '../lib/id';
+// import { generateId } from "../lib/id";
 
 // interface AppState {
 //   organizations: Organization[];
@@ -1338,6 +1502,7 @@ export const useAppContext = () => {
 //   scheduleEvents: ScheduleEvent[];
 //   messages: ChatMessage[];
 //   notifications: AppNotification[];
+//   isLoadingApp: boolean;
 
 //   addOrganization: (org: Organization) => Promise<void>;
 //   updateOrganization: (
@@ -1384,6 +1549,8 @@ export const useAppContext = () => {
 //   deleteOrgMember: (id: string) => Promise<void>;
 //   updateProgress: (progress: UserProgress) => Promise<void>;
 //   addMaterial: (material: Material) => Promise<void>;
+//   updateMaterial: (id: string, updates: Partial<Material>) => Promise<void>;
+//   deleteMaterial: (id: string) => Promise<void>;
 //   addAttendanceRecord: (record: AttendanceRecord) => Promise<void>;
 //   sendMessage: (msg: ChatMessage) => Promise<void>;
 //   addAssessment: (assessment: Assessment) => Promise<void>;
@@ -1411,9 +1578,9 @@ export const useAppContext = () => {
 
 // const sanitizeForFirestore = <T,>(obj: T): T => {
 //   if (obj === undefined) return obj;
-//   if (obj === null || typeof obj !== 'object') return obj;
+//   if (obj === null || typeof obj !== "object") return obj;
 //   if (Array.isArray(obj)) {
-//     return obj.map(item => sanitizeForFirestore(item)) as unknown as T;
+//     return obj.map((item) => sanitizeForFirestore(item)) as unknown as T;
 //   }
 //   const cleaned = {} as Record<string, unknown>;
 //   const record = obj as Record<string, unknown>;
@@ -1436,26 +1603,58 @@ export const useAppContext = () => {
 //   return (data.user as Record<string, unknown>) || {};
 // };
 
+// const loadCache = <T,>(key: string, fallback: T): T => {
+//   try {
+//     const cached = localStorage.getItem(`bp_cache_${key}`);
+//     return cached ? JSON.parse(cached) : fallback;
+//   } catch {
+//     return fallback;
+//   }
+// };
+
 // export const AppProvider = ({ children }: { children: ReactNode }) => {
 //   const { currentUser } = useAuth();
 
-//   const [organizations, setOrganizations] = useState<Organization[]>([]);
-//   const [courses, setCourses] = useState<Course[]>([]);
+//   const [isLoadingApp, setIsLoadingApp] = useState(true);
+//   const [organizations, setOrganizations] = useState<Organization[]>(() =>
+//     loadCache("organizations", []),
+//   );
+//   const [courses, setCourses] = useState<Course[]>(() =>
+//     loadCache("courses", []),
+//   );
 //   const [enrollmentRequests, setEnrollmentRequests] = useState<
 //     EnrollmentRequest[]
-//   >([]);
-//   const [orgJoinRequests, setOrgJoinRequests] = useState<OrgJoinRequest[]>([]);
-//   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
-//   const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
-//   const [materials, setMaterials] = useState<Material[]>([]);
+//   >(() => loadCache("enrollmentRequests", []));
+//   const [orgJoinRequests, setOrgJoinRequests] = useState<OrgJoinRequest[]>(() =>
+//     loadCache("orgJoinRequests", []),
+//   );
+//   const [orgMembers, setOrgMembers] = useState<OrgMember[]>(() =>
+//     loadCache("orgMembers", []),
+//   );
+//   const [userProgress, setUserProgress] = useState<UserProgress[]>(() =>
+//     loadCache("userProgress", []),
+//   );
+//   const [materials, setMaterials] = useState<Material[]>(() =>
+//     loadCache("materials", []),
+//   );
 //   const [attendanceRecords, setAttendanceRecords] = useState<
 //     AttendanceRecord[]
-//   >([]);
-//   const [assessments, setAssessments] = useState<Assessment[]>([]);
-//   const [submissions, setSubmissions] = useState<Submission[]>([]);
-//   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
-//   const [messages, setMessages] = useState<ChatMessage[]>([]);
-//   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+//   >(() => loadCache("attendanceRecords", []));
+//   const [assessments, setAssessments] = useState<Assessment[]>(() =>
+//     loadCache("assessments", []),
+//   );
+//   const [submissions, setSubmissions] = useState<Submission[]>(() =>
+//     loadCache("submissions", []),
+//   );
+//   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(() =>
+//     loadCache("scheduleEvents", []),
+//   );
+//   const [messages, setMessages] = useState<ChatMessage[]>(() =>
+//     loadCache("messages", []),
+//   );
+//   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
+//     loadCache("notifications", []),
+//   );
 
 //   // Helper to update personalInformation within the user object of a backpack document
 //   const updateBackpackPersonalInfo = async (
@@ -1506,9 +1705,8 @@ export const useAppContext = () => {
 //         const data = docSnap.data();
 //         const userObj = getUserData(data);
 //         const currentList: T[] = Array.isArray(userObj[field])
-//           ? userObj[field]
+//           ? (userObj[field] as T[])
 //           : [];
-//         const currentList: T[] = Array.isArray(userObj[field]) ? (userObj[field] as T[]) : [];
 //         const updatedList = updateFn(currentList);
 //         const updatedUser = {
 //           ...userObj,
@@ -1654,17 +1852,8 @@ export const useAppContext = () => {
 //             allSubmissions.push(...userObj.submissions);
 //           if (Array.isArray(userObj.scheduleEvents))
 //             allScheduleEvents.push(...userObj.scheduleEvents);
-//           if (Array.isArray(userObj.courses)) allCourses.push(...userObj.courses);
-//           if (Array.isArray(userObj.enrollmentRequests)) allEnrollments.push(...userObj.enrollmentRequests);
-//           if (Array.isArray(userObj.orgJoinRequests)) allOrgJoinRequests.push(...userObj.orgJoinRequests);
-//           if (Array.isArray(userObj.orgMembers)) allMembers.push(...userObj.orgMembers);
-//           if (Array.isArray(userObj.userProgress)) allProgress.push(...userObj.userProgress);
-//           if (Array.isArray(userObj.materials)) allMaterials.push(...userObj.materials);
-//           if (Array.isArray(userObj.attendance)) allAttendance.push(...userObj.attendance);
-//           if (Array.isArray(userObj.assessments)) allAssessments.push(...userObj.assessments);
-//           if (Array.isArray(userObj.submissions)) allSubmissions.push(...userObj.submissions);
-//           if (Array.isArray(userObj.scheduleEvents)) allScheduleEvents.push(...userObj.scheduleEvents);
-//           if (Array.isArray(userObj.messages)) allMessages.push(...userObj.messages);
+//           if (Array.isArray(userObj.messages))
+//             allMessages.push(...userObj.messages);
 //         });
 
 //         // Deduplicate arrays by id
@@ -1676,21 +1865,61 @@ export const useAppContext = () => {
 //           return Array.from(map.values());
 //         };
 
-//         setOrganizations(dedupeById(allOrganizations));
-//         setCourses(dedupeById(allCourses));
-//         setEnrollmentRequests(dedupeById(allEnrollments));
-//         setOrgJoinRequests(dedupeById(allOrgJoinRequests));
-//         setUserProgress(dedupeById(allProgress));
-//         setMaterials(dedupeById(allMaterials));
-//         setAttendanceRecords(allAttendance);
-//         setAssessments(dedupeById(allAssessments));
-//         setSubmissions(dedupeById(allSubmissions));
-//         setScheduleEvents(dedupeById(allScheduleEvents));
-//         setOrgMembers(dedupeById(allMembers));
-//         setMessages(dedupeById(allMessages));
+//         const updateAndCache = (key: string, data: any, setter: any) => {
+//           setter(data);
+//           try {
+//             localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data));
+//           } catch (e) {}
+//         };
 
+//         updateAndCache(
+//           "organizations",
+//           dedupeById(allOrganizations),
+//           setOrganizations,
+//         );
+//         updateAndCache("courses", dedupeById(allCourses), setCourses);
+//         updateAndCache(
+//           "enrollmentRequests",
+//           dedupeById(allEnrollments),
+//           setEnrollmentRequests,
+//         );
+//         updateAndCache(
+//           "orgJoinRequests",
+//           dedupeById(allOrgJoinRequests),
+//           setOrgJoinRequests,
+//         );
+//         updateAndCache(
+//           "userProgress",
+//           dedupeById(allProgress),
+//           setUserProgress,
+//         );
+//         updateAndCache("materials", dedupeById(allMaterials), setMaterials);
+//         updateAndCache(
+//           "attendanceRecords",
+//           allAttendance,
+//           setAttendanceRecords,
+//         );
+//         updateAndCache(
+//           "assessments",
+//           dedupeById(allAssessments),
+//           setAssessments,
+//         );
+//         updateAndCache(
+//           "submissions",
+//           dedupeById(allSubmissions),
+//           setSubmissions,
+//         );
+//         updateAndCache(
+//           "scheduleEvents",
+//           dedupeById(allScheduleEvents),
+//           setScheduleEvents,
+//         );
+//         updateAndCache("orgMembers", dedupeById(allMembers), setOrgMembers);
+//         updateAndCache("messages", dedupeById(allMessages), setMessages);
 //       } catch (err) {
 //         console.error("loadAllBackpackData failed:", err);
+//       } finally {
+//         setIsLoadingApp(false);
 //       }
 //     };
 
@@ -2305,6 +2534,37 @@ export const useAppContext = () => {
 //     setMaterials((prev) => [...prev, cleaned]);
 //   };
 
+//   const updateMaterial = async (id: string, updates: Partial<Material>) => {
+//     const targetUid = currentUser?.id || "";
+//     if (targetUid) {
+//       await updateBackpackUserField<Material>(targetUid, "materials", (list) =>
+//         list.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+//       );
+//     }
+//     setMaterials((prev) =>
+//       prev.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+//     );
+//   };
+
+//   const deleteMaterial = async (id: string) => {
+//     const targetUid = currentUser?.id || "";
+
+//     // Optimistic update
+//     setMaterials((prev) => prev.filter((m) => m.id !== id));
+
+//     if (targetUid) {
+//       try {
+//         await updateBackpackUserField<Material>(
+//           targetUid,
+//           "materials",
+//           (list) => list.filter((m) => m.id !== id),
+//         );
+//       } catch (err) {
+//         console.error("Failed to delete material from backend:", err);
+//       }
+//     }
+//   };
+
 //   // Attendance Records (stored in backpack/{targetId}.user.attendance)
 //   const addAttendanceRecord = async (record: AttendanceRecord) => {
 //     const attId = record.id || `att_${Date.now()}_${record.courseId}`;
@@ -2447,15 +2707,13 @@ export const useAppContext = () => {
 //       "messages",
 //       (list) => [...list, cleaned],
 //     );
-//     const course = courses.find(c => c.id === msg.courseId);
-//     const targetUid = course?.orgId || currentUser?.id || '';
-//     await updateBackpackUserField<ChatMessage>(targetUid, 'messages', (list) => [...list, cleaned]);
-//     setMessages(prev => [...prev, msg]);
+//     setMessages((prev) => [...prev, msg]);
 //   };
 
 //   return (
 //     <AppContext.Provider
 //       value={{
+//         isLoadingApp,
 //         organizations,
 //         courses,
 //         enrollmentRequests,
@@ -2467,6 +2725,7 @@ export const useAppContext = () => {
 //         assessments,
 //         submissions,
 //         scheduleEvents,
+//         messages,
 //         notifications,
 //         addOrganization,
 //         updateOrganization,
@@ -2487,6 +2746,8 @@ export const useAppContext = () => {
 //         deleteOrgMember,
 //         updateProgress,
 //         addMaterial,
+//         updateMaterial,
+//         deleteMaterial,
 //         addAttendanceRecord,
 //         sendMessage,
 //         addAssessment,
@@ -2501,10 +2762,6 @@ export const useAppContext = () => {
 //         clearNotifications,
 //       }}
 //     >
-//     <AppContext.Provider value={{
-//       organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents, messages, notifications,
-//       addOrganization, updateOrganization, deleteOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, cancelEnrollmentRequest, openCourseAdmission, closeCourseAdmission, createCourseAdmissionSession, updateCourseAdmissionSession, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, addNotification, markNotificationRead, markAllNotificationsRead, clearNotifications
-//     }}>
 //       {children}
 //     </AppContext.Provider>
 //   );

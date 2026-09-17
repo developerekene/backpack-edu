@@ -71,10 +71,6 @@ export function CourseDiscussions({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId, courseChannels.length]);
 
-  // No real-time listeners in this codebase's storage pattern (everything
-  // lives in nested backpack-doc arrays, loaded once on login) -- poll for
-  // updates while this tab is actually visible, so a reply from another
-  // participant shows up without requiring a full page reload.
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === "visible") {

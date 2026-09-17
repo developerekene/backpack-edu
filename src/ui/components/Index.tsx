@@ -17,6 +17,7 @@ import { Navbar } from "./Navbar";
 import { AppProvider } from "../../store/AppContext";
 import { AuthProvider, useAuth } from "../../store/AuthContext";
 import { ThemeProvider } from "../../store/ThemeContext";
+import { EventProvider } from "../../store/EventContext";
 import AboutUs from "../pages/AboutUs";
 import Policy from "../pages/Policy";
 import { GlobalLoader } from "./GlobalLoader";
@@ -43,88 +44,90 @@ const Index: React.FC = () => {
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
-          <BrowserRouter>
-            <GlobalLoader />
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
-              <Navbar />
-              <main className="flex-1 max-w-7xl w-full mx-auto p-6">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/about-us" element={<AboutUs />} />
+          <EventProvider>
+            <BrowserRouter>
+              <GlobalLoader />
+              <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+                <Navbar />
+                <main className="flex-1 max-w-7xl w-full mx-auto p-6">
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/about-us" element={<AboutUs />} />
 
-                  <Route path="/privacy" element={<Policy />} />
-                  <Route
-                    path="/explore"
-                    element={
-                      <ProtectedRoute>
-                        <ExploreOrgs />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="/org/:orgId" element={<OrgProfile />} />
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/onboard"
-                    element={
-                      <ProtectedRoute>
-                        <Onboarding />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/upload-course"
-                    element={
-                      <ProtectedRoute>
-                        <CourseUpload />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/course/:courseId"
-                    element={
-                      <ProtectedRoute>
-                        <CourseDetails />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/settings"
-                    element={
-                      <ProtectedRoute>
-                        <Settings />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/profile"
-                    element={
-                      <ProtectedRoute>
-                        <Profile />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/lunch"
-                    element={
-                      <ProtectedRoute>
-                        <Lunch />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="/events" element={<Events />} />
-                </Routes>
-              </main>
-            </div>
-          </BrowserRouter>
+                    <Route path="/privacy" element={<Policy />} />
+                    <Route
+                      path="/explore"
+                      element={
+                        <ProtectedRoute>
+                          <ExploreOrgs />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="/org/:orgId" element={<OrgProfile />} />
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <ProtectedRoute>
+                          <Dashboard />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/onboard"
+                      element={
+                        <ProtectedRoute>
+                          <Onboarding />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/upload-course"
+                      element={
+                        <ProtectedRoute>
+                          <CourseUpload />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/course/:courseId"
+                      element={
+                        <ProtectedRoute>
+                          <CourseDetails />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/settings"
+                      element={
+                        <ProtectedRoute>
+                          <Settings />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/profile"
+                      element={
+                        <ProtectedRoute>
+                          <Profile />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/lunch"
+                      element={
+                        <ProtectedRoute>
+                          <Lunch />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="/events" element={<Events />} />
+                  </Routes>
+                </main>
+              </div>
+            </BrowserRouter>
+          </EventProvider>
         </AppProvider>
       </AuthProvider>
     </ThemeProvider>
