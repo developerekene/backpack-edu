@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-assignment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 import React, { useState } from "react";
@@ -6,11 +7,15 @@ import { useAppContext } from "../../store/AppContext";
 import { Award, Download, Settings, Palette, Layout, Type } from "lucide-react";
 import { useAuth } from "../../store/AuthContext";
 import { FileUpload } from "./FileUpload";
+import * as htmlToImage from "html-to-image";
+import jsPDF from "jspdf";
 
 const CertificatePreviewWrapper = ({
   children,
+  innerRef,
 }: {
   children: React.ReactNode;
+  innerRef?: React.RefObject<HTMLDivElement | null>;
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -48,7 +53,13 @@ const CertificatePreviewWrapper = ({
           }}
           className="absolute top-0 left-0"
         >
-          {children}
+          <div
+            ref={innerRef}
+            className="w-full h-full"
+            style={{ backgroundColor: "#ffffff" }}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>
@@ -70,6 +81,7 @@ export const CourseCertificate = ({
   const defaultQualificationTitle =
     course.qualificationTitle || "Certificate of Completion";
   const { currentUser } = useAuth();
+  const certificateRef = React.useRef<HTMLDivElement>(null);
 
   const config = course.certificateConfig || {
     enabled: false,
@@ -111,26 +123,61 @@ export const CourseCertificate = ({
       | "creative") || "classic",
   );
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+
   const handleSave = async () => {
-    await updateCourse(course.id, {
-      certificateConfig: {
-        enabled,
-        customText,
-        orgName,
-        gradeLevel,
-        qualificationTitle,
-        signatureUrl,
-        authorizedSealUrl,
-        themeColor,
-        textColor,
-        layout,
-      },
-    });
-    setIsEditing(false);
+    setIsSaving(true);
+    setToastMsg("Saving...");
+    try {
+      await updateCourse(course.id, {
+        certificateConfig: {
+          enabled,
+          customText,
+          orgName,
+          gradeLevel,
+          qualificationTitle,
+          signatureUrl,
+          authorizedSealUrl,
+          themeColor,
+          textColor,
+          layout,
+        },
+      });
+      setIsEditing(false);
+      setToastMsg("Saved successfully!");
+    } catch (e) {
+      console.error(e);
+      setToastMsg("Error saving settings.");
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => setToastMsg(""), 3000);
+    }
   };
 
-  const handleDownload = () => {
-    alert("Certificate downloaded successfully!");
+  const handleDownload = async () => {
+    if (!certificateRef.current) return;
+    setToastMsg("Generating certificate...");
+    console.log("Using html-to-image engine for PDF generation!");
+    try {
+      const imgData = await htmlToImage.toPng(certificateRef.current, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+      });
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "px",
+        format: [800, 565],
+      });
+      pdf.addImage(imgData, "PNG", 0, 0, 800, 565);
+      pdf.save(`${course.title.replace(/\s+/g, "_")}_Certificate.pdf`);
+      setToastMsg("Downloaded successfully!");
+    } catch (error) {
+      console.error("HTML-TO-IMAGE ENGINE ERROR:", error);
+      setToastMsg("Error generating certificate. Please try again.");
+    } finally {
+      setTimeout(() => setToastMsg(""), 3000);
+    }
   };
 
   const studentName = isStudent ? currentUser?.name : "[Student Name]";
@@ -151,11 +198,35 @@ export const CourseCertificate = ({
 
     if (layout === "classic") {
       containerClasses =
-        "w-full h-full bg-white border-[12px] border-double p-8 flex flex-col relative shadow-xl transition-all duration-300";
+        "w-full h-full border-[12px] border-double p-8 flex flex-col relative transition-all duration-300";
+      content = (
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            height: "100%",
+            width: "100%",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            zIndex: -1,
+          }}
+        ></div>
+      );
       content = (
         <>
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              height: "100%",
+              width: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              zIndex: 0,
+            }}
+          ></div>
           {authorizedSealUrl && (
-            <div className="absolute top-8 right-8 w-24 h-24 opacity-20 pointer-events-none">
+            <div className="absolute top-8 right-8 w-24 h-24 opacity-20 pointer-events-none z-10">
               <img
                 src={authorizedSealUrl}
                 alt="Seal"
@@ -165,7 +236,7 @@ export const CourseCertificate = ({
           )}
 
           <div
-            className="text-center flex-1 flex flex-col justify-center"
+            className="text-center flex-1 flex flex-col justify-center relative z-10"
             style={{ color: fontColor }}
           >
             <div
@@ -204,7 +275,7 @@ export const CourseCertificate = ({
           </div>
 
           <div
-            className="flex justify-between items-end border-t pt-6 mt-8"
+            className="flex justify-between items-end border-t pt-6 mt-8 relative z-10"
             style={{ borderColor: `${primaryColor}40` }}
           >
             <div className="text-left" style={{ color: fontColor }}>
@@ -249,20 +320,31 @@ export const CourseCertificate = ({
       );
     } else if (layout === "modern") {
       containerClasses =
-        "w-full h-full bg-white p-8 flex flex-col relative shadow-2xl overflow-hidden rounded-2xl transition-all duration-300";
+        "w-full h-full p-8 flex flex-col relative overflow-hidden rounded-2xl transition-all duration-300";
       content = (
         <>
           <div
-            className="absolute top-0 left-0 w-32 h-full opacity-10"
+            style={{
+              backgroundColor: "#ffffff",
+              height: "100%",
+              width: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              zIndex: 0,
+            }}
+          ></div>
+          <div
+            className="absolute top-0 left-0 w-32 h-full opacity-10 z-0"
             style={{ backgroundColor: primaryColor }}
           ></div>
           <div
-            className="absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-10"
+            className="absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-10 z-0"
             style={{ backgroundColor: primaryColor }}
           ></div>
 
           {authorizedSealUrl && (
-            <div className="absolute bottom-8 right-8 w-32 h-32 opacity-10 pointer-events-none">
+            <div className="absolute bottom-8 right-8 w-32 h-32 opacity-10 pointer-events-none z-10">
               <img
                 src={authorizedSealUrl}
                 alt="Seal"
@@ -324,8 +406,8 @@ export const CourseCertificate = ({
 
             <div className="flex justify-between items-end mt-8">
               <div
-                className="text-left bg-slate-50 p-4 rounded-xl border border-slate-100"
-                style={{ color: fontColor }}
+                className="text-left p-4 rounded-xl border"
+                style={{ color: fontColor, backgroundColor: "#f8fafc", borderColor: "#f1f5f9" }}
               >
                 <div className="text-xs opacity-60 font-mono mb-1">
                   CERT_ID // {certId}
@@ -363,11 +445,11 @@ export const CourseCertificate = ({
       );
     } else if (layout === "elegant") {
       containerClasses =
-        "w-full h-full bg-[#fdfbf7] p-6 flex flex-col relative shadow-xl transition-all duration-300";
+        "w-full h-full p-6 flex flex-col relative transition-all duration-300";
       content = (
         <div
           className="w-full h-full border-[6px] p-2 flex flex-col relative"
-          style={{ borderColor: primaryColor }}
+          style={{ borderColor: primaryColor, backgroundColor: "#fdfbf7" }}
         >
           <div
             className="w-full h-full border border-opacity-50 p-8 flex flex-col relative"
@@ -471,9 +553,20 @@ export const CourseCertificate = ({
       );
     } else if (layout === "creative") {
       containerClasses =
-        "w-full h-full bg-slate-900 p-0 flex relative shadow-xl overflow-hidden transition-all duration-300";
+        "w-full h-full p-0 flex relative overflow-hidden transition-all duration-300";
       content = (
         <>
+          <div
+            style={{
+              backgroundColor: "#0f172a",
+              height: "100%",
+              width: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              zIndex: 0,
+            }}
+          ></div>
           <div
             className="w-1/3 h-full p-8 flex flex-col justify-between relative z-10"
             style={{ backgroundColor: primaryColor, color: "#ffffff" }}
@@ -508,8 +601,8 @@ export const CourseCertificate = ({
           </div>
 
           <div
-            className="w-2/3 h-full p-12 flex flex-col justify-center relative bg-white z-10"
-            style={{ color: fontColor }}
+            className="w-2/3 h-full p-12 flex flex-col justify-center relative z-10"
+            style={{ color: fontColor, backgroundColor: "#ffffff" }}
           >
             <div
               className="text-sm font-bold uppercase tracking-wider mb-2"
@@ -573,11 +666,22 @@ export const CourseCertificate = ({
       );
     } else {
       containerClasses =
-        "w-full h-full bg-[#fafafa] border border-slate-200 p-12 flex flex-col items-center justify-center relative shadow-sm transition-all duration-300";
+        "w-full h-full border p-12 flex flex-col items-center justify-center relative transition-all duration-300";
       content = (
         <>
+          <div
+            style={{
+              backgroundColor: "#fafafa",
+              height: "100%",
+              width: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              zIndex: 0,
+            }}
+          ></div>
           {authorizedSealUrl && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 opacity-5 pointer-events-none">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 opacity-5 pointer-events-none z-10">
               <img
                 src={authorizedSealUrl}
                 alt="Seal"
@@ -656,7 +760,7 @@ export const CourseCertificate = ({
     return (
       <div
         className={containerClasses}
-        style={layout === "classic" ? { borderColor: `${primaryColor}50` } : {}}
+        style={layout === "classic" ? { borderColor: `${primaryColor}50` } : (layout === "minimal" ? { borderColor: "#e2e8f0" } : {})}
       >
         {content}
       </div>
@@ -673,25 +777,29 @@ export const CourseCertificate = ({
     }
     if (progress < 100) {
       return (
-        <div className="p-8 text-center">
-          <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Award className="w-8 h-8 text-slate-500" />
+        <div className="p-8 text-center bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/50 rounded-2xl max-w-lg mx-auto relative">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Award className="w-8 h-8 text-red-500" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-            Certificate Locked
+          <h3 className="text-xl font-bold text-red-700 dark:text-red-400 mb-2">
+            Error: Certificate Locked
           </h3>
-          <p className="text-slate-500 dark:text-slate-400">
-            Complete all modules and assessments (100%) to unlock your
-            certificate.
+          <p className="text-red-600 dark:text-red-300 font-medium mb-2">
+            You must complete 100% of the course to access your certificate.
           </p>
-          <div className="mt-4 text-2xl font-bold text-indigo-400">
+          <div className="mt-4 text-2xl font-bold text-red-500">
             {progress.toFixed(0)}% Completed
           </div>
         </div>
       );
     }
     return (
-      <div className="p-8 text-center">
+      <div className="p-8 text-center relative">
+        {toastMsg && (
+          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl font-medium animate-in slide-in-from-bottom-4">
+            {toastMsg}
+          </div>
+        )}
         <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
           <Award className="w-10 h-10 text-emerald-400" />
         </div>
@@ -703,7 +811,7 @@ export const CourseCertificate = ({
           certificate.
         </p>
         <div className="mb-8">
-          <CertificatePreviewWrapper>
+          <CertificatePreviewWrapper innerRef={certificateRef}>
             {renderCertificatePreview()}
           </CertificatePreviewWrapper>
         </div>
@@ -730,7 +838,12 @@ export const CourseCertificate = ({
 
   // Admin / Instructor View
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-6 md:p-8 space-y-6 relative">
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl font-medium animate-in slide-in-from-bottom-4">
+          {toastMsg}
+        </div>
+      )}
       <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center">
           <Award className="w-5 h-5 mr-2 text-indigo-400" /> Certificate
@@ -919,13 +1032,15 @@ export const CourseCertificate = ({
             <div className="flex space-x-3 pt-4 sticky bottom-4 z-20">
               <button
                 onClick={handleSave}
-                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/30"
+                disabled={isSaving}
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Design
+                {isSaving ? "Saving..." : "Save Design"}
               </button>
               <button
                 onClick={() => setIsEditing(false)}
-                className="px-6 py-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl font-bold transition border border-slate-200 dark:border-slate-700"
+                disabled={isSaving}
+                className="px-6 py-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl font-bold transition border border-slate-200 dark:border-slate-700 disabled:opacity-50"
               >
                 Cancel
               </button>
