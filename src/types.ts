@@ -158,7 +158,7 @@ export interface Course {
     qualificationTitle?: string;
     themeColor?: string;
     textColor?: string;
-    layout?: 'classic' | 'modern' | 'minimal' | 'elegant' | 'creative';
+    layout?: "classic" | "modern" | "minimal" | "elegant" | "creative";
   };
 }
 
@@ -293,6 +293,8 @@ export interface DiscussionChannel {
   pinned?: boolean;
   order?: number;
   createdAt: string;
+  resources?: DiscussionResource[];
+  subscriberIds?: string[];
 }
 
 export interface DiscussionMessage {
@@ -310,6 +312,42 @@ export interface DiscussionMessage {
   verified?: boolean;
   replyCount?: number;
   createdAt: number;
+  pinned?: boolean;
+  links?: { label: string; url: string }[];
+}
+
+export interface DiscussionResource {
+  id: string;
+  name: string;
+  url: string;
+  sizeLabel?: string;
+  addedByName?: string;
+  verified?: boolean;
+  createdAt: string;
+}
+
+export interface DiscussionPollOption {
+  id: string;
+  label: string;
+  votes: string[];
+}
+
+export interface DiscussionPoll {
+  id: string;
+  channelId: string;
+  courseId: string;
+  question: string;
+  options: DiscussionPollOption[];
+  closesAt: number;
+  createdAt: number;
+}
+export interface CoursePresence {
+  id: string;
+  courseId: string;
+  userId: string;
+  userName: string;
+  role?: "instructor" | "ta" | "student";
+  lastActiveAt: number;
 }
 
 // export interface Assessment {
