@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, User, X, ArrowRight } from "lucide-react";
@@ -141,8 +141,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     }
   };
 
-  const formRef = useRef<HTMLFormElement>(null);
-
   const handleSelectUserAndRedirect = (userToSelect: AppUser) => {
     setName(userToSelect.name || "");
     setEmail(userToSelect.email || "");
@@ -151,7 +149,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     else if (userToSelect.role === 'student') setActiveTab('students');
     setShowAppUsersModal(false);
     setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('org-onboarding-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   };
 
@@ -278,7 +276,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       )}
 
       {/* Quick Onboarding Form */}
-      <form ref={formRef} onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
+      <form id="org-onboarding-form" onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
             <UserPlus className="w-4 h-4 mr-2 text-indigo-500" />

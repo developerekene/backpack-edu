@@ -391,8 +391,8 @@ export function ManageAssessmentsList({
                                       );
                                     }
 
-                                    let isCorrect = false;
-                                    let answerLabel = answer;
+                                    let isCorrect: boolean;
+                                    let answerLabel: string;
                                     if (q.questionType === "multiple_choice") {
                                       const chosen = (q.options || []).find(
                                         (o) => o.id === answer,

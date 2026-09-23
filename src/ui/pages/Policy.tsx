@@ -756,6 +756,65 @@ const sections: PolicySection[] = [
       },
     ],
   },
+
+  /* ----------------------------------------------------- */
+  /* 18. Checkout Disclosures & Consumer Protection (FCCPA) */
+  /* ----------------------------------------------------- */
+  {
+    id: "checkout-disclosures",
+    title: "Checkout Disclosures & Consumer Protection",
+    icon: Scale,
+    audiences: [],
+    intro:
+      "Strict checkout transparency standards in compliance with the Nigerian Federal Competition and Consumer Protection Act (FCCPA 2018) and international consumer protection standards (OECD, EU, UK, and US FTC).",
+    searchTerms: [
+      "fccpa",
+      "consumer protection",
+      "checkout disclosure",
+      "refunds",
+      "pricing transparency",
+      "payment terms",
+      "hidden fees",
+      "disputes",
+      "nigeria consumer act",
+    ],
+    blocks: [
+      {
+        type: "paragraph",
+        text: "Backpack strictly enforces complete pricing and transaction transparency. Under the Federal Competition and Consumer Protection Act (FCCPA 2018) of Nigeria, Central Bank of Nigeria (CBN) electronic payment guidelines, and international consumer protection benchmarks, all users are entitled to clear, unambiguous, and conspicuous disclosures prior to final payment completion.",
+      },
+      {
+        type: "subsection",
+        heading: "Statutory Price & Fee Disclosures (FCCPA Section 115)",
+        text: "Before you complete any tuition payment, student sponsorship, or general course donation, the total final price is prominently displayed. This includes the itemized base amount, any applicable platform service additions or administrative fees, and the exact final payable amount in the stated currency. Backpack never applies hidden checkout fees, surprise processing additions, or unauthorized conversion markups.",
+      },
+      {
+        type: "subsection",
+        heading: "Identification of Supplier & Merchant (FCCPA Section 116)",
+        text: "Prior to payment, the identity of the verified educational institution, vocational school, or course provider is clearly displayed alongside Backpack as the platform technology provider. Receipts and payment confirmations clearly identify the payee and transaction reference.",
+      },
+      {
+        type: "subsection",
+        heading: "International Consumer Protection Standards",
+        text: "In accordance with the OECD Guidelines for Consumer Protection in E-Commerce, the EU Consumer Rights Directive (2011/83/EU), the UK Consumer Rights Act 2015, and the US Federal Trade Commission (FTC) requirements: (1) consumers receive full pre-contractual disclosures before concluding a binding financial commitment; (2) all payments require explicit, affirmative consent; (3) digital educational course access or sponsorship credit is provisioned immediately upon transaction verification; and (4) records of all transactions are retrievable by the consumer.",
+      },
+      {
+        type: "subsection",
+        heading: "Dispute Resolution, Cancellation & Refunds (FCCPA Section 120 & 129)",
+        text: "Learners and donors have the right to fair, expeditious dispute handling. If a course is canceled, fails to launch, or deviates substantially from published curricula, affected users are entitled to full remedies, credit, or refunds in compliance with applicable law. For any billing questions or dispute submissions, contact support@backpack.africa with a guaranteed 48-hour response acknowledgment.",
+      },
+      {
+        type: "subsection",
+        heading: "Payment Processing & Zero Data Retention",
+        text: "All payment transactions are handled through PCI-DSS Level 1 compliant processors (Paystack). Backpack servers never store sensitive credit/debit card numbers, CVVs, or cardholder banking credentials, ensuring compliance with the Nigeria Data Protection Act (NDPA), GDPR, and international e-payment security standards.",
+      },
+      {
+        type: "note",
+        noteType: "success",
+        text: "By maintaining mandatory pre-payment disclosures across all checkout modals and payment interfaces, Backpack ensures end-users exercise full informed consent and enjoy uncompromising consumer protection across Nigerian and global jurisdictions.",
+      },
+    ],
+  },
 ];
 
 /* ============================================================= */

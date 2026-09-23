@@ -10,12 +10,7 @@ import {
   Monitor,
   Layout,
   Code2,
-  CheckCheck,
-  Trash2,
-  Send,
   ShieldCheck,
-  AlertCircle,
-  Rocket,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 

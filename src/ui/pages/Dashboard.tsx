@@ -22,6 +22,7 @@ import {
   Paperclip,
   Trash2,
   Building2,
+  Accessibility,
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
@@ -802,6 +803,12 @@ const Dashboard = () => {
                         <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-md text-[10px] font-bold border border-indigo-200 dark:border-indigo-800">
                           {Object.keys(req.documents!).length} Documents
                           Attached
+                        </span>
+                      )}
+                      {req.accommodations?.enabled && (
+                        <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 rounded-md text-[10px] font-bold border border-purple-200 dark:border-purple-800 flex items-center">
+                          <Accessibility className="w-3 h-3 mr-1" />
+                          Accommodation Plan ({req.accommodations.examTimeMultiplier || 1.0}x Time)
                         </span>
                       )}
                     </div>

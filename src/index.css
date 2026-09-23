@@ -1,2 +1,34 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
 @custom-variant dark (&:is(.dark *));
+
+/* Dyslexia-Friendly Font & Typography */
+body.dyslexic-font-active,
+body.dyslexic-font-active * {
+  font-family: 'Lexend', 'OpenDyslexic', 'Comic Sans MS', 'Verdana', sans-serif !important;
+  letter-spacing: 0.04em !important;
+  word-spacing: 0.08em !important;
+}
+
+/* Custom Line Spacings */
+body.line-spacing-relaxed :is(p, span, li, a, h1, h2, h3, h4, h5, h6, input, textarea, button) {
+  line-height: 1.85 !important;
+}
+
+body.line-spacing-loose :is(p, span, li, a, h1, h2, h3, h4, h5, h6, input, textarea, button) {
+  line-height: 2.2 !important;
+}
+
+/* Reduced Motion Mode */
+body.reduced-motion-active,
+body.reduced-motion-active * {
+  animation-duration: 0.001s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001s !important;
+  scroll-behavior: auto !important;
+}
+
+/* High Contrast Mode */
+body.high-contrast-mode {
+  filter: contrast(130%) saturate(110%);
+}

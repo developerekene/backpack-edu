@@ -1,4 +1,5 @@
-import { Link, Navigate } from "react-router-dom";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Globe,
   ShieldCheck,
@@ -6,20 +7,48 @@ import {
   ArrowRight,
   BookOpen,
   BarChart3,
-  Users,
   GraduationCap,
   Star,
+  HeartHandshake,
+  TrendingUp,
+  Award,
+  CheckCircle2,
+  Users,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
-import { useAuth } from "../../store/AuthContext";
+import { Course } from "../../types";
+import { CourseDonationModal } from "../components/CourseDonationModal";
+import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 
 const Home = () => {
   const { courses, organizations } = useAppContext();
-  const { currentUser } = useAuth();
+  const [donatingCourse, setDonatingCourse] = useState<Course | null>(null);
 
-  if (currentUser) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Helper to identify donation-funded vocational education courses
+  const isDonationFundedVocational = (c: Course) => {
+    const org = organizations.find(
+      (o) =>
+        o.id === c.orgId ||
+        o.ownerId === c.orgId ||
+        `org_${o.ownerId}` === c.orgId,
+    );
+    const isVocationalOrg = org ? org.orgType === "vocational" : true;
+    return c.fundingModel === "donations_sponsorships" && isVocationalOrg;
+  };
+
+  // Divide courses strictly into Popular Courses and Non-Profit (Donation-Funded Vocational) Courses
+  const nonProfitCourses = courses.filter(isDonationFundedVocational);
+  const popularCourses = courses.filter((c) => !isDonationFundedVocational(c));
+
+  // Fallback lists if empty
+  const displayPopular =
+    popularCourses.length > 0
+      ? popularCourses.slice(0, 3)
+      : courses.slice(0, 3);
+  const displayNonProfit =
+    nonProfitCourses.length > 0
+      ? nonProfitCourses.slice(0, 3)
+      : [];
 
   return (
     <div className="py-8 sm:py-12 md:py-16 space-y-16 animate-in fade-in duration-700">
@@ -52,7 +81,7 @@ const Home = () => {
           </Link>
           <Link
             to="/login"
-            className="w-full sm:w-auto bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-sm"
+            className="w-full sm:w-auto bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-sm"
           >
             Access Portal
           </Link>
@@ -374,64 +403,210 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Featured Courses Snapshot */}
+      {/* Featured Courses Section */}
       {courses.length > 0 && (
-        <div className="px-4 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+        <div className="px-4 space-y-8">
+          {/* Main Section Title */}
+          <div className="border-b border-slate-200 dark:border-slate-700/80 pb-4">
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Featured Courses
             </h2>
-            <Link
-              to="/explore"
-              className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm hover:underline flex items-center"
-            >
-              View All <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Explore top-enrolled popular courses and donation-funded non-profit vocational education programs.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {courses.slice(0, 3).map((course) => {
-              const org = organizations.find(
-                (o) =>
-                  o.id === course.orgId ||
-                  o.ownerId === course.orgId ||
-                  `org_${o.ownerId}` === course.orgId,
-              );
-              return (
-                <div
-                  key={course.id}
-                  className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between hover:border-indigo-500 transition group shadow-sm"
-                >
+          {/* Two-Column Grid: Popular Courses (Left) | Non-Profit Courses (Right) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-start">
+            {/* Left Column: Popular Courses */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700/80 pb-4">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/20">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
                   <div>
-                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block mb-2">
-                      {org?.name || "Partner Organization"}
-                    </span>
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
-                      {course.title}
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                      Popular Courses
                     </h3>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mt-2">
-                      {course.description}
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      High-demand academic & professional pathways
                     </p>
                   </div>
+                </div>
+                <Link
+                  to="/explore?filter=popular"
+                  className="text-indigo-600 dark:text-indigo-400 font-semibold text-xs hover:underline flex items-center shrink-0"
+                >
+                  view all <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Link>
+              </div>
 
-                  <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">
-                      {course.price > 0
-                        ? `${course.currency} ${course.price}`
-                        : "Free Enrollment"}
-                    </span>
-                    <Link
-                      to={`/course/${course.id}`}
-                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center hover:underline"
+              <div className="space-y-4">
+                {displayPopular.map((course) => {
+                  const org = organizations.find(
+                    (o) =>
+                      o.id === course.orgId ||
+                      o.ownerId === course.orgId ||
+                      `org_${o.ownerId}` === course.orgId,
+                  );
+                  return (
+                    <div
+                      key={course.id}
+                      className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between hover:border-indigo-500/80 transition-all group shadow-xs hover:shadow-md"
                     >
-                      View Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                    </Link>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                            {org?.name || "Partner Organization"}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                            {course.category || "Popular"}
+                          </span>
+                        </div>
+                        <Link to={`/course/${course.id}`}>
+                          <h4 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition line-clamp-1">
+                            {course.title}
+                          </h4>
+                        </Link>
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mt-1.5 leading-relaxed">
+                          {course.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-900 dark:text-white text-sm">
+                          {course.price > 0
+                            ? `${course.currency || "NGN"} ${formatPriceWithDecimals(getEffectivePrice(course.price))}`
+                            : "Free Enrollment"}
+                        </span>
+                        <Link
+                          to={`/course/${course.id}`}
+                          className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center hover:underline"
+                        >
+                          View Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right Column: Non-Profit Courses */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700/80 pb-4">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                      Non-Profit Courses
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Donation-funded vocational education programs
+                    </p>
                   </div>
                 </div>
-              );
-            })}
+                <Link
+                  to="/explore?filter=non-profit"
+                  className="text-emerald-600 dark:text-emerald-400 font-semibold text-xs hover:underline flex items-center shrink-0"
+                >
+                  view all <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Link>
+              </div>
+
+              {displayNonProfit.length > 0 ? (
+                <div className="space-y-4">
+                  {displayNonProfit.map((course) => {
+                    const org = organizations.find(
+                      (o) =>
+                        o.id === course.orgId ||
+                        o.ownerId === course.orgId ||
+                        `org_${o.ownerId}` === course.orgId,
+                    );
+                    const canDonate = isDonationFundedVocational(course);
+                    return (
+                      <div
+                        key={course.id}
+                        className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between hover:border-emerald-500/80 transition-all group shadow-xs hover:shadow-md relative overflow-hidden"
+                      >
+                        <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-bl-xl uppercase tracking-wider flex items-center">
+                          <CheckCircle2 className="w-3 h-3 mr-1" /> Sponsored
+                        </div>
+
+                        <div>
+                          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                            {org?.name || "Non-Profit Academy"}
+                          </span>
+                          <Link to={`/course/${course.id}`}>
+                            <h4 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition line-clamp-1">
+                              {course.title}
+                            </h4>
+                          </Link>
+                          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mt-1.5 leading-relaxed">
+                            {course.description}
+                          </p>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/60 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                              100% Tuition Waiver
+                            </span>
+                            <Link
+                              to={`/course/${course.id}`}
+                              className="font-bold text-slate-700 dark:text-slate-300 flex items-center hover:underline"
+                            >
+                              View Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                            </Link>
+                          </div>
+
+                          {canDonate && (
+                            <button
+                              onClick={() => setDonatingCourse(course)}
+                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition flex items-center justify-center shadow-md shadow-emerald-600/20"
+                            >
+                              <HeartHandshake className="w-3.5 h-3.5 mr-1.5" />
+                              Donate/Sponsor
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                    <HeartHandshake className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                    Donation-Funded Vocational Education
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                    No active non-profit vocational courses listed yet. Accredited vocational institutes can offer tuition-waived programs supported by donors.
+                  </p>
+                  <Link
+                    to="/explore?filter=non-profit"
+                    className="inline-flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline pt-1"
+                  >
+                    View Non-Profit List <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Connected Modal to Course View */}
+      {donatingCourse && (
+        <CourseDonationModal
+          course={donatingCourse}
+          onClose={() => setDonatingCourse(null)}
+        />
       )}
       <footer className="mt-20 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <div className="max-w-7xl mx-auto px-4 py-12">

@@ -31,15 +31,30 @@ import {
   ReapplicationRecord,
   DiscussionChannel,
   DiscussionMessage,
+  CourseDonation,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
 import { generateId } from "../lib/id";
 
+export interface AdmissionGateStatus {
+  isVocational: boolean;
+  isDonationFunded: boolean;
+  tuitionCostPerStudent: number;
+  totalDonations: number;
+  maxAdmissibleStudents: number;
+  currentlyAdmittedCount: number;
+  remainingSpots: number;
+  canAdmitMore: boolean;
+  currency: string;
+  nextSeatNeededAmount: number;
+}
+
 interface AppState {
   organizations: Organization[];
   courses: Course[];
   enrollmentRequests: EnrollmentRequest[];
+  courseDonations: CourseDonation[];
   orgJoinRequests: OrgJoinRequest[];
   orgMembers: OrgMember[];
   userProgress: UserProgress[];
@@ -62,12 +77,15 @@ interface AppState {
   deleteOrganization: (id: string) => Promise<void>;
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
+  addCourseDonation: (donation: CourseDonation) => Promise<void>;
+  getCourseAdmissionGate: (courseId: string) => AdmissionGateStatus;
   addEnrollmentRequest: (req: EnrollmentRequest) => Promise<void>;
   updateEnrollmentRequest: (
     id: string,
     status?: "approved" | "rejected" | "cancelled" | "pending",
     paymentStatus?: "unpaid" | "paid",
     rejectionReason?: string,
+    extraUpdates?: Partial<EnrollmentRequest>,
   ) => Promise<void>;
   cancelEnrollmentRequest: (id: string) => Promise<void>;
   openCourseAdmission: (courseId: string, sessionId?: string) => Promise<void>;
@@ -184,6 +202,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [enrollmentRequests, setEnrollmentRequests] = useState<
     EnrollmentRequest[]
   >(() => loadCache("enrollmentRequests", []));
+  const [courseDonations, setCourseDonations] = useState<CourseDonation[]>(() =>
+    loadCache("courseDonations", []),
+  );
   const [orgJoinRequests, setOrgJoinRequests] = useState<OrgJoinRequest[]>(() =>
     loadCache("orgJoinRequests", []),
   );
@@ -220,6 +241,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     loadCache("notifications", []),
   );
+  const [registeredUsers, setRegisteredUsers] = useState<
+    { id: string; email: string; name: string; role?: string }[]
+  >(() => loadCache("registeredUsers", []));
 
   // Helper to update personalInformation within the user object of a backpack document
   const updateBackpackPersonalInfo = async (
@@ -340,12 +364,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const allMessages: ChatMessage[] = [];
       const allDiscussionChannels: DiscussionChannel[] = [];
       const allDiscussionMessages: DiscussionMessage[] = [];
+      const allDonations: CourseDonation[] = [];
+      const allRegisteredUsers: {
+        id: string;
+        email: string;
+        name: string;
+        role?: string;
+      }[] = [];
 
       backpackSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
         const userObj = getUserData(data);
         const personalInfo =
           (userObj.personalInformation as Record<string, unknown>) || {};
+
+        const userEmail =
+          (personalInfo.email as string) ||
+          (userObj.email as string) ||
+          (data.email as string);
+        if (userEmail) {
+          allRegisteredUsers.push({
+            id: docSnap.id,
+            email: userEmail.toLowerCase().trim(),
+            name:
+              (personalInfo.fullname as string) ||
+              (personalInfo.name as string) ||
+              (userObj.name as string) ||
+              "Student",
+            role:
+              (personalInfo.role as string) ||
+              (userObj.role as string) ||
+              "student",
+          });
+        }
 
         // Extract organization from user.personalInformation map
         if (
@@ -422,6 +473,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           allDiscussionChannels.push(...userObj.discussionChannels);
         if (Array.isArray(userObj.discussionMessages))
           allDiscussionMessages.push(...userObj.discussionMessages);
+        if (Array.isArray(userObj.courseDonations))
+          allDonations.push(...userObj.courseDonations);
       });
 
       // Deduplicate arrays by id
@@ -433,11 +486,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         return Array.from(map.values());
       };
 
-      const updateAndCache = (key: string, data: any, setter: any) => {
+      const updateAndCache = <T,>(key: string, data: T, setter: (val: T) => void) => {
         setter(data);
         try {
           localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data));
-        } catch (e) {}
+        } catch {
+          // Ignore cache errors
+        }
       };
 
       updateAndCache(
@@ -450,6 +505,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         "enrollmentRequests",
         dedupeById(allEnrollments),
         setEnrollmentRequests,
+      );
+      updateAndCache(
+        "courseDonations",
+        dedupeById(allDonations),
+        setCourseDonations,
       );
       updateAndCache(
         "orgJoinRequests",
@@ -477,6 +537,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         "discussionMessages",
         dedupeById(allDiscussionMessages),
         setDiscussionMessages,
+      );
+      updateAndCache(
+        "registeredUsers",
+        dedupeById(allRegisteredUsers),
+        setRegisteredUsers,
       );
     } catch (err) {
       console.error("loadAllBackpackData failed:", err);
@@ -610,6 +675,219 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  // Admission Gate calculation
+  // "The organisation should provide a tuition cost per student for the course to calculate admission gate (decimal results should only consider the whole number for the number of students allowed to join)."
+  const getCourseAdmissionGate = (courseId: string): AdmissionGateStatus => {
+    const course = courses.find((c) => c.id === courseId);
+    const org = organizations.find(
+      (o) => o.id === course?.orgId || o.ownerId === course?.orgId,
+    );
+    const isVocational = org?.orgType === "vocational";
+    const isDonationFunded =
+      isVocational && course?.fundingModel === "donations_sponsorships";
+    const tuitionCost = isDonationFunded
+      ? course?.tuitionCostPerStudent || course?.price || 0
+      : course?.price || 0;
+
+    const donations = courseDonations.filter((d) => d.courseId === courseId);
+    const totalDonations =
+      donations.reduce((sum, d) => sum + d.amount, 0) ||
+      course?.totalDonationsReceived ||
+      0;
+
+    // Decimal results should only consider the whole number for the number of students allowed to join
+    const maxAdmissibleStudents =
+      isDonationFunded && tuitionCost > 0
+        ? Math.floor(totalDonations / tuitionCost)
+        : 0;
+
+    const approvedEnrollments = enrollmentRequests.filter(
+      (r) => r.courseId === courseId && r.status === "approved",
+    );
+    const currentlyAdmittedCount = approvedEnrollments.length;
+    const remainingSpots = isDonationFunded
+      ? Math.max(0, maxAdmissibleStudents - currentlyAdmittedCount)
+      : 999999;
+    const canAdmitMore =
+      !isDonationFunded || currentlyAdmittedCount < maxAdmissibleStudents;
+    const nextSeatNeededAmount =
+      isDonationFunded && tuitionCost > 0
+        ? Math.max(
+            0,
+            (currentlyAdmittedCount + 1) * tuitionCost - totalDonations,
+          )
+        : 0;
+
+    return {
+      isVocational,
+      isDonationFunded,
+      tuitionCostPerStudent: tuitionCost,
+      totalDonations,
+      maxAdmissibleStudents,
+      currentlyAdmittedCount,
+      remainingSpots,
+      canAdmitMore,
+      currency: course?.currency || "NGN",
+      nextSeatNeededAmount,
+    };
+  };
+
+  const addCourseDonation = async (donation: CourseDonation) => {
+    const cleaned = sanitizeForFirestore(donation);
+    const targetOrgId = donation.orgId;
+    const existingOrg = organizations.find(
+      (o) => o.id === targetOrgId || o.ownerId === targetOrgId,
+    );
+    const targetUid = existingOrg?.ownerId || existingOrg?.id || targetOrgId;
+
+    if (targetUid) {
+      await updateBackpackUserField<CourseDonation>(
+        targetUid,
+        "courseDonations",
+        (list) => [...list.filter((d) => d.id !== donation.id), cleaned],
+      );
+    }
+
+    setCourseDonations((prev) => {
+      const updated = [...prev.filter((d) => d.id !== donation.id), cleaned];
+      try {
+        localStorage.setItem(
+          "bp_cache_courseDonations",
+          JSON.stringify(updated),
+        );
+      } catch {
+        // Ignore cache errors
+      }
+      return updated;
+    });
+
+    const targetCourse = courses.find((c) => c.id === donation.courseId);
+    if (targetCourse) {
+      const newTotal =
+        (targetCourse.totalDonationsReceived || 0) + donation.amount;
+      await updateCourse(targetCourse.id, { totalDonationsReceived: newTotal });
+    }
+
+    const courseTitle = targetCourse?.title || "Vocational Course";
+    const donorDisplay = donation.isAnonymous
+      ? "An anonymous donor"
+      : donation.donorName || "A generous sponsor";
+
+    if (
+      donation.donationType === "sponsorship" &&
+      donation.sponsoredStudentEmails &&
+      donation.sponsoredStudentEmails.length > 0
+    ) {
+      const studentEmails = donation.sponsoredStudentEmails;
+      const registeredStudentSummaries: string[] = [];
+      const nonUserStudentEmails: string[] = [];
+
+      for (const rawEmail of studentEmails) {
+        const cleanEmail = rawEmail.trim().toLowerCase();
+        if (!cleanEmail) continue;
+
+        // Find if this student is an existing registered user
+        const matchingUser =
+          registeredUsers.find((u) => u.email.toLowerCase() === cleanEmail) ||
+          (currentUser?.email?.toLowerCase() === cleanEmail ? currentUser : undefined);
+
+        const studentMeta = donation.sponsoredStudents?.find(
+          (s) => s.email.toLowerCase() === cleanEmail
+        );
+        const effectiveStudentName =
+          matchingUser?.name || (studentMeta?.name?.trim() ? studentMeta.name.trim() : "Sponsored Student");
+
+        // Always create OrgMember invite record with fee covered
+        const newInvite: OrgMember = {
+          id: generateId("member"),
+          orgId: targetOrgId,
+          name: effectiveStudentName,
+          email: cleanEmail,
+          role: "student",
+          department: "Sponsored / Vocational Program",
+          courseIds: [donation.courseId],
+          joinedAt: new Date().toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+          status: "invited",
+          requiresPayment: false,
+          requiresDocuments: false,
+          inviteNote: `Full tuition sponsored by ${donorDisplay}.`,
+        };
+        await addOrgMember(newInvite);
+
+        if (matchingUser) {
+          registeredStudentSummaries.push(`${matchingUser.name} (${cleanEmail})`);
+          // Student is a registered user: notify them IN-APP (like when invited to courses)
+          addNotification({
+            userId: matchingUser.id,
+            title: "Course Sponsorship & Invitation 🎓",
+            message: `You have been sponsored by ${donorDisplay} for "${courseTitle}"! Your tuition is fully covered. Click to accept and start learning.`,
+            type: "enrollment",
+            linkUrl: `/dashboard#pending-course-invitations`,
+          });
+        } else {
+          // Student is NOT a registered user yet
+          const displayStr = studentMeta?.name?.trim()
+            ? `${studentMeta.name.trim()} (${cleanEmail})`
+            : cleanEmail;
+          nonUserStudentEmails.push(displayStr);
+        }
+      }
+
+      // School gets in-app notification detailing both registered student users and non-user students
+      if (targetUid) {
+        const regMsg =
+          registeredStudentSummaries.length > 0
+            ? ` Registered student user(s): ${registeredStudentSummaries.join(", ")}.`
+            : "";
+        const nonUserMsg =
+          nonUserStudentEmails.length > 0
+            ? ` Non-user student email(s): ${nonUserStudentEmails.join(", ")}.`
+            : "";
+
+        addNotification({
+          userId: targetUid,
+          title: "Student Sponsorship Received 🎓",
+          message: `${donorDisplay} has sponsored tuition for ${studentEmails.length} student(s) for "${courseTitle}".${regMsg}${nonUserMsg}`,
+          type: "enrollment",
+          linkUrl: `/dashboard`,
+        });
+      }
+
+      // Check if any matching enrollment requests exist and flag as sponsored
+      const matchingReqs = enrollmentRequests.filter(
+        (r) =>
+          r.courseId === donation.courseId &&
+          r.userEmail &&
+          studentEmails.some(
+            (e) => e.toLowerCase() === r.userEmail?.toLowerCase(),
+          ),
+      );
+      for (const req of matchingReqs) {
+        await updateEnrollmentRequest(req.id, undefined, undefined, undefined, {
+          isSponsored: true,
+          sponsorName: donation.isAnonymous
+            ? "Anonymous Sponsor"
+            : donation.donorName,
+          sponsorEmail: donation.donorEmail,
+        });
+      }
+    } else {
+      if (targetUid) {
+        addNotification({
+          userId: targetUid,
+          title: "New Course Donation Received 💖",
+          message: `${donorDisplay} donated towards student tuition seats for "${courseTitle}".`,
+          type: "info",
+          linkUrl: `/dashboard`,
+        });
+      }
+    }
+  };
+
   // Enrollment Request Operations (stored in backpack/{userId}.user.enrollmentRequests & org's backpack)
   const addEnrollmentRequest = async (req: EnrollmentRequest) => {
     // Check if there was an existing request for this user and course (e.g. previously rejected or cancelled)
@@ -700,46 +978,86 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     status?: "approved" | "rejected" | "cancelled" | "pending",
     paymentStatus?: "unpaid" | "paid",
     rejectionReason?: string,
+    extraUpdates?: Partial<EnrollmentRequest>,
   ) => {
     const req = enrollmentRequests.find((r) => r.id === id);
-    const updates: Partial<EnrollmentRequest> = {};
+    if (!req) return;
+
+    const updates: Partial<EnrollmentRequest> = { ...(extraUpdates || {}) };
     if (status) updates.status = status;
     if (paymentStatus) updates.paymentStatus = paymentStatus;
     if (status === "rejected") {
       updates.rejectedAt = new Date().toISOString();
       if (rejectionReason) updates.rejectionReason = rejectionReason;
-      if (req?.sessionId) updates.rejectedSessionId = req.sessionId;
+      if (req.sessionId) updates.rejectedSessionId = req.sessionId;
     }
 
-    if (req) {
-      if (req.userId) {
-        await updateBackpackUserField<EnrollmentRequest>(
-          req.userId,
-          "enrollmentRequests",
-          (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-        );
+    if (status === "approved") {
+      const targetCourse = courses.find((c) => c.id === req.courseId);
+      const targetOrg = organizations.find(
+        (o) => o.id === targetCourse?.orgId || o.ownerId === targetCourse?.orgId,
+      );
+      if (
+        targetOrg?.orgType === "vocational" &&
+        targetCourse?.fundingModel === "donations_sponsorships"
+      ) {
+        const gate = getCourseAdmissionGate(targetCourse.id);
+        // Only the number of students whose tuition could be covered by these donations can be admitted
+        if (!gate.canAdmitMore) {
+          throw new Error(
+            `Admission Gate Reached: Current donations (${gate.currency} ${gate.totalDonations.toLocaleString()}) only cover up to ${gate.maxAdmissibleStudents} student(s) at ${gate.currency} ${gate.tuitionCostPerStudent.toLocaleString()} per student. At least ${gate.currency} ${gate.nextSeatNeededAmount.toLocaleString()} more in donations or sponsorships is required before admitting another student.`,
+          );
+        }
+        // Student admission is fully covered by donor funding
+        updates.paymentStatus = "paid";
       }
-      if (req.orgId && req.orgId !== req.userId) {
-        await updateBackpackUserField<EnrollmentRequest>(
-          req.orgId,
-          "enrollmentRequests",
-          (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-        );
-      }
+    }
 
-      if (status && status !== "cancelled") {
-        const sessionInfo = req.sessionName ? ` for ${req.sessionName}` : "";
-        addNotification({
-          userId: req.userId,
-          title: `Enrollment Application ${status.toUpperCase()}`,
-          message:
-            status === "approved"
-              ? `Congratulations! Your admission application for "${req.courseTitle || "the course"}"${sessionInfo} has been approved.`
-              : `Your application for "${req.courseTitle || "the course"}"${sessionInfo} was declined.${rejectionReason ? ` Note: ${rejectionReason}` : " You may reapply in the next admission session."}`,
-          type: "enrollment",
-          linkUrl: `/course/${req.courseId}`,
-        });
+    // Auto-detect if student was sponsored by a donor
+    if (req.userEmail && !updates.isSponsored) {
+      const courseSponsorships = courseDonations.filter(
+        (d) =>
+          d.courseId === req.courseId &&
+          d.donationType === "sponsorship" &&
+          d.sponsoredStudentEmails?.some(
+            (e) => e.toLowerCase() === req.userEmail?.toLowerCase(),
+          ),
+      );
+      if (courseSponsorships.length > 0) {
+        const sp = courseSponsorships[0];
+        updates.isSponsored = true;
+        updates.sponsorName = sp.isAnonymous ? "Anonymous Sponsor" : sp.donorName;
+        updates.sponsorEmail = sp.donorEmail;
       }
+    }
+
+    if (req.userId) {
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.userId,
+        "enrollmentRequests",
+        (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+      );
+    }
+    if (req.orgId && req.orgId !== req.userId) {
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.orgId,
+        "enrollmentRequests",
+        (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+      );
+    }
+
+    if (status && status !== "cancelled") {
+      const sessionInfo = req.sessionName ? ` for ${req.sessionName}` : "";
+      addNotification({
+        userId: req.userId,
+        title: `Enrollment Application ${status.toUpperCase()}`,
+        message:
+          status === "approved"
+            ? `Congratulations! Your admission application for "${req.courseTitle || "the course"}"${sessionInfo} has been approved.`
+            : `Your application for "${req.courseTitle || "the course"}"${sessionInfo} was declined.${rejectionReason ? ` Note: ${rejectionReason}` : " You may reapply in the next admission session."}`,
+        type: "enrollment",
+        linkUrl: `/course/${req.courseId}`,
+      });
     }
 
     setEnrollmentRequests((prev) =>
@@ -1387,6 +1705,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         organizations,
         courses,
         enrollmentRequests,
+        courseDonations,
         orgJoinRequests,
         orgMembers,
         userProgress,
@@ -1404,6 +1723,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         deleteOrganization,
         addCourse,
         updateCourse,
+        addCourseDonation,
+        getCourseAdmissionGate,
         addEnrollmentRequest,
         updateEnrollmentRequest,
         cancelEnrollmentRequest,

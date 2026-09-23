@@ -11,8 +11,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
+    "@paystack/inline-js": "^2.25.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react-router-dom": "^5.3.3",
     "clsx": "^2.1.1",

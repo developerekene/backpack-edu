@@ -8,8 +8,10 @@ import {
   Banknote,
 } from "lucide-react";
 import { PaystackButtonWrapper } from "./PaystackButtonWrapper";
+import { CheckoutDisclosure } from "./CheckoutDisclosure";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
+import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 
 interface CoursePaymentModalProps {
   course: Course;
@@ -35,6 +37,8 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
         : "one-time"),
   );
   const [loading, setLoading] = useState(false);
+  const [isDisclosureAcknowledged, setIsDisclosureAcknowledged] =
+    useState(false);
 
   if (!currentUser) return null;
 
@@ -47,15 +51,26 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
   const providerName =
     providerOrg?.name || course.instructorName || "Course Provider";
 
-  const requiresPayment = course.price > 0;
-  const installmentPrice = requiresPayment ? Math.ceil(course.price / 3) : 0;
+  const effectivePrice = getEffectivePrice(course.price);
+  const requiresPayment = effectivePrice > 0;
+  const installmentPrice = requiresPayment
+    ? Math.round((effectivePrice / 3) * 100) / 100
+    : 0;
   const paymentAmount =
-    selectedMethod === "one-time" ? course.price : installmentPrice;
+    selectedMethod === "one-time" ? effectivePrice : installmentPrice;
+
+  // 15% platform addition calculation with full decimals
+  const baseTuitionAmount =
+    selectedMethod === "one-time"
+      ? course.price
+      : Math.round((course.price / 3) * 100) / 100;
+  const platform15Addition =
+    Math.round((paymentAmount - baseTuitionAmount) * 100) / 100;
 
   // Split calculations
   const providerPercentage = subaccount?.percentage_charge || 90;
-  const providerAmount = Math.round((paymentAmount * providerPercentage) / 100);
-  const platformFeeAmount = paymentAmount - providerAmount;
+  const providerAmount = Math.round(((paymentAmount * providerPercentage) / 100) * 100) / 100;
+  const platformFeeAmount = Math.round((paymentAmount - providerAmount) * 100) / 100;
 
   const handleSuccess = () => {
     setLoading(true);
@@ -124,7 +139,7 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
                     Pay in Full
                   </span>
                   <span className="text-base font-black text-indigo-500 dark:text-indigo-400 block">
-                    {course.currency} {course.price.toLocaleString()}
+                    {course.currency} {formatPriceWithDecimals(effectivePrice)}
                   </span>
                   <span className="text-[10px] text-slate-500">
                     Full course access
@@ -148,7 +163,7 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
                     First Installment
                   </span>
                   <span className="text-base font-black text-indigo-500 dark:text-indigo-400 block">
-                    {course.currency} {installmentPrice.toLocaleString()}
+                    {course.currency} {formatPriceWithDecimals(installmentPrice)}
                   </span>
                   <span className="text-[10px] text-slate-500 block mt-0.5">
                     {course.installmentInterval === "weekly"
@@ -171,7 +186,7 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
                   Total Due Now
                 </span>
                 <span className="text-lg font-black text-slate-900 dark:text-white">
-                  {course.currency} {paymentAmount.toLocaleString()}
+                  {course.currency} {formatPriceWithDecimals(paymentAmount)}
                 </span>
               </div>
               <div className="text-right">
@@ -193,14 +208,14 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
                   Direct to {providerName} ({providerPercentage}%):
                 </span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  {course.currency} {providerAmount.toLocaleString()}
+                  {course.currency} {formatPriceWithDecimals(providerAmount)}
                 </span>
               </div>
 
               <div className="flex justify-between items-center text-slate-500 text-[11px]">
                 <span>Platform Fee ({100 - providerPercentage}%):</span>
                 <span>
-                  {course.currency} {platformFeeAmount.toLocaleString()}
+                  {course.currency} {formatPriceWithDecimals(platformFeeAmount)}
                 </span>
               </div>
 
@@ -216,9 +231,28 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
               )}
             </div>
           </div>
+
+          {/* Clear Checkout Disclosure & Consumer Protection */}
+          <CheckoutDisclosure
+            amount={paymentAmount}
+            currency={course.currency}
+            itemTitle={`${course.title} (${selectedMethod === "one-time" ? "Full Payment" : "First Installment"})`}
+            baseAmount={baseTuitionAmount}
+            feeAmount={platform15Addition}
+            feeLabel="Platform Addition (+15%)"
+            providerName={providerName}
+            transactionType="tuition"
+            isAcknowledged={isDisclosureAcknowledged}
+            onAcknowledgeChange={setIsDisclosureAcknowledged}
+          />
         </div>
 
-        <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+        <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 space-y-2">
+          {!isDisclosureAcknowledged && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 text-center font-medium">
+              Please review and check the disclosure box above to proceed with payment.
+            </p>
+          )}
           <PaystackButtonWrapper
             email={currentUser.email}
             amount={paymentAmount}
@@ -228,9 +262,10 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
             providerSharePercent={providerPercentage}
             courseId={course.id}
             courseTitle={course.title}
-            label={`Pay ${course.currency} ${paymentAmount.toLocaleString()} Now`}
+            studentName={currentUser.name}
+            label={`Pay ${course.currency} ${formatPriceWithDecimals(paymentAmount)} Now`}
             onSuccess={handleSuccess}
-            disabled={loading}
+            disabled={loading || !isDisclosureAcknowledged}
           />
         </div>
       </div>

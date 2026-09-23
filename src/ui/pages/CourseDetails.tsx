@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
+import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 import {
   Book,
   MessageSquare,
@@ -28,7 +29,14 @@ import {
   Mail,
   Pencil,
   Trash2,
+  HeartHandshake,
+  Share2,
+  Check,
+  Eye,
+  Edit3,
 } from "lucide-react";
+import { PublicCourseDetails } from "../components/PublicCourseDetails";
+import { EditCourseDetailsModal } from "../components/EditCourseDetailsModal";
 import { LiveKitCall } from "../components/LiveKitCall";
 // import { ChatMessage } from "../../types";
 import { LunchGames } from "../components/LunchGames";
@@ -40,14 +48,17 @@ import { FileUpload } from "../components/FileUpload";
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { CoursePaymentModal } from "../components/CoursePaymentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
+import { CourseDonationModal } from "../components/CourseDonationModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
 import { CourseModulesTab } from "../components/CourseModulesTab";
 import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
-import { CourseDiscussions } from "../components/discussion/Coursediscussions ";
+import { CourseDiscussions } from "../components/discussion/CourseDiscussions";
+import { SpecialNeedsAccommodations } from "../../types";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
+  const navigate = useNavigate();
   const {
     courses,
     userProgress,
@@ -63,6 +74,8 @@ const CourseDetails = () => {
     scheduleEvents,
     addScheduleEvent,
     organizations,
+    courseDonations,
+    getCourseAdmissionGate,
   } = useAppContext();
   const { currentUser } = useAuth();
   const [isCallActiveInApp, setIsCallActiveInApp] = useState(false);
@@ -76,11 +89,34 @@ const CourseDetails = () => {
     | "assessments"
     | "schedule"
     | "certificate"
+    | "donations"
   >("info");
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showDonationModal, setShowDonationModal] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return (
+        params.get("donate") === "true" ||
+        params.get("action") === "donate" ||
+        window.location.search.includes("donate")
+      );
+    }
+    return false;
+  });
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [viewMode, setViewMode] = useState<"classroom" | "public">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("view") === "public" || params.get("preview") === "true") {
+        return "public";
+      }
+    }
+    return "classroom";
+  });
+  const [showEditCourseModal, setShowEditCourseModal] = useState(false);
 
   // Chat state
   // const [chatMsg, setChatMsg] = useState("");
@@ -152,9 +188,32 @@ const CourseDetails = () => {
       m.status === "invited" &&
       (m.courseIds?.includes(courseId as string) || m.orgId === course?.orgId),
   );
+  const myOrg = organizations.find(
+    (o) =>
+      o.ownerId === currentUser?.id ||
+      o.id === currentUser?.id ||
+      o.id === course?.orgId,
+  );
+  const courseOrg =
+    organizations.find(
+      (o) => o.id === course?.orgId || o.ownerId === course?.orgId,
+    ) || myOrg;
+
+  const isVocationalDonationFunded =
+    courseOrg?.orgType === "vocational" &&
+    course?.fundingModel === "donations_sponsorships";
+  const gate = isVocationalDonationFunded && course ? getCourseAdmissionGate(course.id) : null;
+  const courseDonationList = isVocationalDonationFunded && course
+    ? courseDonations.filter((d) => d.courseId === course.id)
+    : [];
+
   const isStudentApproved = myEnrollment?.status === "approved";
   const isStudentPaidOrFree =
-    !course || course.price === 0 || myEnrollment?.paymentStatus === "paid";
+    !course ||
+    course.price === 0 ||
+    isVocationalDonationFunded ||
+    myEnrollment?.paymentStatus === "paid" ||
+    Boolean(myEnrollment?.isSponsored);
   const hasStudentAccess = isStudentApproved && isStudentPaidOrFree;
 
   const hasOrgAccess =
@@ -163,6 +222,7 @@ const CourseDetails = () => {
       course?.orgId === `org_${currentUser?.id}`);
 
   const hasAccess = hasStudentAccess || hasInstructorAccess || hasOrgAccess;
+  const effectiveViewMode = hasAccess ? viewMode : "public";
 
   const isStudent =
     myOrgMemberRecords.some(
@@ -177,20 +237,18 @@ const CourseDetails = () => {
       currentUser?.role === "organization" ||
       currentUser?.role === "instructor");
   const canManageSessions = isOrganization || hasOrgAccess;
+  const canEditCourse = Boolean(
+    hasOrgAccess ||
+      hasInstructorAccess ||
+      currentUser?.id === course?.instructorId ||
+      (isOrganization &&
+        (course?.orgId === currentUser?.id ||
+          course?.orgId === `org_${currentUser?.id}`))
+  );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
   const isReapplicationCandidate = myEnrollment?.status === "rejected";
 
-  const myOrg = organizations.find(
-    (o) =>
-      o.ownerId === currentUser?.id ||
-      o.id === currentUser?.id ||
-      o.id === course?.orgId,
-  );
-  const courseOrg =
-    organizations.find(
-      (o) => o.id === course?.orgId || o.ownerId === course?.orgId,
-    ) || myOrg;
   const organisationName = (courseOrg?.name || "organisation")
     .toLowerCase()
     .replace(/\s+/g, "-")
@@ -233,6 +291,9 @@ const CourseDetails = () => {
     documents?: Record<string, string>,
     additionalDocs?: Array<{ id: string; name: string; url: string }>,
     notes?: string,
+    sessionId?: string,
+    sessionName?: string,
+    accommodations?: SpecialNeedsAccommodations,
   ) => {
     if (!currentUser || !course) return;
     await addEnrollmentRequest({
@@ -247,13 +308,16 @@ const CourseDetails = () => {
       documents,
       additionalDocuments: additionalDocs,
       studentNotes: notes,
+      sessionId,
+      sessionName,
+      accommodations,
       appliedAt: new Date().toISOString(),
     });
     setShowEnrollModal(false);
   };
 
   useEffect(() => {
-    // Use Firebase realtime listeners if needed in the future
+    // Synchronize or scroll if needed
   }, [courseId]);
 
   if (!course)
@@ -416,7 +480,22 @@ const CourseDetails = () => {
                 </div>
               )}
               <button
-                onClick={() => setShowEnrollModal(true)}
+                onClick={() => {
+                  if (!currentUser) {
+                    navigate("/login");
+                    return;
+                  }
+                  if (currentUser.role === "organization") {
+                    setAlertConfig({
+                      isOpen: true,
+                      title: "Role Restriction",
+                      message: "Only student and instructor accounts can apply for courses.",
+                      type: "info",
+                    });
+                    return;
+                  }
+                  setShowEnrollModal(true);
+                }}
                 className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
               >
                 <RotateCcw className="w-4 h-4 mr-2" /> Reapply for Admission (
@@ -487,10 +566,25 @@ const CourseDetails = () => {
             . No tuition payment is charged today.
           </p>
           <button
-            onClick={() => setShowEnrollModal(true)}
+            onClick={() => {
+              if (!currentUser) {
+                navigate("/login");
+                return;
+              }
+              if (currentUser.role === "organization") {
+                setAlertConfig({
+                  isOpen: true,
+                  title: "Role Restriction",
+                  message: "Only student and instructor accounts can apply for courses.",
+                  type: "info",
+                });
+                return;
+              }
+              setShowEnrollModal(true);
+            }}
             className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
           >
-            <Send className="w-4 h-4 mr-2" /> Apply for Course (
+            <Send className="w-4 h-4 mr-2" /> Apply (
             {course.activeSessionName || "Current Session"})
           </button>
         </>
@@ -552,6 +646,118 @@ const CourseDetails = () => {
   //   setChatAttachmentType(undefined);
   // };
 
+  if (effectiveViewMode === "public") {
+    return (
+      <div className="space-y-6 animate-in fade-in">
+        <PublicCourseDetails
+          course={course}
+          courseOrg={courseOrg}
+          currentUser={currentUser}
+          enrollmentStatus={myEnrollment?.status}
+          paymentStatus={myEnrollment?.paymentStatus}
+          hasActiveInvite={Boolean(myInvite)}
+          isVocationalFunded={isVocationalDonationFunded}
+          totalDonations={gate?.totalDonations || 0}
+          tuitionCostPerStudent={gate?.tuitionCostPerStudent || course.price}
+          onApply={() => {
+            if (!currentUser) {
+              navigate("/login");
+              return;
+            }
+            if (currentUser.role === "organization") {
+              setAlertConfig({
+                isOpen: true,
+                title: "Role Restriction",
+                message:
+                  "Only student and instructor accounts can apply for courses.",
+                type: "info",
+              });
+              return;
+            }
+            setShowEnrollModal(true);
+          }}
+          onPayTuition={() => setShowPaymentModal(true)}
+          onAcceptInvite={() => setShowJoinModal(true)}
+          onDonate={() => setShowDonationModal(true)}
+          onManageSessions={() => setShowSessionModal(true)}
+          canManageSessions={canManageSessions}
+          hasAccessToClassroom={hasAccess}
+          onGoToClassroom={() => setViewMode("classroom")}
+          canEditCourse={canEditCourse}
+          onEditCourse={() => setShowEditCourseModal(true)}
+        />
+
+        {showEditCourseModal && course && (
+          <EditCourseDetailsModal
+            course={course}
+            onClose={() => setShowEditCourseModal(false)}
+          />
+        )}
+
+        {showEnrollModal && (
+          <EnrollmentModal
+            course={course}
+            isReapplication={isReapplicationCandidate}
+            previousRequest={myEnrollment}
+            onClose={() => setShowEnrollModal(false)}
+            onEnroll={handleEnrollSubmit}
+          />
+        )}
+
+        {showPaymentModal && myEnrollment && (
+          <CoursePaymentModal
+            course={course}
+            request={myEnrollment}
+            onClose={() => setShowPaymentModal(false)}
+            onPaymentSuccess={async () => {
+              await updateEnrollmentRequest(myEnrollment.id, undefined, "paid");
+              setShowPaymentModal(false);
+            }}
+          />
+        )}
+
+        {showJoinModal && myInvite && (
+          <CourseJoinModal
+            course={course}
+            invite={myInvite}
+            onClose={() => setShowJoinModal(false)}
+            onJoinSuccess={() => setShowJoinModal(false)}
+          />
+        )}
+
+        {showSessionModal && (
+          <AdmissionSessionManagerModal
+            course={course}
+            onClose={() => setShowSessionModal(false)}
+          />
+        )}
+
+        {showDonationModal && (
+          <CourseDonationModal
+            course={course}
+            onClose={() => setShowDonationModal(false)}
+          />
+        )}
+
+        {showEditCourseModal && course && (
+          <EditCourseDetailsModal
+            course={course}
+            onClose={() => setShowEditCourseModal(false)}
+          />
+        )}
+
+        <CustomAlert
+          isOpen={alertConfig.isOpen}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in">
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -595,6 +801,59 @@ const CourseDetails = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {isVocationalDonationFunded && (
+            <>
+              <button
+                onClick={() => setShowDonationModal(true)}
+                className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs shadow-md shadow-emerald-600/20"
+              >
+                <HeartHandshake className="w-4 h-4 mr-1.5" />
+                Sponsor / Donate
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/course/${course.id}?donate=true`);
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2500);
+                }}
+                className="flex items-center px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600"
+                title="Copy public donation link"
+              >
+                {linkCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+                    Copied Link
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5 mr-1 text-indigo-500" />
+                    Share Campaign
+                  </>
+                )}
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={() => setViewMode("public")}
+            className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600 shadow-sm"
+            title="View public course details & syllabus"
+          >
+            <Eye className="w-4 h-4 mr-1.5 text-indigo-500" />
+            Public Course Page
+          </button>
+
+          {canEditCourse && (
+            <button
+              onClick={() => setShowEditCourseModal(true)}
+              className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs shadow-xs"
+              title="Edit course details, description, prerequisites, FAQs, and syllabus"
+            >
+              <Edit3 className="w-4 h-4 mr-1.5" />
+              Edit Course Information
+            </button>
+          )}
+
           {canManageSessions && (
             <button
               onClick={() => setShowSessionModal(true)}
@@ -674,6 +933,17 @@ const CourseDetails = () => {
         >
           <Calendar className="w-4 h-4 mr-2" /> Timetable
         </button>
+        {isVocationalDonationFunded && (
+          <button
+            onClick={() => setActiveTab("donations")}
+            className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "donations" ? "text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          >
+            <HeartHandshake className="w-4 h-4 mr-2 text-emerald-500" /> Sponsorship & Donations
+            <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              {courseDonationList.length}
+            </span>
+          </button>
+        )}
         <button
           onClick={() => setActiveTab("chat")}
           className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "chat" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
@@ -705,6 +975,73 @@ const CourseDetails = () => {
               <div className="p-6 md:p-8 space-y-8 animate-in fade-in">
                 <div>
                   {!hasAccess && isStudent && renderAccessBlocker()}
+
+                  {/* Vocational Donation Funding & Admission Gate Banner */}
+                  {isVocationalDonationFunded && gate && (
+                    <div className="mb-8 p-6 bg-gradient-to-br from-emerald-50 via-teal-50 to-indigo-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-indigo-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-4 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center space-x-2.5 text-emerald-800 dark:text-emerald-300 font-bold">
+                          <HeartHandshake className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-base">Vocational Tuition Covered by Donations & Sponsorships</span>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${
+                          gate.canAdmitMore
+                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                        }`}>
+                          {gate.canAdmitMore ? `${gate.remainingSpots} Open Funded Seat(s)` : 'Awaiting More Donations'}
+                        </span>
+                      </div>
+
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Tuition fees for students in this course are completely funded by community donors and sponsors. Admitted students pay <strong>$0 tuition</strong>. As community donations are pledged, admission seats unlock progressively until reaching the session limit.
+                      </p>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Raised</span>
+                          <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                            {gate.currency} {gate.totalDonations.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cost / Student</span>
+                          <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                            {gate.currency} {formatPriceWithDecimals(getEffectivePrice(gate.tuitionCostPerStudent))}
+                          </span>
+                        </div>
+                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Funded Seats</span>
+                          <span className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">
+                            {gate.maxAdmissibleStudents} max
+                          </span>
+                        </div>
+                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Enrolled</span>
+                          <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                            {gate.currentlyAdmittedCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          onClick={() => setShowDonationModal(true)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center"
+                        >
+                          <HeartHandshake className="w-3.5 h-3.5 mr-1.5" />
+                          Donate/Sponsor
+                        </button>
+                        <button
+                          onClick={() => setActiveTab("donations")}
+                          className="px-4 py-2 bg-white/80 hover:bg-white dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition border border-emerald-200 dark:border-emerald-800"
+                        >
+                          View Donor Hall & Sponsorships →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">
                     Admission & Guidelines
                   </h2>
@@ -1099,6 +1436,158 @@ const CourseDetails = () => {
               </div>
             )}
 
+            {activeTab === "donations" && (
+              <div className="p-6 md:p-8 space-y-8 animate-in fade-in">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
+                  <div>
+                    <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1">
+                      <HeartHandshake className="w-4 h-4" />
+                      <span>Community Sponsorship & Donation Campaign</span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                      Vocational Tuition Funding Hall
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+                      This course is tuition-free for admitted students, powered directly by generous individual donors and corporate sponsors.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setShowDonationModal(true)}
+                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm transition shadow-lg shadow-emerald-600/20 flex items-center justify-center self-start md:self-auto"
+                  >
+                    <HeartHandshake className="w-4 h-4 mr-2" />
+                    Make a Donation / Sponsor
+                  </button>
+                </div>
+
+                {gate && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-5 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 block uppercase">Total Raised</span>
+                      <div className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">
+                        {gate.currency} {gate.totalDonations.toLocaleString()}
+                      </div>
+                      {course.donationTargetAmount && (
+                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
+                          Goal: {gate.currency} {course.donationTargetAmount.toLocaleString()} ({Math.min(100, Math.round((gate.totalDonations / course.donationTargetAmount) * 100))}%)
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-5 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800">
+                      <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 block uppercase">Tuition Cost / Student</span>
+                      <div className="text-2xl font-extrabold text-indigo-700 dark:text-indigo-300 mt-1">
+                        {gate.currency} {gate.tuitionCostPerStudent.toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-1">
+                        Covers training, tools & certification
+                      </div>
+                    </div>
+
+                    <div className="p-5 bg-teal-50 dark:bg-teal-950/40 rounded-2xl border border-teal-200 dark:border-teal-800">
+                      <span className="text-xs font-bold text-teal-700 dark:text-teal-300 block uppercase">Funded Admission Spots</span>
+                      <div className="text-2xl font-extrabold text-teal-700 dark:text-teal-300 mt-1">
+                        {gate.currentlyAdmittedCount} / {gate.maxAdmissibleStudents}
+                      </div>
+                      <div className="text-[11px] text-teal-600 dark:text-teal-400 mt-1">
+                        {gate.remainingSpots > 0 ? `${gate.remainingSpots} seats open right now` : 'All funded seats filled'}
+                      </div>
+                    </div>
+
+                    <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <span className="text-xs font-bold text-slate-500 block uppercase">Next Seat Unlocks At</span>
+                      <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
+                        {gate.nextSeatNeededAmount > 0 ? `+${gate.currency} ${gate.nextSeatNeededAmount.toLocaleString()}` : 'Session Full'}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        {gate.nextSeatNeededAmount > 0 ? 'additional donations needed' : 'maximum batch limit reached'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+                    Pledges & Sponsoring Contributors ({courseDonationList.length})
+                  </h3>
+
+                  {courseDonationList.length === 0 ? (
+                    <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                      <HeartHandshake className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                        Be the first generous contributor to sponsor students for this course!
+                      </p>
+                      <button
+                        onClick={() => setShowDonationModal(true)}
+                        className="mt-4 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm inline-flex items-center"
+                      >
+                        <HeartHandshake className="w-3.5 h-3.5 mr-1.5" />
+                        Sponsor a Seat
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {courseDonationList.map((donation) => (
+                        <div
+                          key={donation.id}
+                          className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="font-bold text-slate-900 dark:text-white flex items-center">
+                                <span>{donation.donorName || "Anonymous Donor"}</span>
+                                {donation.donorOrganization && (
+                                  <span className="ml-2 text-xs font-normal text-slate-500">
+                                    • {donation.donorOrganization}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-slate-400">
+                                {new Date(donation.createdAt).toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            </div>
+
+                            <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-sm border border-emerald-500/20">
+                              {donation.currency} {donation.amount.toLocaleString()}
+                            </span>
+                          </div>
+
+                          {donation.message && (
+                            <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-white/70 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                              "{donation.message}"
+                            </p>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                            <span className={`px-2 py-0.5 rounded-md font-semibold ${
+                              donation.donationType === "sponsorship"
+                                ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                            }`}>
+                              {donation.donationType === "sponsorship"
+                                ? `Direct Sponsorship (${donation.seatsSponsored || 1} Seat${(donation.seatsSponsored || 1) > 1 ? "s" : ""})`
+                                : "General Tuition Donation"}
+                            </span>
+
+                            {donation.sponsoredStudentEmails && donation.sponsoredStudentEmails.length > 0 && (
+                              <span className="text-slate-500">
+                                Sponsored: {donation.sponsoredStudentEmails.join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {activeTab === "lunch" && (
               <div className="p-4 sm:p-6">
                 <LunchGames />
@@ -1142,6 +1631,20 @@ const CourseDetails = () => {
         <AdmissionSessionManagerModal
           course={course}
           onClose={() => setShowSessionModal(false)}
+        />
+      )}
+
+      {showDonationModal && (
+        <CourseDonationModal
+          course={course}
+          onClose={() => setShowDonationModal(false)}
+        />
+      )}
+
+      {showEditCourseModal && course && (
+        <EditCourseDetailsModal
+          course={course}
+          onClose={() => setShowEditCourseModal(false)}
         />
       )}
 

@@ -16,13 +16,17 @@ import {
   ChevronRight,
   X,
   UserCheck,
+  HeartHandshake,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
+import { CourseDonationModal } from "../components/CourseDonationModal";
+import { CustomAlert } from "../components/CustomAlert";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { Course, OrgMember } from "../../types";
 import { generateId } from "../../lib/id";
+import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 
 const ExploreOrgs = () => {
   const {
@@ -35,6 +39,8 @@ const ExploreOrgs = () => {
   } = useAppContext();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const filterParam = searchParams.get("filter") || searchParams.get("type");
 
   const [activeTab, setActiveTab] = useState<
     "courses" | "organizations" | "instructors"
@@ -46,15 +52,47 @@ const ExploreOrgs = () => {
   const [onlyAccredited, setOnlyAccredited] = useState(false);
   const [selectedInstructorFilter, setSelectedInstructorFilter] =
     useState<string>("all");
+  const [programTypeFilter, setProgramTypeFilter] = useState<
+    "all" | "popular" | "non-profit"
+  >(
+    filterParam === "non-profit"
+      ? "non-profit"
+      : filterParam === "popular"
+        ? "popular"
+        : "all",
+  );
 
   // Modal State
   const [enrollModalCourse, setEnrollModalCourse] = useState<Course | null>(
     null,
   );
+  const [donatingCourse, setDonatingCourse] = useState<Course | null>(null);
   const [joiningInvite, setJoiningInvite] = useState<{
     course: Course;
     invite: OrgMember;
   } | null>(null);
+
+  const isDonationFundedVocational = (c: Course) => {
+    const org = organizations.find(
+      (o) =>
+        o.id === c.orgId ||
+        o.ownerId === c.orgId ||
+        `org_${o.ownerId}` === c.orgId,
+    );
+    const isVocationalOrg = org ? org.orgType === "vocational" : true;
+    return c.fundingModel === "donations_sponsorships" && isVocationalOrg;
+  };
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type?: "info" | "warning" | "error" | "success";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "info",
+  });
 
   // Active (non-deleted) Organizations
   const activeOrganizations = useMemo(() => {
@@ -118,6 +156,19 @@ const ExploreOrgs = () => {
         }
       }
 
+      // Program Type filter check (Popular vs Non-Profit)
+      if (programTypeFilter === "non-profit") {
+        const isNonProfitVocational =
+          course.fundingModel === "donations_sponsorships" &&
+          (org?.orgType === "vocational" || !org);
+        if (!isNonProfitVocational) return false;
+      } else if (programTypeFilter === "popular") {
+        const isNonProfitVocational =
+          course.fundingModel === "donations_sponsorships" &&
+          (org?.orgType === "vocational" || !org);
+        if (isNonProfitVocational) return false;
+      }
+
       return true;
     });
   }, [
@@ -127,6 +178,7 @@ const ExploreOrgs = () => {
     selectedQualType,
     onlyAccredited,
     selectedInstructorFilter,
+    programTypeFilter,
   ]);
 
   // Filtered Organizations
@@ -297,6 +349,25 @@ const ExploreOrgs = () => {
             )}
           </div>
 
+          {/* Filter: Program Model (Courses tab) */}
+          {activeTab === "courses" && (
+            <div className="md:col-span-2">
+              <select
+                value={programTypeFilter}
+                onChange={(e) =>
+                  setProgramTypeFilter(
+                    e.target.value as "all" | "popular" | "non-profit",
+                  )
+                }
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+              >
+                <option value="all">All Course Models</option>
+                <option value="popular">Popular Courses</option>
+                <option value="non-profit">Non-Profit Courses</option>
+              </select>
+            </div>
+          )}
+
           {/* Filter: Qualification Type (Courses tab) */}
           {activeTab === "courses" && (
             <div className="md:col-span-3">
@@ -422,7 +493,11 @@ const ExploreOrgs = () => {
                         )}
                       </div>
 
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-indigo-500 transition line-clamp-2">
+                      <h3
+                        onClick={() => navigate(`/course/${course.id}`)}
+                        className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-indigo-500 transition line-clamp-2 cursor-pointer"
+                        title="View Course Details"
+                      >
                         {course.title}
                       </h3>
 
@@ -456,7 +531,7 @@ const ExploreOrgs = () => {
                       <div>
                         <div className="text-lg font-bold text-slate-900 dark:text-white">
                           {course.price > 0
-                            ? `${course.currency} ${course.price}`
+                            ? `${course.currency} ${formatPriceWithDecimals(getEffectivePrice(course.price))}`
                             : "Free"}
                         </div>
                         {course.paymentTermsAllowed === "installment" ||
@@ -467,7 +542,22 @@ const ExploreOrgs = () => {
                         ) : null}
                       </div>
 
-                      <div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => navigate(`/course/${course.id}`)}
+                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition"
+                          title="View Course Details"
+                        >
+                          Details
+                        </button>
+                        {isDonationFundedVocational(course) && (
+                          <button
+                            onClick={() => setDonatingCourse(course)}
+                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm shrink-0"
+                          >
+                            <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Donate/Sponsor
+                          </button>
+                        )}
                         {status === "approved" ? (
                           <span className="text-emerald-500 text-xs font-bold flex items-center bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
                             <ShieldCheck className="w-3.5 h-3.5 mr-1" />{" "}
@@ -490,13 +580,25 @@ const ExploreOrgs = () => {
                         ) : (
                           <button
                             onClick={() => {
-                              if (!currentUser) navigate("/login");
-                              else setEnrollModalCourse(course);
+                              if (!currentUser) {
+                                navigate("/login");
+                                return;
+                              }
+                              if (currentUser.role === "organization") {
+                                setAlertConfig({
+                                  isOpen: true,
+                                  title: "Role Restriction",
+                                  message:
+                                    "Only student and instructor accounts can apply for courses.",
+                                  type: "info",
+                                });
+                                return;
+                              }
+                              setEnrollModalCourse(course);
                             }}
                             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white dark:text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm"
                           >
-                            Apply / Enroll{" "}
-                            <Send className="w-3.5 h-3.5 ml-1.5" />
+                            Apply <Send className="w-3.5 h-3.5 ml-1.5" />
                           </button>
                         )}
                       </div>
@@ -696,6 +798,14 @@ const ExploreOrgs = () => {
         />
       )}
 
+      {/* DONATION MODAL */}
+      {donatingCourse && (
+        <CourseDonationModal
+          course={donatingCourse}
+          onClose={() => setDonatingCourse(null)}
+        />
+      )}
+
       {/* JOIN INVITATION MODAL */}
       {joiningInvite && (
         <CourseJoinModal
@@ -708,6 +818,15 @@ const ExploreOrgs = () => {
           }}
         />
       )}
+
+      {/* CUSTOM ALERT */}
+      <CustomAlert
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };
