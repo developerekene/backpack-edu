@@ -48,7 +48,7 @@ export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = 
                         </div>
                         <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Revenue</h3>
                     </div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-white">₦{totalRevenue.toLocaleString()}</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-white">₦ {totalRevenue.toLocaleString()}</div>
                     <div className="text-xs text-slate-500 mt-1">From approved enrollments</div>
                 </div>
 
