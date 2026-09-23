@@ -1,0 +1,1151 @@
+import React, { useState } from "react";
+// import { Assessment, AssessmentType, Submission } from "../../../types";
+import { Assessment, AssessmentQuestion, AssessmentType } from "../../../types";
+import {
+  Plus,
+  Paperclip,
+  X,
+  Calendar,
+  BarChart3,
+  ClipboardList,
+  Users,
+  UploadCloud,
+  Eye,
+  BookOpen,
+  AlertCircle,
+} from "lucide-react";
+import { FileUpload } from "../FileUpload";
+import { generateId } from "../../../lib/id";
+import {
+  FormSection,
+  Field,
+  inputClass,
+  checkboxRowClass,
+} from "./Formprimitives";
+import {
+  QUESTION_TYPES,
+  FILE_TYPE_OPTIONS,
+  ASSESSMENT_TYPES,
+} from "./Constants";
+import { QuestionBuilder } from "./Questionbuilder";
+
+type OrgMember = { id?: string; email?: string; name: string };
+
+type SectionKey =
+  | "basic"
+  | "scheduling"
+  | "grading"
+  | "format"
+  | "studentGroup"
+  | "submission"
+  | "results";
+
+type FormErrors = Partial<{
+  title: string;
+  dueDate: string;
+  endTime: string;
+  maxScore: string;
+  passingScore: string;
+  weight: string;
+  questions: string;
+  groupSize: string;
+  maxAttempts: string;
+  maxFileSizeMb: string;
+}>;
+
+const FIELD_SECTION: Record<keyof FormErrors, SectionKey> = {
+  title: "basic",
+  dueDate: "scheduling",
+  endTime: "scheduling",
+  maxScore: "grading",
+  passingScore: "grading",
+  weight: "grading",
+  questions: "format",
+  groupSize: "studentGroup",
+  maxAttempts: "studentGroup",
+  maxFileSizeMb: "submission",
+};
+
+function ErrorText({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p className="text-xs text-red-500 mt-1 flex items-center">
+      <AlertCircle className="w-3 h-3 mr-1 shrink-0" /> {message}
+    </p>
+  );
+}
+
+const errorInputClass = "border-red-400 focus:ring-red-400";
+
+export function CreateAssessmentForm({
+  courseId,
+  orgMembers,
+  instructorDefaultName,
+  addAssessment,
+  initialAssessment,
+  onCancel,
+}: {
+  courseId: string;
+  orgMembers: OrgMember[];
+  instructorDefaultName?: string;
+  addAssessment: (assessment: Assessment) => Promise<void> | void;
+  /** When provided, the form pre-fills from this assessment and edits it in place instead of creating a new one. */
+  initialAssessment?: Assessment;
+  /** Called when an edit is cancelled or successfully saved. Ignored in create mode. */
+  onCancel?: () => void;
+}) {
+  const isEditing = !!initialAssessment;
+
+  // 1. Basic Assessment Information
+  const [title, setTitle] = useState(initialAssessment?.title ?? "");
+  const [type, setType] = useState<AssessmentType>(
+    initialAssessment?.type ?? "assignment",
+  );
+  const [subject, setSubject] = useState(initialAssessment?.subject ?? "");
+  const [gradeLevel, setGradeLevel] = useState(
+    initialAssessment?.gradeLevel ?? "",
+  );
+  const [description, setDescription] = useState(
+    initialAssessment?.description ?? "",
+  );
+  const [instructorName, setInstructorName] = useState(
+    initialAssessment?.instructorName ?? instructorDefaultName ?? "",
+  );
+
+  // 2. Scheduling
+  const [startDate, setStartDate] = useState(
+    initialAssessment?.startDate ?? "",
+  );
+  const [dueDate, setDueDate] = useState(initialAssessment?.dueDate ?? "");
+  const [startTime, setStartTime] = useState(
+    initialAssessment?.startTime ?? "",
+  );
+  const [endTime, setEndTime] = useState(initialAssessment?.endTime ?? "");
+  const [durationMinutes, setDurationMinutes] = useState<number | "">(
+    initialAssessment?.durationMinutes ?? "",
+  );
+
+  // 3. Grading
+  const [maxScore, setMaxScore] = useState(initialAssessment?.maxScore ?? 100);
+  const [passingScore, setPassingScore] = useState<number | "">(
+    initialAssessment?.passingScore ?? "",
+  );
+  const [gradingType, setGradingType] = useState<
+    NonNullable<Assessment["gradingType"]>
+  >(initialAssessment?.gradingType ?? "points");
+  const [weight, setWeight] = useState<number | "">(
+    initialAssessment?.weight ?? "",
+  );
+
+  // 4. Assessment Format
+  const [questionType, setQuestionType] = useState<
+    NonNullable<Assessment["questionType"]>
+  >(initialAssessment?.questionType ?? "multiple_choice");
+  const [numberOfQuestions, setNumberOfQuestions] = useState<number | "">(
+    initialAssessment?.numberOfQuestions ?? "",
+  );
+  const [pointsPerQuestion, setPointsPerQuestion] = useState<number | "">(
+    initialAssessment?.pointsPerQuestion ?? "",
+  );
+  // const [referenceMaterials, setReferenceMaterials] = useState(
+  //   initialAssessment?.referenceMaterials ?? "",
+  // );
+  const [attachments, setAttachments] = useState<string[]>(
+    initialAssessment?.attachments ?? [],
+  );
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>(
+    initialAssessment?.questions ?? [],
+  );
+
+  // 5. Student / Group Settings
+  const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>(
+    initialAssessment?.assignedStudentIds ?? [],
+  );
+  const [isGroup, setIsGroup] = useState(initialAssessment?.isGroup ?? false);
+  const [groupSize, setGroupSize] = useState<number | "">(
+    initialAssessment?.groupSize ?? "",
+  );
+  const [randomizeQuestions, setRandomizeQuestions] = useState(
+    initialAssessment?.randomizeQuestions ?? false,
+  );
+  const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(
+    initialAssessment?.allowMultipleAttempts ?? false,
+  );
+  const [maxAttempts, setMaxAttempts] = useState<number | "">(
+    initialAssessment?.maxAttempts ?? "",
+  );
+
+  // 6. Submission Settings
+  const [submissionMethod, setSubmissionMethod] = useState<
+    NonNullable<Assessment["submissionMethod"]>
+  >(initialAssessment?.submissionMethod ?? "online");
+  const [allowedFileTypes, setAllowedFileTypes] = useState<string[]>(
+    initialAssessment?.allowedFileTypes ?? [],
+  );
+  const [maxFileSizeMb, setMaxFileSizeMb] = useState<number | "">(
+    initialAssessment?.maxFileSizeMb ?? "",
+  );
+  const [allowResubmission, setAllowResubmission] = useState(
+    initialAssessment?.allowResubmission ?? false,
+  );
+  const [requireStudentComments, setRequireStudentComments] = useState(
+    initialAssessment?.requireStudentComments ?? false,
+  );
+
+  // 7. Results & Feedback
+  const [showScoreImmediately, setShowScoreImmediately] = useState(
+    initialAssessment?.showScoreImmediately ?? true,
+  );
+  const [releaseResultsDate, setReleaseResultsDate] = useState(
+    initialAssessment?.releaseResultsDate ?? "",
+  );
+  const [showCorrectAnswers, setShowCorrectAnswers] = useState(
+    initialAssessment?.showCorrectAnswers ?? false,
+  );
+  const [teacherFeedback, setTeacherFeedback] = useState(
+    initialAssessment?.teacherFeedback ?? "",
+  );
+  const [allowStudentReview, setAllowStudentReview] = useState(
+    initialAssessment?.allowStudentReview ?? false,
+  );
+
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>(
+    isEditing
+      ? {
+          basic: true,
+          scheduling: true,
+          grading: true,
+          format: true,
+          studentGroup: true,
+          submission: true,
+          results: true,
+        }
+      : {
+          basic: true,
+          scheduling: false,
+          grading: false,
+          format: false,
+          studentGroup: false,
+          submission: false,
+          results: false,
+        },
+  );
+  const toggleSection = (key: SectionKey) =>
+    setOpenSections((s) => ({ ...s, [key]: !s[key] }));
+
+  const isQuestionBased = type === "quiz" || type === "test" || type === "exam";
+  const supportsGroup =
+    type === "assignment" || type === "project" || type === "classwork";
+
+  const toggleFileType = (ft: string) => {
+    setAllowedFileTypes((prev) =>
+      prev.includes(ft) ? prev.filter((f) => f !== ft) : [...prev, ft],
+    );
+  };
+
+  const toggleAssignedStudent = (id: string) => {
+    setAssignedStudentIds((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+  };
+
+  const clearError = (key: keyof FormErrors) => {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleQuestionsChange = (qs: AssessmentQuestion[]) => {
+    setQuestions(qs);
+    clearError("questions");
+  };
+
+  const validateForm = (): FormErrors => {
+    const errs: FormErrors = {};
+
+    if (!title.trim()) {
+      errs.title = "Assessment title is required.";
+    }
+
+    if (!dueDate) {
+      errs.dueDate = "Due date is required.";
+    } else if (startDate && startDate > dueDate) {
+      errs.dueDate = "Due date can't be before the start date.";
+    }
+
+    if (startTime && endTime && startTime >= endTime) {
+      errs.endTime = "End time must be after start time.";
+    }
+
+    if (!maxScore || Number(maxScore) <= 0) {
+      errs.maxScore = "Maximum score must be greater than 0.";
+    }
+    if (
+      passingScore !== "" &&
+      maxScore &&
+      Number(passingScore) > Number(maxScore)
+    ) {
+      errs.passingScore = "Passing score can't exceed the maximum score.";
+    }
+    if (weight !== "" && (Number(weight) < 0 || Number(weight) > 100)) {
+      errs.weight = "Weight must be between 0 and 100.";
+    }
+
+    if (isQuestionBased && questions.length > 0) {
+      const issues: string[] = [];
+      questions.forEach((q, i) => {
+        const label = `Question ${i + 1}`;
+        if (!q.prompt.trim()) {
+          issues.push(`${label}: question text can't be empty.`);
+        }
+        if (!q.points || q.points <= 0) {
+          issues.push(`${label}: points must be greater than 0.`);
+        }
+        if (q.format === "objective" && q.questionType === "multiple_choice") {
+          const opts = q.options || [];
+          if (opts.length < 2) {
+            issues.push(`${label}: add at least two options.`);
+          } else if (opts.some((o) => !o.text.trim())) {
+            issues.push(`${label}: every option needs text.`);
+          } else if (!opts.some((o) => o.isCorrect)) {
+            issues.push(`${label}: mark one option as correct.`);
+          }
+        }
+      });
+      if (issues.length > 0) {
+        errs.questions = issues.join(" ");
+      }
+    }
+
+    if (supportsGroup && isGroup) {
+      if (groupSize === "" || Number(groupSize) < 2) {
+        errs.groupSize = "Group size must be at least 2.";
+      }
+    }
+
+    if (allowMultipleAttempts) {
+      if (maxAttempts === "" || Number(maxAttempts) < 1) {
+        errs.maxAttempts = "Enter how many attempts are allowed.";
+      }
+    }
+
+    if (
+      submissionMethod !== "in_class" &&
+      maxFileSizeMb !== "" &&
+      Number(maxFileSizeMb) <= 0
+    ) {
+      errs.maxFileSizeMb = "Max file size must be greater than 0.";
+    }
+
+    return errs;
+  };
+
+  const resetForm = () => {
+    setTitle("");
+    setType("assignment");
+    setSubject("");
+    setGradeLevel("");
+    setDescription("");
+    setInstructorName(instructorDefaultName || "");
+
+    setStartDate("");
+    setDueDate("");
+    setStartTime("");
+    setEndTime("");
+    setDurationMinutes("");
+
+    setMaxScore(100);
+    setPassingScore("");
+    setGradingType("points");
+    setWeight("");
+
+    setQuestionType("multiple_choice");
+    setNumberOfQuestions("");
+    setPointsPerQuestion("");
+    // setReferenceMaterials("");
+    setAttachments([]);
+    setQuestions([]);
+
+    setAssignedStudentIds([]);
+    setIsGroup(false);
+    setGroupSize("");
+    setRandomizeQuestions(false);
+    setAllowMultipleAttempts(false);
+    setMaxAttempts("");
+
+    setSubmissionMethod("online");
+    setAllowedFileTypes([]);
+    setMaxFileSizeMb("");
+    setAllowResubmission(false);
+    setRequireStudentComments(false);
+
+    setShowScoreImmediately(true);
+    setReleaseResultsDate("");
+    setShowCorrectAnswers(false);
+    setTeacherFeedback("");
+    setAllowStudentReview(false);
+
+    setErrors({});
+  };
+
+  const handleCreateAssessment = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      // Auto-expand every section that contains an error, so a validation
+      // failure inside a collapsed section is never invisible to the user.
+      setOpenSections((prev) => {
+        const next = { ...prev };
+        (Object.keys(validationErrors) as (keyof FormErrors)[]).forEach(
+          (key) => {
+            next[FIELD_SECTION[key]] = true;
+          },
+        );
+        return next;
+      });
+      return;
+    }
+
+    const newAssessment: Assessment = {
+      id: initialAssessment?.id || generateId("ass"),
+      courseId,
+      title,
+      type,
+      subject: subject || undefined,
+      gradeLevel: gradeLevel || undefined,
+      description: description || undefined,
+      instructorName: instructorName || undefined,
+
+      startDate: startDate || undefined,
+      dueDate,
+      startTime: startTime || undefined,
+      endTime: endTime || undefined,
+      durationMinutes:
+        durationMinutes === "" ? undefined : Number(durationMinutes),
+
+      maxScore: Number(maxScore),
+      passingScore: passingScore === "" ? undefined : Number(passingScore),
+      gradingType,
+      weight: weight === "" ? undefined : Number(weight),
+
+      questionType: isQuestionBased ? questionType : undefined,
+      numberOfQuestions:
+        isQuestionBased && numberOfQuestions !== ""
+          ? Number(numberOfQuestions)
+          : undefined,
+      pointsPerQuestion:
+        isQuestionBased && pointsPerQuestion !== ""
+          ? Number(pointsPerQuestion)
+          : undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
+      // referenceMaterials: referenceMaterials || undefined,
+      questions:
+        isQuestionBased && questions.length > 0 ? questions : undefined,
+
+      assignedStudentIds:
+        assignedStudentIds.length > 0 ? assignedStudentIds : undefined,
+      isGroup: supportsGroup ? isGroup : false,
+      groupSize:
+        supportsGroup && isGroup && groupSize !== ""
+          ? Number(groupSize)
+          : undefined,
+      randomizeQuestions: isQuestionBased ? randomizeQuestions : undefined,
+      allowMultipleAttempts,
+      maxAttempts:
+        allowMultipleAttempts && maxAttempts !== ""
+          ? Number(maxAttempts)
+          : undefined,
+
+      submissionMethod,
+      allowedFileTypes:
+        submissionMethod !== "in_class" && allowedFileTypes.length > 0
+          ? allowedFileTypes
+          : undefined,
+      maxFileSizeMb: maxFileSizeMb === "" ? undefined : Number(maxFileSizeMb),
+      allowResubmission,
+      requireStudentComments,
+
+      showScoreImmediately,
+      releaseResultsDate: releaseResultsDate || undefined,
+      showCorrectAnswers,
+      teacherFeedback: teacherFeedback || undefined,
+      allowStudentReview,
+    };
+    await addAssessment(newAssessment);
+
+    if (isEditing) {
+      onCancel?.();
+    } else {
+      resetForm();
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleCreateAssessment}
+      noValidate
+      className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4"
+    >
+      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center">
+        <Plus className="w-5 h-5 mr-2 text-indigo-400" />
+        {isEditing ? "Edit Assessment" : "Create New Assessment"}
+      </h3>
+
+      {Object.keys(errors).length > 0 && (
+        <div className="flex items-center bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-xl p-3 text-sm text-red-600 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+          Please fix the highlighted fields below before publishing.
+        </div>
+      )}
+
+      {/* 1. Basic Assessment Information */}
+      <FormSection
+        title="Basic Information"
+        icon={<BookOpen className="w-4 h-4" />}
+        isOpen={openSections.basic}
+        onToggle={() => toggleSection("basic")}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Assessment Title">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                clearError("title");
+              }}
+              className={`${inputClass} ${errors.title ? errorInputClass : ""}`}
+              placeholder="e.g. Midterm Exam"
+            />
+            <ErrorText message={errors.title} />
+          </Field>
+          <Field label="Assessment Type">
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as AssessmentType)}
+              className={inputClass}
+            >
+              {ASSESSMENT_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Subject / Course">
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Algebra II"
+            />
+          </Field>
+          <Field label="Class / Grade">
+            <input
+              type="text"
+              value={gradeLevel}
+              onChange={(e) => setGradeLevel(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Grade 10 - Section B"
+            />
+          </Field>
+          <Field label="Teacher / Instructor">
+            <input
+              type="text"
+              value={instructorName}
+              onChange={(e) => setInstructorName(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Ms. Adaeze Okafor"
+            />
+          </Field>
+        </div>
+        <Field label="Description / Instructions">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className={inputClass}
+            placeholder="What should students know before starting?"
+          />
+        </Field>
+      </FormSection>
+
+      {/* 2. Scheduling */}
+      <FormSection
+        title="Scheduling"
+        icon={<Calendar className="w-4 h-4" />}
+        isOpen={openSections.scheduling}
+        onToggle={() => toggleSection("scheduling")}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Start Date">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                clearError("dueDate");
+              }}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Due Date">
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => {
+                setDueDate(e.target.value);
+                clearError("dueDate");
+              }}
+              className={`${inputClass} ${errors.dueDate ? errorInputClass : ""}`}
+            />
+            <ErrorText message={errors.dueDate} />
+          </Field>
+          <Field label="Start Time">
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => {
+                setStartTime(e.target.value);
+                clearError("endTime");
+              }}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="End Time">
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => {
+                setEndTime(e.target.value);
+                clearError("endTime");
+              }}
+              className={`${inputClass} ${errors.endTime ? errorInputClass : ""}`}
+            />
+            <ErrorText message={errors.endTime} />
+          </Field>
+          <Field
+            label="Duration (minutes)"
+            hint={
+              isQuestionBased
+                ? "Recommended for timed tests/exams/quizzes."
+                : undefined
+            }
+          >
+            <input
+              type="number"
+              min={0}
+              value={durationMinutes}
+              onChange={(e) =>
+                setDurationMinutes(
+                  e.target.value === "" ? "" : Number(e.target.value),
+                )
+              }
+              className={inputClass}
+              placeholder="e.g. 60"
+            />
+          </Field>
+        </div>
+      </FormSection>
+
+      {/* 3. Grading */}
+      <FormSection
+        title="Grading"
+        icon={<BarChart3 className="w-4 h-4" />}
+        isOpen={openSections.grading}
+        onToggle={() => toggleSection("grading")}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Maximum Score">
+            <input
+              type="number"
+              min={1}
+              value={maxScore}
+              onChange={(e) => {
+                setMaxScore(Number(e.target.value));
+                clearError("maxScore");
+                clearError("passingScore");
+              }}
+              className={`${inputClass} ${errors.maxScore ? errorInputClass : ""}`}
+            />
+            <ErrorText message={errors.maxScore} />
+          </Field>
+          <Field label="Passing Score">
+            <input
+              type="number"
+              min={0}
+              value={passingScore}
+              onChange={(e) => {
+                setPassingScore(
+                  e.target.value === "" ? "" : Number(e.target.value),
+                );
+                clearError("passingScore");
+              }}
+              className={`${inputClass} ${errors.passingScore ? errorInputClass : ""}`}
+              placeholder="e.g. 60"
+            />
+            <ErrorText message={errors.passingScore} />
+          </Field>
+          <Field label="Grading Type">
+            <select
+              value={gradingType}
+              onChange={(e) =>
+                setGradingType(
+                  e.target.value as NonNullable<Assessment["gradingType"]>,
+                )
+              }
+              className={inputClass}
+            >
+              <option value="points">Points</option>
+              <option value="percentage">Percentage</option>
+              <option value="letter">Letter Grade</option>
+            </select>
+          </Field>
+          <Field
+            label="Weight (% of final grade)"
+            hint="Leave blank if this course doesn't weight assessments."
+          >
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={weight}
+              onChange={(e) => {
+                setWeight(e.target.value === "" ? "" : Number(e.target.value));
+                clearError("weight");
+              }}
+              className={`${inputClass} ${errors.weight ? errorInputClass : ""}`}
+              placeholder="e.g. 20"
+            />
+            <ErrorText message={errors.weight} />
+          </Field>
+        </div>
+      </FormSection>
+
+      {/* 4. Assessment Format */}
+      <FormSection
+        title="Assessment Format"
+        icon={<ClipboardList className="w-4 h-4" />}
+        isOpen={openSections.format}
+        onToggle={() => toggleSection("format")}
+      >
+        {isQuestionBased ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Field label="Question Type (quick estimate)">
+                <select
+                  value={questionType}
+                  onChange={(e) =>
+                    setQuestionType(
+                      e.target.value as NonNullable<Assessment["questionType"]>,
+                    )
+                  }
+                  className={inputClass}
+                >
+                  {QUESTION_TYPES.map((q) => (
+                    <option key={q.value} value={q.value}>
+                      {q.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Number of Questions">
+                <input
+                  type="number"
+                  min={0}
+                  value={numberOfQuestions}
+                  onChange={(e) =>
+                    setNumberOfQuestions(
+                      e.target.value === "" ? "" : Number(e.target.value),
+                    )
+                  }
+                  className={inputClass}
+                  placeholder="e.g. 20"
+                />
+              </Field>
+              <Field label="Points per Question">
+                <input
+                  type="number"
+                  min={0}
+                  value={pointsPerQuestion}
+                  onChange={(e) =>
+                    setPointsPerQuestion(
+                      e.target.value === "" ? "" : Number(e.target.value),
+                    )
+                  }
+                  className={inputClass}
+                  placeholder="e.g. 5"
+                />
+              </Field>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">
+                Questions
+              </h4>
+              {errors.questions && (
+                <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-lg text-xs text-red-600 dark:text-red-300 flex items-start">
+                  <AlertCircle className="w-3.5 h-3.5 mr-1.5 mt-0.5 shrink-0" />
+                  <span>{errors.questions}</span>
+                </div>
+              )}
+              <QuestionBuilder
+                questions={questions}
+                onChange={handleQuestionsChange}
+                targetMaxScore={maxScore}
+                onSyncMaxScore={(total) => setMaxScore(total)}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+            Question-level settings apply to Quiz, Test, and Exam types.
+          </p>
+        )}
+
+        {/* <Field label="Reference Materials">
+          <textarea
+            value={referenceMaterials}
+            onChange={(e) => setReferenceMaterials(e.target.value)}
+            rows={2}
+            className={inputClass}
+            placeholder="Chapters, links, or notes students may reference"
+          />
+        </Field> */}
+
+        <Field label="Attachments / Resources">
+          <div className="space-y-2">
+            {attachments.map((url, i) => (
+              <div
+                key={i}
+                className="flex items-center bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg"
+              >
+                <Paperclip className="w-4 h-4 mr-2 text-indigo-400 shrink-0" />
+                <span className="text-xs text-slate-600 dark:text-slate-300 mr-auto truncate">
+                  {url}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAttachments((prev) => prev.filter((_, idx) => idx !== i))
+                  }
+                  className="p-1 hover:bg-slate-600 rounded text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <FileUpload
+              label="Add attachment"
+              onUpload={(url) => setAttachments((prev) => [...prev, url])}
+            />
+          </div>
+        </Field>
+      </FormSection>
+
+      {/* 5. Student / Group Settings */}
+      <FormSection
+        title="Student & Group Settings"
+        icon={<Users className="w-4 h-4" />}
+        isOpen={openSections.studentGroup}
+        onToggle={() => toggleSection("studentGroup")}
+      >
+        <Field
+          label="Assigned Students"
+          hint="Leave empty to assign to the whole class."
+        >
+          <div className="max-h-40 overflow-y-auto space-y-1 border border-slate-200 dark:border-slate-700 rounded-lg p-2">
+            {orgMembers.length === 0 ? (
+              <p className="text-xs text-slate-400 italic px-1">
+                No students found in this organization.
+              </p>
+            ) : (
+              orgMembers.map((m) => {
+                const memberId = m.id || m.email || m.name;
+                return (
+                  <label
+                    key={memberId}
+                    className={checkboxRowClass + " px-1 py-1"}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={assignedStudentIds.includes(memberId)}
+                      onChange={() => toggleAssignedStudent(memberId)}
+                      className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+                    />
+                    <span>{m.name}</span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+        </Field>
+
+        {supportsGroup && (
+          <>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isGroup"
+                checked={isGroup}
+                onChange={(e) => setIsGroup(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500 focus:ring-offset-slate-900"
+              />
+              <label htmlFor="isGroup" className={checkboxRowClass}>
+                Group Assessment (Students can work in teams)
+              </label>
+            </div>
+            {isGroup && (
+              <Field label="Group Size">
+                <input
+                  type="number"
+                  min={2}
+                  value={groupSize}
+                  onChange={(e) => {
+                    setGroupSize(
+                      e.target.value === "" ? "" : Number(e.target.value),
+                    );
+                    clearError("groupSize");
+                  }}
+                  className={`${inputClass} md:w-40 ${errors.groupSize ? errorInputClass : ""}`}
+                  placeholder="e.g. 4"
+                />
+                <ErrorText message={errors.groupSize} />
+              </Field>
+            )}
+          </>
+        )}
+
+        {isQuestionBased && (
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="randomizeQuestions"
+              checked={randomizeQuestions}
+              onChange={(e) => setRandomizeQuestions(e.target.checked)}
+              className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+            />
+            <label htmlFor="randomizeQuestions" className={checkboxRowClass}>
+              Randomize Question Order
+            </label>
+          </div>
+        )}
+
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="allowMultipleAttempts"
+            checked={allowMultipleAttempts}
+            onChange={(e) => setAllowMultipleAttempts(e.target.checked)}
+            className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+          />
+          <label htmlFor="allowMultipleAttempts" className={checkboxRowClass}>
+            Allow Multiple Attempts
+          </label>
+        </div>
+        {allowMultipleAttempts && (
+          <Field label="Maximum Attempts">
+            <input
+              type="number"
+              min={1}
+              value={maxAttempts}
+              onChange={(e) => {
+                setMaxAttempts(
+                  e.target.value === "" ? "" : Number(e.target.value),
+                );
+                clearError("maxAttempts");
+              }}
+              className={`${inputClass} md:w-40 ${errors.maxAttempts ? errorInputClass : ""}`}
+              placeholder="e.g. 2"
+            />
+            <ErrorText message={errors.maxAttempts} />
+          </Field>
+        )}
+      </FormSection>
+
+      {/* 6. Submission Settings */}
+      <FormSection
+        title="Submission Settings"
+        icon={<UploadCloud className="w-4 h-4" />}
+        isOpen={openSections.submission}
+        onToggle={() => toggleSection("submission")}
+      >
+        <Field label="Submission Method">
+          <select
+            value={submissionMethod}
+            onChange={(e) =>
+              setSubmissionMethod(
+                e.target.value as NonNullable<Assessment["submissionMethod"]>,
+              )
+            }
+            className={inputClass}
+          >
+            <option value="online">Online</option>
+            <option value="file_upload">File Upload</option>
+            <option value="in_class">In-Class</option>
+          </select>
+        </Field>
+
+        {submissionMethod !== "in_class" && (
+          <>
+            <Field label="Allowed File Types">
+              <div className="flex flex-wrap gap-2">
+                {FILE_TYPE_OPTIONS.map((ft) => {
+                  const active = allowedFileTypes.includes(ft);
+                  return (
+                    <button
+                      type="button"
+                      key={ft}
+                      onClick={() => toggleFileType(ft)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+                        active
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                      }`}
+                    >
+                      {ft}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+            <Field label="Maximum File Size (MB)">
+              <input
+                type="number"
+                min={1}
+                value={maxFileSizeMb}
+                onChange={(e) => {
+                  setMaxFileSizeMb(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  );
+                  clearError("maxFileSizeMb");
+                }}
+                className={`${inputClass} md:w-40 ${errors.maxFileSizeMb ? errorInputClass : ""}`}
+                placeholder="e.g. 25"
+              />
+              <ErrorText message={errors.maxFileSizeMb} />
+            </Field>
+          </>
+        )}
+
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="allowResubmission"
+            checked={allowResubmission}
+            onChange={(e) => setAllowResubmission(e.target.checked)}
+            className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+          />
+          <label htmlFor="allowResubmission" className={checkboxRowClass}>
+            Allow Resubmission
+          </label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="requireStudentComments"
+            checked={requireStudentComments}
+            onChange={(e) => setRequireStudentComments(e.target.checked)}
+            className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+          />
+          <label htmlFor="requireStudentComments" className={checkboxRowClass}>
+            Require Student Comments on Submission
+          </label>
+        </div>
+      </FormSection>
+
+      {/* 7. Results & Feedback */}
+      <FormSection
+        title="Results & Feedback"
+        icon={<Eye className="w-4 h-4" />}
+        isOpen={openSections.results}
+        onToggle={() => toggleSection("results")}
+      >
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="showScoreImmediately"
+            checked={showScoreImmediately}
+            onChange={(e) => setShowScoreImmediately(e.target.checked)}
+            className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+          />
+          <label htmlFor="showScoreImmediately" className={checkboxRowClass}>
+            Show Score Immediately After Grading
+          </label>
+        </div>
+
+        {!showScoreImmediately && (
+          <Field label="Release Results Date">
+            <input
+              type="date"
+              value={releaseResultsDate}
+              onChange={(e) => setReleaseResultsDate(e.target.value)}
+              className={inputClass + " md:w-60"}
+            />
+          </Field>
+        )}
+
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="showCorrectAnswers"
+            checked={showCorrectAnswers}
+            onChange={(e) => setShowCorrectAnswers(e.target.checked)}
+            className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+          />
+          <label htmlFor="showCorrectAnswers" className={checkboxRowClass}>
+            Show Correct Answers After Submission
+          </label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="allowStudentReview"
+            checked={allowStudentReview}
+            onChange={(e) => setAllowStudentReview(e.target.checked)}
+            className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded focus:ring-indigo-500"
+          />
+          <label htmlFor="allowStudentReview" className={checkboxRowClass}>
+            Allow Student Review Session
+          </label>
+        </div>
+
+        <Field label="Default Teacher Feedback Template">
+          <textarea
+            value={teacherFeedback}
+            onChange={(e) => setTeacherFeedback(e.target.value)}
+            rows={2}
+            className={inputClass}
+            placeholder="Optional note shown alongside every graded submission"
+          />
+        </Field>
+      </FormSection>
+
+      <div className="flex items-center gap-3 mt-2">
+        <button
+          type="submit"
+          className="cursor-pointer px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 dark:text-white rounded-lg font-bold transition w-full sm:w-auto"
+        >
+          {isEditing ? "Save Changes" : "Publish Assessment"}
+        </button>
+        {isEditing && (
+          <button
+            type="button"
+            onClick={() => onCancel?.()}
+            className="cursor-pointer px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg font-bold transition w-full sm:w-auto"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}

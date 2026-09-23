@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if the user is the document owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ============================================================================
+    // Backpack Collection Rules
+    // ----------------------------------------------------------------------------
+    // Stores all User & Organisation Profiles, Courses, Materials, and interactions.
+    // ============================================================================
+    match /backpack/{userId} {
+      // READ: Open to everyone (public webpage profiles, catalogs)
+      allow read: if true;
+      
+      // CREATE / DELETE: Restricted strictly to the document owner
+      allow create, delete: if isOwner(userId);
+      
+      // UPDATE: 
+      // 1. Owner has full update rights.
+      // 2. Non-owners (students enrolling, chatting, or co-instructors) can update 
+      //    specific arrays inside the 'user' object but are strictly BLOCKED from 
+      //    modifying the core 'personalInformation' profile data of the organization/user.
+      allow update: if isOwner(userId) || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['user']) &&
+        !request.resource.data.user.diff(resource.data.user).affectedKeys().hasAny(['personalInformation'])
+      );
+    }
+
+    // ============================================================================
+    // Catch-all fallback
+    // ============================================================================
+    // By default, lock down everything else completely to prevent unintended data exposure.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
