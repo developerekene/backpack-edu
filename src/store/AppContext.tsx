@@ -8,10 +8,12 @@ import React, {
 import { db } from "../lib/firebase";
 import {
   collection,
+  collectionGroup,
   getDocs,
   updateDoc,
   doc,
   getDoc,
+  setDoc,
 } from "firebase/firestore";
 import {
   Assessment,
@@ -275,9 +277,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     loadCache("notifications", []),
   );
-  const [registeredUsers, setRegisteredUsers] = useState<
-    { id: string; email: string; name: string; role?: string }[]
-  >(() => loadCache("registeredUsers", []));
 
   // Helper to update personalInformation within the user object of a backpack document
   const updateBackpackPersonalInfo = async (
@@ -379,228 +378,108 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Fetch all global data and user-specific data from backpack documents
-  // useEffect(() => {
   const loadAllBackpackData = async () => {
-    try {
-      const backpackSnap = await getDocs(collection(db, "backpack"));
+      try {
+        const [
+          backpackSnap,
+          coursesSnap,
+          enrollmentsSnap,
+          orgJoinReqsSnap,
+          membersSnap,
+          progressSnap,
+          materialsSnap,
+          attendanceSnap,
+          assessmentsSnap,
+          submissionsSnap,
+          eventsSnap,
+          messagesSnap
+        ] = await Promise.all([
+          getDocs(collection(db, "backpack")),
+          getDocs(collectionGroup(db, "courses")),
+          getDocs(collectionGroup(db, "enrollmentRequests")),
+          getDocs(collectionGroup(db, "orgJoinRequests")),
+          getDocs(collectionGroup(db, "orgMembers")),
+          getDocs(collectionGroup(db, "userProgress")),
+          getDocs(collectionGroup(db, "materials")),
+          getDocs(collectionGroup(db, "attendanceRecords")),
+          getDocs(collectionGroup(db, "assessments")),
+          getDocs(collectionGroup(db, "submissions")),
+          getDocs(collectionGroup(db, "scheduleEvents")),
+          getDocs(collectionGroup(db, "messages")),
+        ]);
 
-      const allOrganizations: Organization[] = [];
-      const allCourses: Course[] = [];
-      const allEnrollments: EnrollmentRequest[] = [];
-      const allOrgJoinRequests: OrgJoinRequest[] = [];
-      const allMembers: OrgMember[] = [];
-      const allProgress: UserProgress[] = [];
-      const allMaterials: Material[] = [];
-      const allAttendance: AttendanceRecord[] = [];
-      const allAssessments: Assessment[] = [];
-      const allSubmissions: Submission[] = [];
-      const allScheduleEvents: ScheduleEvent[] = [];
-      const allMessages: ChatMessage[] = [];
-      const allDiscussionChannels: DiscussionChannel[] = [];
-      const allDiscussionMessages: DiscussionMessage[] = [];
-      const allDiscussionPolls: DiscussionPoll[] = [];
-      const allCoursePresence: CoursePresence[] = [];
-      const allDonations: CourseDonation[] = [];
-      const allRegisteredUsers: {
-        id: string;
-        email: string;
-        name: string;
-        role?: string;
-      }[] = [];
-
-      backpackSnap.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        const userObj = getUserData(data);
-        const personalInfo =
-          (userObj.personalInformation as Record<string, unknown>) || {};
-
-        const userEmail =
-          (personalInfo.email as string) ||
-          (userObj.email as string) ||
-          (data.email as string);
-        if (userEmail) {
-          allRegisteredUsers.push({
-            id: docSnap.id,
-            email: userEmail.toLowerCase().trim(),
-            name:
-              (personalInfo.fullname as string) ||
-              (personalInfo.name as string) ||
-              (userObj.name as string) ||
-              "Student",
-            role:
-              (personalInfo.role as string) ||
-              (userObj.role as string) ||
-              "student",
-          });
-        }
-
-        // Extract organization from user.personalInformation map
-        if (
-          personalInfo.role === "organization" ||
-          personalInfo.orgType ||
-          personalInfo.registrationId ||
-          personalInfo.accreditationStatus ||
-          personalInfo.isAccredited
-        ) {
-          allOrganizations.push({
-            id: (personalInfo.id as string) || docSnap.id,
-            name:
-              (personalInfo.fullname as string) ||
-              (personalInfo.name as string) ||
-              "Unnamed Organization",
-            description: (personalInfo.description as string) || "",
-            logoUrl: personalInfo.logoUrl as string | undefined,
-            ownerId: (personalInfo.ownerId as string) || docSnap.id,
-            baseCurrency: (personalInfo.baseCurrency as string) || "USD",
-            location: personalInfo.location as string | undefined,
-            orgType:
-              (personalInfo.orgType as "basic" | "higher" | "vocational") ||
-              "basic",
-            kycVerified: (personalInfo.kycVerified as boolean) ?? false,
-            kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
-            address: personalInfo.address as string | undefined,
-            registrationId: personalInfo.registrationId as string | undefined,
-            isAccredited: (personalInfo.isAccredited as boolean) ?? false,
-            accreditingBody: personalInfo.accreditingBody as string | undefined,
-            accreditationStatus:
-              (personalInfo.accreditationStatus as
-                | "accredited"
-                | "pending"
-                | "unaccredited") ||
-              (personalInfo.isAccredited ? "accredited" : "unaccredited"),
-            accreditationDocUrl: personalInfo.accreditationDocUrl as
-              | string
-              | undefined,
-            motto: personalInfo.motto as string | undefined,
-            phone: personalInfo.phone as string | undefined,
-            website: personalInfo.website as string | undefined,
-            themeColor: personalInfo.themeColor as string | undefined,
-            academicHighlights: personalInfo.academicHighlights as
-              | string[]
-              | undefined,
-            isDeleted: (personalInfo.isDeleted as boolean) ?? false,
-            paystackSubaccount:
-              personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
-          });
-        }
-
-        if (Array.isArray(userObj.courses)) allCourses.push(...userObj.courses);
-        if (Array.isArray(userObj.enrollmentRequests))
-          allEnrollments.push(...userObj.enrollmentRequests);
-        if (Array.isArray(userObj.orgJoinRequests))
-          allOrgJoinRequests.push(...userObj.orgJoinRequests);
-        if (Array.isArray(userObj.orgMembers))
-          allMembers.push(...userObj.orgMembers);
-        if (Array.isArray(userObj.userProgress))
-          allProgress.push(...userObj.userProgress);
-        if (Array.isArray(userObj.materials))
-          allMaterials.push(...userObj.materials);
-        if (Array.isArray(userObj.attendance))
-          allAttendance.push(...userObj.attendance);
-        if (Array.isArray(userObj.assessments))
-          allAssessments.push(...userObj.assessments);
-        if (Array.isArray(userObj.submissions))
-          allSubmissions.push(...userObj.submissions);
-        if (Array.isArray(userObj.scheduleEvents))
-          allScheduleEvents.push(...userObj.scheduleEvents);
-        if (Array.isArray(userObj.messages))
-          allMessages.push(...userObj.messages);
-        if (Array.isArray(userObj.discussionChannels))
-          allDiscussionChannels.push(...userObj.discussionChannels);
-        if (Array.isArray(userObj.discussionMessages))
-          allDiscussionMessages.push(...userObj.discussionMessages);
-        if (Array.isArray(userObj.discussionPolls))
-          allDiscussionPolls.push(...userObj.discussionPolls);
-        if (Array.isArray(userObj.coursePresence))
-          allCoursePresence.push(...userObj.coursePresence);
-        if (Array.isArray(userObj.courseDonations))
-          allDonations.push(...userObj.courseDonations);
-      });
-
-      // Deduplicate arrays by id
-      const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
-        const map = new Map<string, T>();
-        arr.forEach((item) => {
-          if (item.id) map.set(item.id, item);
+        const allOrganizations: Organization[] = [];
+        backpackSnap.docs.forEach((docSnap) => {
+          const data = docSnap.data();
+          const userObj = getUserData(data);
+          const personalInfo = (userObj.personalInformation as Record<string, unknown>) || {};
+          if (
+            personalInfo.role === "organization" ||
+            personalInfo.orgType ||
+            personalInfo.registrationId ||
+            personalInfo.accreditationStatus ||
+            personalInfo.isAccredited
+          ) {
+            allOrganizations.push({
+              id: (personalInfo.id as string) || docSnap.id,
+              name: (personalInfo.fullname as string) || (personalInfo.name as string) || "Unnamed Organization",
+              description: (personalInfo.description as string) || "",
+              logoUrl: personalInfo.logoUrl as string | undefined,
+              ownerId: (personalInfo.ownerId as string) || docSnap.id,
+              baseCurrency: (personalInfo.baseCurrency as string) || "USD",
+              location: personalInfo.location as string | undefined,
+              orgType: (personalInfo.orgType as "basic" | "higher" | "vocational") || "basic",
+              kycVerified: (personalInfo.kycVerified as boolean) ?? false,
+              kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
+              address: personalInfo.address as string | undefined,
+              registrationId: personalInfo.registrationId as string | undefined,
+              isAccredited: (personalInfo.isAccredited as boolean) ?? false,
+              accreditingBody: personalInfo.accreditingBody as string | undefined,
+              accreditationStatus: (personalInfo.accreditationStatus as "accredited" | "pending" | "unaccredited") || (personalInfo.isAccredited ? "accredited" : "unaccredited"),
+              accreditationDocUrl: personalInfo.accreditationDocUrl as string | undefined,
+              motto: personalInfo.motto as string | undefined,
+              phone: personalInfo.phone as string | undefined,
+              website: personalInfo.website as string | undefined,
+              themeColor: personalInfo.themeColor as string | undefined,
+              academicHighlights: personalInfo.academicHighlights as string[] | undefined,
+              isDeleted: (personalInfo.isDeleted as boolean) ?? false,
+              paystackSubaccount: personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
+            });
+          }
         });
-        return Array.from(map.values());
-      };
 
-      const updateAndCache = <T,>(
-        key: string,
-        data: T,
-        setter: (val: T) => void,
-      ) => {
-        setter(data);
-        try {
-          localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data));
-        } catch {
-          // Ignore cache errors
-        }
-      };
+        const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
+          const map = new Map<string, T>();
+          arr.forEach((item) => {
+            if (item.id) map.set(item.id, item);
+          });
+          return Array.from(map.values());
+        };
 
-      updateAndCache(
-        "organizations",
-        dedupeById(allOrganizations),
-        setOrganizations,
-      );
-      updateAndCache("courses", dedupeById(allCourses), setCourses);
-      updateAndCache(
-        "enrollmentRequests",
-        dedupeById(allEnrollments),
-        setEnrollmentRequests,
-      );
-      updateAndCache(
-        "courseDonations",
-        dedupeById(allDonations),
-        setCourseDonations,
-      );
-      updateAndCache(
-        "orgJoinRequests",
-        dedupeById(allOrgJoinRequests),
-        setOrgJoinRequests,
-      );
-      updateAndCache("userProgress", dedupeById(allProgress), setUserProgress);
-      updateAndCache("materials", dedupeById(allMaterials), setMaterials);
-      updateAndCache("attendanceRecords", allAttendance, setAttendanceRecords);
-      updateAndCache("assessments", dedupeById(allAssessments), setAssessments);
-      updateAndCache("submissions", dedupeById(allSubmissions), setSubmissions);
-      updateAndCache(
-        "scheduleEvents",
-        dedupeById(allScheduleEvents),
-        setScheduleEvents,
-      );
-      updateAndCache("orgMembers", dedupeById(allMembers), setOrgMembers);
-      updateAndCache("messages", dedupeById(allMessages), setMessages);
-      updateAndCache(
-        "discussionChannels",
-        dedupeById(allDiscussionChannels),
-        setDiscussionChannels,
-      );
-      updateAndCache(
-        "discussionMessages",
-        dedupeById(allDiscussionMessages),
-        setDiscussionMessages,
-      );
-      updateAndCache(
-        "discussionPolls",
-        dedupeById(allDiscussionPolls),
-        setDiscussionPolls,
-      );
-      updateAndCache(
-        "coursePresence",
-        dedupeById(allCoursePresence),
-        setCoursePresence,
-        "registeredUsers",
-        dedupeById(allRegisteredUsers),
-        setRegisteredUsers,
-      );
-    } catch (err) {
-      console.error("loadAllBackpackData failed:", err);
-    } finally {
-      setIsLoadingApp(false);
-    }
-  };
+        const updateAndCache = <T,>(key: string, data: T, setter: (val: T) => void) => {
+          setter(data);
+          try { localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data)); } catch { /* ignore */ }
+        };
+
+        updateAndCache("organizations", dedupeById(allOrganizations), setOrganizations);
+        updateAndCache("courses", dedupeById(coursesSnap.docs.map(d => d.data() as Course)), setCourses);
+        updateAndCache("enrollmentRequests", dedupeById(enrollmentsSnap.docs.map(d => d.data() as EnrollmentRequest)), setEnrollmentRequests);
+        updateAndCache("orgJoinRequests", dedupeById(orgJoinReqsSnap.docs.map(d => d.data() as OrgJoinRequest)), setOrgJoinRequests);
+        updateAndCache("userProgress", dedupeById(progressSnap.docs.map(d => d.data() as UserProgress)), setUserProgress);
+        updateAndCache("materials", dedupeById(materialsSnap.docs.map(d => d.data() as Material)), setMaterials);
+        updateAndCache("attendanceRecords", attendanceSnap.docs.map(d => d.data() as AttendanceRecord), setAttendanceRecords);
+        updateAndCache("assessments", dedupeById(assessmentsSnap.docs.map(d => d.data() as Assessment)), setAssessments);
+        updateAndCache("submissions", dedupeById(submissionsSnap.docs.map(d => d.data() as Submission)), setSubmissions);
+        updateAndCache("scheduleEvents", dedupeById(eventsSnap.docs.map(d => d.data() as ScheduleEvent)), setScheduleEvents);
+        updateAndCache("orgMembers", dedupeById(membersSnap.docs.map(d => d.data() as OrgMember)), setOrgMembers);
+        updateAndCache("messages", dedupeById(messagesSnap.docs.map(d => d.data() as ChatMessage)), setMessages);
+
+      } catch (err) {
+        console.error("loadAllBackpackData failed:", err);
+      } finally {
+        setIsLoadingApp(false);
+      }
+    };
 
   useEffect(() => {
     loadAllBackpackData();
@@ -705,11 +584,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addCourse = async (course: Course) => {
     const cleaned = sanitizeForFirestore(course);
     const targetUid = course.orgId || currentUser?.id || "";
-
-    await updateBackpackUserField<Course>(targetUid, "courses", (list) => [
-      ...list.filter((c) => c.id !== course.id),
-      cleaned,
-    ]);
+    if (targetUid) {
+      await setDoc(doc(db, "backpack", targetUid, "courses", course.id), cleaned);
+    }
     setCourses((prev) => [...prev.filter((c) => c.id !== course.id), cleaned]);
   };
 
@@ -719,246 +596,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!existingCourse) return;
 
     const targetUid = existingCourse.orgId || currentUser?.id || "";
-    await updateBackpackUserField<Course>(targetUid, "courses", (list) =>
-      list.map((c) => (c.id === courseId ? { ...c, ...cleaned } : c)),
-    );
+    if (targetUid) {
+      await updateDoc(doc(db, "backpack", targetUid, "courses", courseId), cleaned);
+    }
     setCourses((prev) =>
       prev.map((c) => (c.id === courseId ? { ...c, ...cleaned } : c)),
     );
   };
 
-  // Admission Gate calculation
-  // "The organisation should provide a tuition cost per student for the course to calculate admission gate (decimal results should only consider the whole number for the number of students allowed to join)."
-  const getCourseAdmissionGate = (courseId: string): AdmissionGateStatus => {
-    const course = courses.find((c) => c.id === courseId);
-    const org = organizations.find(
-      (o) => o.id === course?.orgId || o.ownerId === course?.orgId,
-    );
-    const isVocational = org?.orgType === "vocational";
-    const isDonationFunded =
-      isVocational && course?.fundingModel === "donations_sponsorships";
-    const tuitionCost = isDonationFunded
-      ? course?.tuitionCostPerStudent || course?.price || 0
-      : course?.price || 0;
-
-    const donations = courseDonations.filter((d) => d.courseId === courseId);
-    const totalDonations =
-      donations.reduce((sum, d) => sum + d.amount, 0) ||
-      course?.totalDonationsReceived ||
-      0;
-
-    // Decimal results should only consider the whole number for the number of students allowed to join
-    const maxAdmissibleStudents =
-      isDonationFunded && tuitionCost > 0
-        ? Math.floor(totalDonations / tuitionCost)
-        : 0;
-
-    const approvedEnrollments = enrollmentRequests.filter(
-      (r) => r.courseId === courseId && r.status === "approved",
-    );
-    const currentlyAdmittedCount = approvedEnrollments.length;
-    const remainingSpots = isDonationFunded
-      ? Math.max(0, maxAdmissibleStudents - currentlyAdmittedCount)
-      : 999999;
-    const canAdmitMore =
-      !isDonationFunded || currentlyAdmittedCount < maxAdmissibleStudents;
-    const nextSeatNeededAmount =
-      isDonationFunded && tuitionCost > 0
-        ? Math.max(
-            0,
-            (currentlyAdmittedCount + 1) * tuitionCost - totalDonations,
-          )
-        : 0;
-
-    return {
-      isVocational,
-      isDonationFunded,
-      tuitionCostPerStudent: tuitionCost,
-      totalDonations,
-      maxAdmissibleStudents,
-      currentlyAdmittedCount,
-      remainingSpots,
-      canAdmitMore,
-      currency: course?.currency || "NGN",
-      nextSeatNeededAmount,
-    };
-  };
-
   const addCourseDonation = async (donation: CourseDonation) => {
     const cleaned = sanitizeForFirestore(donation);
-    const targetOrgId = donation.orgId;
-    const existingOrg = organizations.find(
-      (o) => o.id === targetOrgId || o.ownerId === targetOrgId,
-    );
-    const targetUid = existingOrg?.ownerId || existingOrg?.id || targetOrgId;
-
+    const targetUid = donation.orgId || currentUser?.id || "";
     if (targetUid) {
-      await updateBackpackUserField<CourseDonation>(
-        targetUid,
-        "courseDonations",
-        (list) => [...list.filter((d) => d.id !== donation.id), cleaned],
-      );
+      await setDoc(doc(db, "backpack", targetUid, "courseDonations", donation.id), cleaned);
     }
-
-    setCourseDonations((prev) => {
-      const updated = [...prev.filter((d) => d.id !== donation.id), cleaned];
-      try {
-        localStorage.setItem(
-          "bp_cache_courseDonations",
-          JSON.stringify(updated),
-        );
-      } catch {
-        // Ignore cache errors
-      }
-      return updated;
-    });
-
-    const targetCourse = courses.find((c) => c.id === donation.courseId);
-    if (targetCourse) {
-      const newTotal =
-        (targetCourse.totalDonationsReceived || 0) + donation.amount;
-      await updateCourse(targetCourse.id, { totalDonationsReceived: newTotal });
-    }
-
-    const courseTitle = targetCourse?.title || "Vocational Course";
-    const donorDisplay = donation.isAnonymous
-      ? "An anonymous donor"
-      : donation.donorName || "A generous sponsor";
-
-    if (
-      donation.donationType === "sponsorship" &&
-      donation.sponsoredStudentEmails &&
-      donation.sponsoredStudentEmails.length > 0
-    ) {
-      const studentEmails = donation.sponsoredStudentEmails;
-      const registeredStudentSummaries: string[] = [];
-      const nonUserStudentEmails: string[] = [];
-
-      for (const rawEmail of studentEmails) {
-        const cleanEmail = rawEmail.trim().toLowerCase();
-        if (!cleanEmail) continue;
-
-        // Find if this student is an existing registered user
-        const matchingUser =
-          registeredUsers.find((u) => u.email.toLowerCase() === cleanEmail) ||
-          (currentUser?.email?.toLowerCase() === cleanEmail
-            ? currentUser
-            : undefined);
-
-        const studentMeta = donation.sponsoredStudents?.find(
-          (s) => s.email.toLowerCase() === cleanEmail,
-        );
-        const effectiveStudentName =
-          matchingUser?.name ||
-          (studentMeta?.name?.trim()
-            ? studentMeta.name.trim()
-            : "Sponsored Student");
-
-        // Always create OrgMember invite record with fee covered
-        const newInvite: OrgMember = {
-          id: generateId("member"),
-          orgId: targetOrgId,
-          name: effectiveStudentName,
-          email: cleanEmail,
-          role: "student",
-          department: "Sponsored / Vocational Program",
-          courseIds: [donation.courseId],
-          joinedAt: new Date().toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
-          status: "invited",
-          requiresPayment: false,
-          requiresDocuments: false,
-          inviteNote: `Full tuition sponsored by ${donorDisplay}.`,
-        };
-        await addOrgMember(newInvite);
-
-        if (matchingUser) {
-          registeredStudentSummaries.push(
-            `${matchingUser.name} (${cleanEmail})`,
-          );
-          // Student is a registered user: notify them IN-APP (like when invited to courses)
-          addNotification({
-            userId: matchingUser.id,
-            title: "Course Sponsorship & Invitation 🎓",
-            message: `You have been sponsored by ${donorDisplay} for "${courseTitle}"! Your tuition is fully covered. Click to accept and start learning.`,
-            type: "enrollment",
-            linkUrl: `/dashboard#pending-course-invitations`,
-          });
-        } else {
-          // Student is NOT a registered user yet
-          const displayStr = studentMeta?.name?.trim()
-            ? `${studentMeta.name.trim()} (${cleanEmail})`
-            : cleanEmail;
-          nonUserStudentEmails.push(displayStr);
-        }
-      }
-
-      // School gets in-app notification detailing both registered student users and non-user students
-      if (targetUid) {
-        const regMsg =
-          registeredStudentSummaries.length > 0
-            ? ` Registered student user(s): ${registeredStudentSummaries.join(", ")}.`
-            : "";
-        const nonUserMsg =
-          nonUserStudentEmails.length > 0
-            ? ` Non-user student email(s): ${nonUserStudentEmails.join(", ")}.`
-            : "";
-
-        addNotification({
-          userId: targetUid,
-          title: "Student Sponsorship Received 🎓",
-          message: `${donorDisplay} has sponsored tuition for ${studentEmails.length} student(s) for "${courseTitle}".${regMsg}${nonUserMsg}`,
-          type: "enrollment",
-          linkUrl: `/dashboard`,
-        });
-      }
-
-      // Check if any matching enrollment requests exist and flag as sponsored
-      const matchingReqs = enrollmentRequests.filter(
-        (r) =>
-          r.courseId === donation.courseId &&
-          r.userEmail &&
-          studentEmails.some(
-            (e) => e.toLowerCase() === r.userEmail?.toLowerCase(),
-          ),
-      );
-      for (const req of matchingReqs) {
-        await updateEnrollmentRequest(req.id, undefined, undefined, undefined, {
-          isSponsored: true,
-          sponsorName: donation.isAnonymous
-            ? "Anonymous Sponsor"
-            : donation.donorName,
-          sponsorEmail: donation.donorEmail,
-        });
-      }
-    } else {
-      if (targetUid) {
-        addNotification({
-          userId: targetUid,
-          title: "New Course Donation Received 💖",
-          message: `${donorDisplay} donated towards student tuition seats for "${courseTitle}".`,
-          type: "info",
-          linkUrl: `/dashboard`,
-        });
-      }
-    }
+    setCourseDonations((prev) => [...prev.filter((d) => d.id !== donation.id), cleaned]);
   };
 
   // Enrollment Request Operations (stored in backpack/{userId}.user.enrollmentRequests & org's backpack)
   const addEnrollmentRequest = async (req: EnrollmentRequest) => {
-    // Check if there was an existing request for this user and course (e.g. previously rejected or cancelled)
-    const existingReq = enrollmentRequests.find(
-      (r) => r.userId === req.userId && r.courseId === req.courseId,
-    );
+    const existingReq = enrollmentRequests.find((r) => r.userId === req.userId && r.courseId === req.courseId);
     let reapplicationHistory = req.reapplicationHistory || [];
-
-    if (
-      existingReq &&
-      (existingReq.status === "rejected" || existingReq.status === "cancelled")
-    ) {
+    if (existingReq && (existingReq.status === "rejected" || existingReq.status === "cancelled")) {
       const pastRecord: ReapplicationRecord = {
         id: existingReq.id,
         sessionId: existingReq.sessionId,
@@ -968,59 +627,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         rejectedAt: existingReq.rejectedAt,
         rejectionReason: existingReq.rejectionReason,
       };
-      reapplicationHistory = [
-        ...(existingReq.reapplicationHistory || []),
-        pastRecord,
-      ];
+      reapplicationHistory = [...(existingReq.reapplicationHistory || []), pastRecord];
     }
-
-    const payload: EnrollmentRequest = {
-      ...req,
-      reapplicationHistory,
-    };
+    const payload: EnrollmentRequest = { ...req, reapplicationHistory };
     const cleaned = sanitizeForFirestore(payload);
 
-    // Store in student's backpack (replacing any existing request for same course or id)
-    if (req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(
-        req.userId,
-        "enrollmentRequests",
-        (list) => [
-          ...list.filter(
-            (r) =>
-              r.id !== req.id &&
-              !(r.courseId === req.courseId && r.userId === req.userId),
-          ),
-          cleaned,
-        ],
-      );
-    }
-    // Also store in org's backpack if distinct
-    if (req.orgId && req.orgId !== req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(
-        req.orgId,
-        "enrollmentRequests",
-        (list) => [
-          ...list.filter(
-            (r) =>
-              r.id !== req.id &&
-              !(r.courseId === req.courseId && r.userId === req.userId),
-          ),
-          cleaned,
-        ],
-      );
-    }
+    if (req.userId) await setDoc(doc(db, "backpack", req.userId, "enrollmentRequests", req.id), cleaned);
+    if (req.orgId && req.orgId !== req.userId) await setDoc(doc(db, "backpack", req.orgId, "enrollmentRequests", req.id), cleaned);
 
     setEnrollmentRequests((prev) => [
-      ...prev.filter(
-        (r) =>
-          r.id !== req.id &&
-          !(r.courseId === req.courseId && r.userId === req.userId),
-      ),
+      ...prev.filter((r) => r.id !== req.id && !(r.courseId === req.courseId && r.userId === req.userId)),
       cleaned,
     ]);
 
-    // Send notification to organization / course owner
     if (req.orgId) {
       addNotification({
         userId: req.orgId,
@@ -1032,17 +651,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateEnrollmentRequest = async (
-    id: string,
-    status?: "approved" | "rejected" | "cancelled" | "pending",
-    paymentStatus?: "unpaid" | "paid",
-    rejectionReason?: string,
-    extraUpdates?: Partial<EnrollmentRequest>,
-  ) => {
+  const updateEnrollmentRequest = async (id: string, status?: "approved" | "rejected" | "cancelled" | "pending", paymentStatus?: "unpaid" | "paid", rejectionReason?: string) => {
     const req = enrollmentRequests.find((r) => r.id === id);
     if (!req) return;
-
-    const updates: Partial<EnrollmentRequest> = { ...(extraUpdates || {}) };
+    const updates: Partial<EnrollmentRequest> = {};
     if (status) updates.status = status;
     if (paymentStatus) updates.paymentStatus = paymentStatus;
     if (status === "rejected") {
@@ -1050,118 +662,94 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (rejectionReason) updates.rejectionReason = rejectionReason;
       if (req.sessionId) updates.rejectedSessionId = req.sessionId;
     }
-
-    if (status === "approved") {
-      const targetCourse = courses.find((c) => c.id === req.courseId);
-      const targetOrg = organizations.find(
-        (o) =>
-          o.id === targetCourse?.orgId || o.ownerId === targetCourse?.orgId,
-      );
-      if (
-        targetOrg?.orgType === "vocational" &&
-        targetCourse?.fundingModel === "donations_sponsorships"
-      ) {
-        const gate = getCourseAdmissionGate(targetCourse.id);
-        // Only the number of students whose tuition could be covered by these donations can be admitted
-        if (!gate.canAdmitMore) {
-          throw new Error(
-            `Admission Gate Reached: Current donations (${gate.currency} ${gate.totalDonations.toLocaleString()}) only cover up to ${gate.maxAdmissibleStudents} student(s) at ${gate.currency} ${gate.tuitionCostPerStudent.toLocaleString()} per student. At least ${gate.currency} ${gate.nextSeatNeededAmount.toLocaleString()} more in donations or sponsorships is required before admitting another student.`,
-          );
-        }
-        // Student admission is fully covered by donor funding
-        updates.paymentStatus = "paid";
-      }
-    }
-
-    // Auto-detect if student was sponsored by a donor
-    if (req.userEmail && !updates.isSponsored) {
-      const courseSponsorships = courseDonations.filter(
-        (d) =>
-          d.courseId === req.courseId &&
-          d.donationType === "sponsorship" &&
-          d.sponsoredStudentEmails?.some(
-            (e) => e.toLowerCase() === req.userEmail?.toLowerCase(),
-          ),
-      );
-      if (courseSponsorships.length > 0) {
-        const sp = courseSponsorships[0];
-        updates.isSponsored = true;
-        updates.sponsorName = sp.isAnonymous
-          ? "Anonymous Sponsor"
-          : sp.donorName;
-        updates.sponsorEmail = sp.donorEmail;
-      }
-    }
-
-    if (req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(
-        req.userId,
-        "enrollmentRequests",
-        (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-      );
-    }
-    if (req.orgId && req.orgId !== req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(
-        req.orgId,
-        "enrollmentRequests",
-        (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-      );
-    }
+    const cleanUpdates = sanitizeForFirestore(updates);
+    if (req.userId) await updateDoc(doc(db, "backpack", req.userId, "enrollmentRequests", req.id), cleanUpdates);
+    if (req.orgId && req.orgId !== req.userId) await updateDoc(doc(db, "backpack", req.orgId, "enrollmentRequests", req.id), cleanUpdates);
 
     if (status && status !== "cancelled") {
       const sessionInfo = req.sessionName ? ` for ${req.sessionName}` : "";
       addNotification({
         userId: req.userId,
         title: `Enrollment Application ${status.toUpperCase()}`,
-        message:
-          status === "approved"
-            ? `Congratulations! Your admission application for "${req.courseTitle || "the course"}"${sessionInfo} has been approved.`
-            : `Your application for "${req.courseTitle || "the course"}"${sessionInfo} was declined.${rejectionReason ? ` Note: ${rejectionReason}` : " You may reapply in the next admission session."}`,
+        message: status === "approved"
+          ? `Congratulations! Your admission application for "${req.courseTitle || "the course"}"${sessionInfo} has been approved.`
+          : `Your application for "${req.courseTitle || "the course"}"${sessionInfo} was declined.${rejectionReason ? ` Note: ${rejectionReason}` : " You may reapply in the next admission session."}`,
         type: "enrollment",
         linkUrl: `/course/${req.courseId}`,
       });
     }
-
-    setEnrollmentRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    );
+    setEnrollmentRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
   };
 
   const cancelEnrollmentRequest = async (id: string) => {
     const req = enrollmentRequests.find((r) => r.id === id);
     if (!req) return;
+    const updates: Partial<EnrollmentRequest> = { status: "cancelled", cancelledAt: new Date().toISOString() };
+    const cleanUpdates = sanitizeForFirestore(updates);
+    if (req.userId) await updateDoc(doc(db, "backpack", req.userId, "enrollmentRequests", req.id), cleanUpdates);
+    if (req.orgId && req.orgId !== req.userId) await updateDoc(doc(db, "backpack", req.orgId, "enrollmentRequests", req.id), cleanUpdates);
+    
+    addNotification({ userId: req.userId, title: "Course Application Cancelled", message: `Your application for "${req.courseTitle || "Course"}" has been cancelled.`, type: "info" });
+    setEnrollmentRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+  };
+  const getCourseAdmissionGate = (courseId: string): AdmissionGateStatus => {
+    const course = courses.find((c) => c.id === courseId);
+    
+    if (!course) {
+      return {
+        isVocational: false,
+        isDonationFunded: false,
+        tuitionCostPerStudent: 0,
+        totalDonations: 0,
+        maxAdmissibleStudents: 0,
+        currentlyAdmittedCount: 0,
+        remainingSpots: 0,
+        canAdmitMore: false,
+        currency: "USD",
+        nextSeatNeededAmount: 0,
+      };
+    }
 
-    const updates: Partial<EnrollmentRequest> = {
-      status: "cancelled",
-      cancelledAt: new Date().toISOString(),
+    const org = organizations.find((o) => o.id === course.orgId);
+    const isVocational = org?.orgType === "vocational";
+    const isDonationFunded = course.fundingModel === "donations_sponsorships";
+    const tuitionCostPerStudent = course.tuitionCostPerStudent || course.price || 0;
+    const currency = course.currency || "USD";
+    
+    const totalDonations = course.totalDonationsReceived || courseDonations
+      .filter((d) => d.courseId === courseId)
+      .reduce((sum, d) => sum + d.amount, 0);
+
+    const currentlyAdmittedCount = enrollmentRequests.filter(
+      (r) => r.courseId === courseId && r.status === "approved"
+    ).length;
+
+    let maxAdmissibleStudents = -1;
+    let remainingSpots = 999999;
+    let canAdmitMore = true;
+    let nextSeatNeededAmount = 0;
+
+    if (isDonationFunded && tuitionCostPerStudent > 0) {
+      maxAdmissibleStudents = Math.floor(totalDonations / tuitionCostPerStudent);
+      remainingSpots = Math.max(0, maxAdmissibleStudents - currentlyAdmittedCount);
+      canAdmitMore = remainingSpots > 0;
+      
+      const currentFundsNeeded = (currentlyAdmittedCount + 1) * tuitionCostPerStudent;
+      nextSeatNeededAmount = Math.max(0, currentFundsNeeded - totalDonations);
+    }
+
+    return {
+      isVocational,
+      isDonationFunded,
+      tuitionCostPerStudent,
+      totalDonations,
+      maxAdmissibleStudents,
+      currentlyAdmittedCount,
+      remainingSpots,
+      canAdmitMore,
+      currency,
+      nextSeatNeededAmount,
     };
-
-    if (req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(
-        req.userId,
-        "enrollmentRequests",
-        (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-      );
-    }
-    if (req.orgId && req.orgId !== req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(
-        req.orgId,
-        "enrollmentRequests",
-        (list) => list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-      );
-    }
-
-    // Add in-app notification
-    addNotification({
-      userId: req.userId,
-      title: "Course Application Cancelled",
-      message: `Your application for "${req.courseTitle || "Course"}" has been cancelled.`,
-      type: "info",
-    });
-
-    setEnrollmentRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    );
   };
 
   // Admission Session Management
@@ -1462,27 +1050,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Materials (stored in backpack/{targetId}.user.materials)
   const addMaterial = async (material: Material) => {
-    const matId =
-      material.id || `mat_${Math.random().toString(36).substring(2, 15)}`;
+    const matId = material.id || `mat_${Math.random().toString(36).substring(2, 15)}`;
     const cleaned = sanitizeForFirestore({ ...material, id: matId });
     const targetUid = currentUser?.id || "";
 
     if (targetUid) {
-      await updateBackpackUserField<Material>(
-        targetUid,
-        "materials",
-        (list) => [...list, cleaned],
-      );
+      await setDoc(doc(db, "backpack", targetUid, "courses", material.courseId, "materials", matId), cleaned);
     }
     setMaterials((prev) => [...prev, cleaned]);
   };
 
   const updateMaterial = async (id: string, updates: Partial<Material>) => {
     const targetUid = currentUser?.id || "";
-    if (targetUid) {
-      await updateBackpackUserField<Material>(targetUid, "materials", (list) =>
-        list.map((m) => (m.id === id ? { ...m, ...updates } : m)),
-      );
+    const existing = materials.find(m => m.id === id);
+    if (targetUid && existing) {
+      await updateDoc(doc(db, "backpack", targetUid, "courses", existing.courseId, "materials", id), sanitizeForFirestore(updates));
     }
     setMaterials((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...updates } : m)),
@@ -1546,16 +1128,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addSubmission = async (submission: Submission) => {
     const cleaned = sanitizeForFirestore(submission);
     if (submission.userId) {
-      await updateBackpackUserField<Submission>(
-        submission.userId,
-        "submissions",
-        (list) => [...list.filter((s) => s.id !== submission.id), cleaned],
-      );
+      await setDoc(doc(db, "backpack", submission.userId, "courses", submission.courseId, "submissions", submission.id), cleaned);
     }
-    setSubmissions((prev) => [
-      ...prev.filter((s) => s.id !== submission.id),
-      cleaned,
-    ]);
+    setSubmissions((prev) => [...prev.filter((s) => s.id !== submission.id), cleaned]);
   };
 
   const updateSubmissionScore = async (
