@@ -15,17 +15,20 @@ import {
     Plus, 
     Building, 
     ExternalLink,
-    Save
+    Save,
+    Accessibility
 } from 'lucide-react';
 import { FileUpload } from '../components/FileUpload';
 import { getNotificationPermission, requestPushPermission, sendPushNotification } from '../../lib/pushNotifications';
 import { UserDocument } from '../../types';
 import { Link } from 'react-router-dom';
 import { PaystackSubaccountOnboarding } from '../components/PaystackSubaccountOnboarding';
+import { useAccessibility } from '../../store/AccessibilityContext';
 
 export const Settings = () => {
     const { currentUser, updateCurrentUser } = useAuth();
     const { addNotification, organizations, updateOrganization } = useAppContext();
+    const { openAccessibilityModal, examTimeMultiplier, dyslexicFont, colorFilter, ttsEnabled } = useAccessibility();
     const existingOrg = organizations.find(o => o.ownerId === currentUser?.id || o.id === currentUser?.id);
     const [loading, setLoading] = useState(false);
     
@@ -731,6 +734,58 @@ export const Settings = () => {
                     <PaystackSubaccountOnboarding />
                 </div>
             )}
+
+            {/* Accessibility & Special Needs Accommodations Card */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                        <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
+                            <Accessibility className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Accessibility & Special Needs</h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Configure visual filters, dyslexia fonts, TTS reader, and health accommodations.</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => openAccessibilityModal()}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+                    >
+                        <Accessibility className="w-4 h-4" />
+                        <span>Open Accessibility Suite</span>
+                    </button>
+                </div>
+
+                <div className="p-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Dyslexia Font</span>
+                            <span className={`text-xs font-bold ${dyslexicFont ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                                {dyslexicFont ? 'Enabled (OpenDyslexic)' : 'Default Font'}
+                            </span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Eye-Strain Filter</span>
+                            <span className={`text-xs font-bold capitalize ${colorFilter !== 'none' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                                {colorFilter === 'none' ? 'None' : colorFilter.replace('_', ' ')}
+                            </span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">TTS Audio Reader</span>
+                            <span className={`text-xs font-bold ${ttsEnabled ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                                {ttsEnabled ? 'Active' : 'Off'}
+                            </span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Exam Multiplier</span>
+                            <span className={`text-xs font-bold ${examTimeMultiplier > 1.0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                                {examTimeMultiplier}x Time
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* Notification & Push Preferences Card */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">

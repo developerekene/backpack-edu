@@ -7,11 +7,14 @@ import { useAppContext } from "../../store/AppContext";
 import { Course, Organization, OrgMember } from "../../types";
 import { EnrollmentModal } from "./EnrollmentModal";
 import { CourseJoinModal } from "./CourseJoinModal";
+import { CourseDonationModal } from "./CourseDonationModal";
+import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 import { 
   Building, MapPin, Phone, Globe, Award, ShieldCheck, 
   BookOpen, Send, GraduationCap, ArrowLeft, Palette, 
   CheckCircle2, ExternalLink, FileText, Search, 
-  DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed, UserCheck
+  DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed, UserCheck,
+  HeartHandshake
 } from "lucide-react";
 
 export interface OrgPublicProfileProps {
@@ -62,8 +65,14 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQualType, setSelectedQualType] = useState<string>("all");
   const [enrollModalCourse, setEnrollModalCourse] = useState<Course | null>(null);
+  const [donatingCourse, setDonatingCourse] = useState<Course | null>(null);
   const [joiningInvite, setJoiningInvite] = useState<{ course: Course; invite: OrgMember } | null>(null);
   const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
+
+  const isDonationFundedVocational = (c: Course) => {
+    const isVocationalOrg = orgData ? orgData.orgType === "vocational" : true;
+    return c.fundingModel === "donations_sponsorships" && isVocationalOrg;
+  };
 
   // Customizer Drawer State (for org owner)
   const [isCustomizing, setIsCustomizing] = useState(false);
@@ -720,7 +729,11 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                       </div>
                     </div>
 
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-500 transition line-clamp-2">
+                    <h3
+                      onClick={() => navigate(`/course/${course.id}`)}
+                      className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-500 transition line-clamp-2 cursor-pointer"
+                      title="View Course Details"
+                    >
                       {course.title}
                     </h3>
 
@@ -746,11 +759,19 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                     <div>
                       <span className="text-xs text-slate-400 block font-medium">Tuition Fee</span>
                       <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                        {course.price > 0 ? `${course.currency || orgData.baseCurrency} ${course.price.toLocaleString()}` : "Free Admission"}
+                        {course.price > 0 ? `${course.currency || orgData.baseCurrency} ${formatPriceWithDecimals(getEffectivePrice(course.price))}` : "Free Admission"}
                       </span>
                     </div>
 
-                    <div>
+                    <div className="flex items-center space-x-2">
+                      {isDonationFundedVocational(course) && (
+                        <button
+                          onClick={() => setDonatingCourse(course)}
+                          className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95 bg-emerald-600"
+                        >
+                          <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Donate/Sponsor
+                        </button>
+                      )}
                       {currentUser?.role === 'organization' || currentUser?.accountType === 'organization' ? (
                         <button
                           onClick={() => navigate(`/course/${course.id}`)}
@@ -782,8 +803,15 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                         isOpen ? (
                           <button
                             onClick={() => {
-                              if (!currentUser) navigate('/login');
-                              else setEnrollModalCourse(course);
+                              if (!currentUser) {
+                                navigate('/login');
+                                return;
+                              }
+                              if (currentUser.role === 'organization' || currentUser.accountType === 'organization') {
+                                alert("Only student and instructor accounts can apply for courses.");
+                                return;
+                              }
+                              setEnrollModalCourse(course);
                             }}
                             disabled={isEnrolling}
                             className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95 bg-indigo-600"
@@ -805,14 +833,21 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                       ) : (
                         <button
                           onClick={() => {
-                            if (!currentUser) navigate('/login');
-                            else setEnrollModalCourse(course);
+                            if (!currentUser) {
+                              navigate('/login');
+                              return;
+                            }
+                            if (currentUser.role === 'organization' || currentUser.accountType === 'organization') {
+                              alert("Only student and instructor accounts can apply for courses.");
+                              return;
+                            }
+                            setEnrollModalCourse(course);
                           }}
                           disabled={isEnrolling}
                           className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95"
                           style={{ backgroundColor: activeTheme.primary }}
                         >
-                          Enroll Now <Send className="w-3.5 h-3.5 ml-1.5" />
+                          Apply <Send className="w-3.5 h-3.5 ml-1.5" />
                         </button>
                       )}
                     </div>
@@ -1043,6 +1078,14 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           course={enrollModalCourse} 
           onClose={() => setEnrollModalCourse(null)} 
           onEnroll={(paymentMethod, documents) => handleEnroll(enrollModalCourse.id, enrollModalCourse.title, paymentMethod, documents)} 
+        />
+      )}
+
+      {/* Course Donation Modal */}
+      {donatingCourse && (
+        <CourseDonationModal
+          course={donatingCourse}
+          onClose={() => setDonatingCourse(null)}
         />
       )}
 

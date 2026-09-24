@@ -14,12 +14,15 @@ import {
     CheckCircle2,
     Calendar,
     Mail,
-    Eye
+    Eye,
+    Accessibility
 } from 'lucide-react';
 import { getNotificationPermission } from '../../lib/pushNotifications';
+import { useAccessibility } from '../../store/AccessibilityContext';
 
 export const Profile = () => {
     const { currentUser } = useAuth();
+    const { openAccessibilityModal, examTimeMultiplier, dyslexicFont, colorFilter, ttsEnabled } = useAccessibility();
     const pushPermission = getNotificationPermission();
 
     if (!currentUser) return null;
@@ -199,6 +202,55 @@ export const Profile = () => {
                                 </Link>
                             </div>
                         )}
+                    </div>
+
+                    {/* Accessibility & Special Needs Accommodations Card */}
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-4 shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
+                                    <Accessibility className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Accessibility & Health Accommodations</h2>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Universal reading ruler, dyslexia font, color filters, and exam multipliers.</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => openAccessibilityModal()}
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 shadow-sm"
+                            >
+                                <Accessibility className="w-3.5 h-3.5" />
+                                <span>Adjust Suite</span>
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] text-slate-400 font-bold block uppercase">Dyslexia Font</span>
+                                <span className={`font-bold ${dyslexicFont ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    {dyslexicFont ? 'Active' : 'Default'}
+                                </span>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] text-slate-400 font-bold block uppercase">Filter</span>
+                                <span className={`font-bold capitalize ${colorFilter !== 'none' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    {colorFilter === 'none' ? 'None' : colorFilter.replace('_', ' ')}
+                                </span>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] text-slate-400 font-bold block uppercase">TTS Voice</span>
+                                <span className={`font-bold ${ttsEnabled ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    {ttsEnabled ? 'Active' : 'Off'}
+                                </span>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] text-slate-400 font-bold block uppercase">Exam Time</span>
+                                <span className={`font-bold ${examTimeMultiplier > 1.0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    {examTimeMultiplier}x Speed
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Uploaded Certificates & Qualifications */}

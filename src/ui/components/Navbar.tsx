@@ -24,8 +24,10 @@ import {
   Settings,
   Plus,
   CalendarDays,
+  Accessibility,
 } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
+import { useAccessibility } from "../../store/AccessibilityContext";
 import {
   getNotificationPermission,
   requestPushPermission,
@@ -49,6 +51,7 @@ export const Navbar = () => {
   } = useAppContext();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { openAccessibilityModal, hasActiveFeatures } = useAccessibility();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(
@@ -219,8 +222,14 @@ export const Navbar = () => {
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-5 pl-2">
             <Link to="/" className={getLinkStyle("/")}>
-              {currentUser ? "Dashboard" : "Home"}
+              Home
             </Link>
+
+            {currentUser && (
+              <Link to="/dashboard" className={getLinkStyle("/dashboard")}>
+                Dashboard
+              </Link>
+            )}
 
             <Link
               to="/lunch"
@@ -398,6 +407,18 @@ export const Navbar = () => {
             )}
 
             <button
+              onClick={() => openAccessibilityModal()}
+              className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+              title="Special Needs & Accessibility Suite (Dyslexia font, color filters, TTS, reading ruler, exam multipliers)"
+              aria-label="Open Special Needs and Accessibility Suite"
+            >
+              <Accessibility className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              {hasActiveFeatures && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800 animate-pulse" />
+              )}
+            </button>
+
+            <button
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
               title="Toggle theme"
@@ -429,8 +450,18 @@ export const Navbar = () => {
       {mobileMenuOpen && (
         <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-2 animate-in slide-in-from-top-2">
           <Link to="/" onClick={closeMenu} className={getMobileLinkStyle("/")}>
-            {currentUser ? "Dashboard" : "Home"}
+            Home
           </Link>
+
+          {currentUser && (
+            <Link
+              to="/dashboard"
+              onClick={closeMenu}
+              className={getMobileLinkStyle("/dashboard")}
+            >
+              Dashboard
+            </Link>
+          )}
 
           {currentUser && currentUser.role === "student" && (
             <Link
@@ -578,17 +609,33 @@ export const Navbar = () => {
               </div>
             )}
           </div>
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
-            title="Toggle theme"
-          >
-            {theme === "dark" ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
-          </button>
+          <div className="flex items-center justify-between px-2 pt-2 border-t border-slate-200 dark:border-slate-700/60">
+            <button
+              onClick={() => {
+                closeMenu();
+                openAccessibilityModal();
+              }}
+              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition"
+            >
+              <Accessibility className="w-4 h-4" />
+              <span>Accessibility & Special Needs</span>
+              {hasActiveFeatures && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </button>
+
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+              title="Toggle theme"
+            >
+              {theme === "dark" ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
       )}
     </nav>

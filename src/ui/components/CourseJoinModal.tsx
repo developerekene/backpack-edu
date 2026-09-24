@@ -5,7 +5,9 @@ import { useAuth } from '../../store/AuthContext';
 import { useAppContext } from '../../store/AppContext';
 import { FileUpload } from './FileUpload';
 import { PaystackButtonWrapper } from './PaystackButtonWrapper';
+import { CheckoutDisclosure } from './CheckoutDisclosure';
 import { generateId } from '../../lib/id';
+import { getEffectivePrice, formatPriceWithDecimals } from '../../lib/price';
 
 interface CourseJoinModalProps {
     course: Course;
@@ -43,11 +45,15 @@ export const CourseJoinModal: React.FC<CourseJoinModalProps> = ({
     const [documents, setDocuments] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [paymentSuccess, setPaymentSuccess] = useState(!feeRequired);
+    const [isDisclosureAcknowledged, setIsDisclosureAcknowledged] = useState(false);
 
     if (!currentUser) return null;
 
-    const installmentPrice = course.price > 0 ? Math.ceil(course.price / 3) : 0;
-    const paymentAmount = paymentMethod === 'one-time' ? course.price : installmentPrice;
+    const effectiveCoursePrice = getEffectivePrice(course.price);
+    const installmentPrice = course.price > 0 ? Math.round((effectiveCoursePrice / 3) * 100) / 100 : 0;
+    const paymentAmount = paymentMethod === 'one-time' ? effectiveCoursePrice : installmentPrice;
+    const baseTuitionAmount = paymentMethod === 'one-time' ? course.price : Math.round((course.price / 3) * 100) / 100;
+    const platform15Addition = Math.round((paymentAmount - baseTuitionAmount) * 100) / 100;
 
     const missingDocs = docsRequired && docList.some(doc => !documents[doc]);
 
@@ -222,7 +228,7 @@ export const CourseJoinModal: React.FC<CourseJoinModalProps> = ({
                                     >
                                         <div className="font-bold text-slate-900 dark:text-white text-xs mb-0.5">Pay in Full</div>
                                         <div className="text-base font-black text-indigo-600 dark:text-indigo-400">
-                                            {course.currency} {course.price.toLocaleString()}
+                                            {course.currency} {formatPriceWithDecimals(effectiveCoursePrice)}
                                         </div>
                                         <div className="text-[10px] text-slate-500 mt-1">Full upfront payment</div>
                                     </button>
@@ -240,32 +246,58 @@ export const CourseJoinModal: React.FC<CourseJoinModalProps> = ({
                                     >
                                         <div className="font-bold text-slate-900 dark:text-white text-xs mb-0.5">3-Split Installment</div>
                                         <div className="text-base font-black text-indigo-600 dark:text-indigo-400">
-                                            {course.currency} {installmentPrice.toLocaleString()}
+                                            {course.currency} {formatPriceWithDecimals(installmentPrice)}
                                         </div>
                                         <div className="text-[10px] text-slate-500 mt-1">Initial installment</div>
                                     </button>
                                 )}
                             </div>
 
+                            {/* Clear Checkout Disclosure & Consumer Protection */}
+                            {!paymentSuccess && (
+                                <CheckoutDisclosure
+                                    amount={paymentAmount}
+                                    currency={course.currency}
+                                    itemTitle={`${course.title} (${paymentMethod === 'one-time' ? 'Full Upfront Tuition' : 'First Installment'})`}
+                                    baseAmount={baseTuitionAmount}
+                                    feeAmount={platform15Addition}
+                                    feeLabel="Platform Addition (+15%)"
+                                    providerName={providerOrg?.name || "Course Provider"}
+                                    transactionType="tuition"
+                                    isAcknowledged={isDisclosureAcknowledged}
+                                    onAcknowledgeChange={setIsDisclosureAcknowledged}
+                                />
+                            )}
+
                             {/* Paystack Payment Button */}
                             {!paymentSuccess && (
                                 <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
                                     <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-white">
                                         <span>Total Amount Due Now:</span>
-                                        <span className="text-indigo-600 dark:text-indigo-400">{course.currency} {paymentAmount.toLocaleString()}</span>
+                                        <span className="text-indigo-600 dark:text-indigo-400">{course.currency} {formatPriceWithDecimals(paymentAmount)}</span>
                                     </div>
+
+                                    {!isDisclosureAcknowledged && (
+                                        <p className="text-[11px] text-amber-600 dark:text-amber-400 text-center font-medium">
+                                            Please review and acknowledge the checkout disclosures above to complete payment.
+                                        </p>
+                                    )}
 
                                     <PaystackButtonWrapper
                                         email={currentUser.email}
                                         amount={paymentAmount}
                                         currency={course.currency}
                                         subaccountCode={subaccount?.subaccount_code}
+                                        courseId={course.id}
+                                        courseTitle={course.title}
+                                        studentName={currentUser.name}
                                         onSuccess={() => setPaymentSuccess(true)}
                                         onClose={() => {}}
-                                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition flex items-center justify-center space-x-2 shadow-md shadow-emerald-600/20"
+                                        disabled={!isDisclosureAcknowledged}
+                                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-xs transition flex items-center justify-center space-x-2 shadow-md shadow-emerald-600/20"
                                     >
                                         <CreditCard className="w-4 h-4" />
-                                        <span>Pay Tuition ({course.currency} {paymentAmount.toLocaleString()})</span>
+                                        <span>Pay Tuition ({course.currency} {formatPriceWithDecimals(paymentAmount)})</span>
                                     </PaystackButtonWrapper>
                                 </div>
                             )}

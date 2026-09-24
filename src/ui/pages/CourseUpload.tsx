@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { CourseModule, CourseModuleItem } from "../../types";
+import { CourseModule, CourseModuleItem, CourseFAQ } from "../../types";
 import { FileUpload } from "../components/FileUpload";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { generateId } from "../../lib/id";
@@ -20,6 +20,12 @@ import {
   Check,
   Link as LinkIcon,
   Trash2,
+  HeartHandshake,
+  Sparkles,
+  Clock,
+  Award,
+  HelpCircle,
+  User,
 } from "lucide-react";
 
 const CourseUpload = () => {
@@ -39,6 +45,12 @@ const CourseUpload = () => {
     "weekly" | "monthly" | "custom"
   >("monthly");
   const [customMilestonesText, setCustomMilestonesText] = useState("");
+
+  // Vocational Education Funding & Admission Model
+  const [fundingModel, setFundingModel] = useState<
+    "direct_tuition" | "donations_sponsorships"
+  >("direct_tuition");
+  const [tuitionCostPerStudent, setTuitionCostPerStudent] = useState("");
 
   // Itemized Requirements State
   const [studentReqList, setStudentReqList] = useState<string[]>([]);
@@ -70,6 +82,37 @@ const CourseUpload = () => {
     return `${year}/${year + 1} Academic Session`;
   });
   const [applicationDeadline, setApplicationDeadline] = useState("");
+
+  // Detailed Course Information & Public Showcase
+  const [subtitle, setSubtitle] = useState("");
+  const [whyItMatters, setWhyItMatters] = useState("");
+  const [pacing, setPacing] = useState<"self-paced" | "live-online" | "blended">("blended");
+  const [durationWeeks, setDurationWeeks] = useState("8 Weeks");
+  const [timeCommitment, setTimeCommitment] = useState("6–8 hours / week");
+  const [totalHours, setTotalHours] = useState("48 Total Hours");
+  const [language, setLanguage] = useState("English");
+  const [subtitlesInput, setSubtitlesInput] = useState("English [CC]");
+  const [accessDuration, setAccessDuration] = useState("Lifetime Access upon Enrollment");
+
+  // Learning Objectives
+  const [learningObjectives, setLearningObjectives] = useState<string[]>([]);
+  const [newObjective, setNewObjective] = useState("");
+
+  // Instructor Information
+  const [instructorName, setInstructorName] = useState(
+    currentUser?.role === "instructor" ? currentUser.name : ""
+  );
+  const [instructorTitle, setInstructorTitle] = useState("");
+  const [instructorBio, setInstructorBio] = useState("");
+
+  // Certification & Policy
+  const [certificationDetails, setCertificationDetails] = useState("");
+  const [refundPolicy, setRefundPolicy] = useState("");
+
+  // FAQs
+  const [faqs, setFaqs] = useState<CourseFAQ[]>([]);
+  const [newFaqQ, setNewFaqQ] = useState("");
+  const [newFaqA, setNewFaqA] = useState("");
 
   const [modules, setModules] = useState<CourseModule[]>(() => [
     { id: generateId("mod"), title: "", description: "", items: [] },
@@ -120,6 +163,7 @@ const CourseUpload = () => {
       o.ownerId === currentOrgIdToUse,
   );
   const isHigherEduOrg = activeOrg?.orgType === "higher";
+  const isVocationalOrg = activeOrg?.orgType === "vocational";
 
   // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
   if (currentUser.role === "instructor" && approvedOrgs.length === 0) {
@@ -251,6 +295,27 @@ const CourseUpload = () => {
     setRequiredDocList(requiredDocList.filter((d) => d !== docToRemove));
   };
 
+  const handleAddObjective = () => {
+    if (!newObjective.trim()) return;
+    setLearningObjectives([...learningObjectives, newObjective.trim()]);
+    setNewObjective("");
+  };
+
+  const handleRemoveObjective = (idx: number) => {
+    setLearningObjectives(learningObjectives.filter((_, i) => i !== idx));
+  };
+
+  const handleAddFaq = () => {
+    if (!newFaqQ.trim() || !newFaqA.trim()) return;
+    setFaqs([...faqs, { question: newFaqQ.trim(), answer: newFaqA.trim() }]);
+    setNewFaqQ("");
+    setNewFaqA("");
+  };
+
+  const handleRemoveFaq = (idx: number) => {
+    setFaqs(faqs.filter((_, i) => i !== idx));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
@@ -268,6 +333,7 @@ const CourseUpload = () => {
       (o) => o.id === orgIdToUse || o.ownerId === orgIdToUse,
     );
     const isHigherEduOrg = targetOrg?.orgType === "higher";
+    const isVocationalOrg = targetOrg?.orgType === "vocational";
     const isHigherDegree = ["bachelors", "masters", "doctorate"].includes(
       qualificationType,
     );
@@ -278,6 +344,11 @@ const CourseUpload = () => {
       );
       return;
     }
+
+    const effectiveTuitionCost =
+      isVocationalOrg && fundingModel === "donations_sponsorships"
+        ? Number(tuitionCostPerStudent) || Number(price) || 0
+        : Number(price) || 0;
 
     // Determine payment terms allowed
     let paymentTermsAllowed: "one-time" | "installment" | "both" = "both";
@@ -310,9 +381,15 @@ const CourseUpload = () => {
         orgId: orgIdToUse,
         title,
         description,
-        price: Number(price) || 0,
+        price: effectiveTuitionCost,
         currency,
-        paymentTermsAllowed,
+        paymentTermsAllowed:
+          isVocationalOrg && fundingModel === "donations_sponsorships"
+            ? "one-time"
+            : paymentTermsAllowed,
+        fundingModel: isVocationalOrg ? fundingModel : "direct_tuition",
+        tuitionCostPerStudent: effectiveTuitionCost,
+        totalDonationsReceived: 0,
         installmentInterval: allowInstallments
           ? installmentInterval
           : undefined,
@@ -322,10 +399,26 @@ const CourseUpload = () => {
             : undefined,
         qualificationTitle: qualificationTitle.trim() || undefined,
         qualificationType,
+        subtitle: subtitle.trim() || undefined,
+        whyItMatters: whyItMatters.trim() || undefined,
+        pacing,
+        durationWeeks: durationWeeks.trim() || undefined,
+        timeCommitment: timeCommitment.trim() || undefined,
+        totalHours: totalHours.trim() || undefined,
+        language: language.trim() || undefined,
+        subtitles: subtitlesInput.split(",").map((s) => s.trim()).filter(Boolean),
+        accessDuration: accessDuration.trim() || undefined,
+        learningObjectives: learningObjectives.filter(Boolean),
+        prerequisites: studentReqList.filter(Boolean),
         instructorName:
-          currentUser.role === "instructor" ? currentUser.name : undefined,
+          (instructorName.trim() || (currentUser.role === "instructor" ? currentUser.name : "")) || undefined,
         instructorId:
           currentUser.role === "instructor" ? currentUser.id : undefined,
+        instructorTitle: instructorTitle.trim() || undefined,
+        instructorBio: instructorBio.trim() || undefined,
+        certificationDetails: certificationDetails.trim() || undefined,
+        refundPolicy: refundPolicy.trim() || undefined,
+        faqs: faqs.length > 0 ? faqs : undefined,
         admissionStatus: initialAdmissionStatus,
         activeSessionId: initialSessionId,
         activeSessionName: effectiveSessionName,
@@ -424,6 +517,34 @@ const CourseUpload = () => {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Subtitle or Hook (Optional)
+            </label>
+            <input
+              type="text"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              placeholder="e.g. A comprehensive, professional-grade curriculum designed to empower learners with tangible real-world mastery..."
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              A one-sentence summary explaining the unique value proposition on the public course page.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Why This Course Matters & Philosophy (Optional)
+            </label>
+            <textarea
+              value={whyItMatters}
+              onChange={(e) => setWhyItMatters(e.target.value)}
+              placeholder="Explain why this course is essential, its educational philosophy, and real-world practical impact..."
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 h-24 text-sm leading-relaxed"
+            />
+          </div>
+
           {/* Degree & Qualification */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
@@ -490,42 +611,184 @@ const CourseUpload = () => {
             </div>
           </div>
 
+          {/* Vocational Education Funding & Admission Model Selection */}
+          {isVocationalOrg && (
+            <div className="p-5 bg-gradient-to-br from-indigo-50/70 to-purple-50/50 dark:from-indigo-950/30 dark:to-purple-950/20 rounded-2xl border border-indigo-200 dark:border-indigo-800/60 space-y-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <HeartHandshake className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                    Vocational Funding & Admission Model
+                  </label>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                  As a vocational education provider, choose how this course will be funded: direct tuition from students, or community donations and student sponsorships.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Option 1: Direct Tuition */}
+                <button
+                  type="button"
+                  onClick={() => setFundingModel("direct_tuition")}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    fundingModel === "direct_tuition"
+                      ? "bg-white dark:bg-slate-800 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
+                      : "bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-bold text-slate-900 dark:text-white text-xs">
+                      Charge Students Tuition Directly
+                    </span>
+                    <span
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        fundingModel === "direct_tuition"
+                          ? "border-indigo-600 bg-indigo-600"
+                          : "border-slate-300 dark:border-slate-600"
+                      }`}
+                    >
+                      {fundingModel === "direct_tuition" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Students pay their tuition directly upon course enrollment via one-time payment or installments.
+                  </p>
+                </button>
+
+                {/* Option 2: Donations & Sponsorships */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFundingModel("donations_sponsorships");
+                    if (!tuitionCostPerStudent && price) {
+                      setTuitionCostPerStudent(price);
+                    }
+                  }}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    fundingModel === "donations_sponsorships"
+                      ? "bg-white dark:bg-slate-800 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
+                      : "bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-bold text-slate-900 dark:text-white text-xs flex items-center space-x-1.5">
+                      <span>Donations & Sponsorships</span>
+                    </span>
+                    <span
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        fundingModel === "donations_sponsorships"
+                          ? "border-indigo-600 bg-indigo-600"
+                          : "border-slate-300 dark:border-slate-600"
+                      }`}
+                    >
+                      {fundingModel === "donations_sponsorships" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Accept donations and sponsorships from anyone (even unregistered non-app donors). Only covered students are admitted.
+                  </p>
+                </button>
+              </div>
+
+              {fundingModel === "donations_sponsorships" && (
+                <div className="p-4 bg-white dark:bg-slate-800/90 rounded-xl border border-indigo-100 dark:border-indigo-900/50 space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                      Tuition Cost per Student (Calculates Admission Gate) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        required={fundingModel === "donations_sponsorships"}
+                        min="1"
+                        value={tuitionCostPerStudent || price}
+                        onChange={(e) => {
+                          setTuitionCostPerStudent(e.target.value);
+                          setPrice(e.target.value);
+                        }}
+                        placeholder="e.g. 75000"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm font-semibold pr-24"
+                      />
+                      <span className="absolute right-4 top-2.5 text-xs font-bold text-slate-400">
+                        {currency} / student
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-50/80 dark:bg-indigo-950/40 p-3 rounded-lg border border-indigo-100 dark:border-indigo-900/60 leading-relaxed">
+                    <strong>Admission Gate Calculation:</strong> Backpack calculates the number of students admitted as:
+                    <span className="font-mono font-bold mx-1">floor(Total Donations ÷ Tuition Cost Per Student)</span>.
+                    Decimal results strictly consider the whole number for student admission capacity. Donors can donate any amount or sponsor specific students before the course closes.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tuition & Terms */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Tuition Fee (0 for Free) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="0"
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
-              />
+          {(!isVocationalOrg || fundingModel === "direct_tuition") && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Tuition Fee (0 for Free) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Currency
+                </label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+                >
+                  <option value="NGN">NGN (Nigerian Naira)</option>
+                  <option value="GHS">GHS (Ghanaian Cedi)</option>
+                  <option value="KES">KES (Kenyan Shilling)</option>
+                  <option value="ZAR">ZAR (South African Rand)</option>
+                  <option value="USD">USD (US Dollar)</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Currency
-              </label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
-              >
-                <option value="NGN">NGN (Nigerian Naira)</option>
-                <option value="GHS">GHS (Ghanaian Cedi)</option>
-                <option value="KES">KES (Kenyan Shilling)</option>
-                <option value="ZAR">ZAR (South African Rand)</option>
-                <option value="USD">USD (US Dollar)</option>
-              </select>
+          )}
+
+          {/* Currency picker for donation funded model if tuition fee input is hidden */}
+          {isVocationalOrg && fundingModel === "donations_sponsorships" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Tuition Currency
+                </label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+                >
+                  <option value="NGN">NGN (Nigerian Naira)</option>
+                  <option value="GHS">GHS (Ghanaian Cedi)</option>
+                  <option value="KES">KES (Kenyan Shilling)</option>
+                  <option value="ZAR">ZAR (South African Rand)</option>
+                  <option value="USD">USD (US Dollar)</option>
+                </select>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Payment Terms Tick Boxes & Interactive Buttons */}
-          {Number(price) > 0 && (
+          {(!isVocationalOrg || fundingModel === "direct_tuition") && Number(price) > 0 && (
             <div className="p-5 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -774,6 +1037,340 @@ const CourseUpload = () => {
               </ul>
             )}
           </div>
+        </div>
+
+        {/* Course Pacing, Time Commitment & Language */}
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+              <Clock className="w-5 h-5 mr-2 text-indigo-500" />
+              Pacing, Time Commitment & Language
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Provide schedule expectations, duration, and translation options for public course visitors.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Course Pacing
+              </label>
+              <select
+                value={pacing}
+                onChange={(e) =>
+                  setPacing(
+                    e.target.value as "self-paced" | "live-online" | "blended"
+                  )
+                }
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              >
+                <option value="blended">Blended Learning</option>
+                <option value="self-paced">Self-Paced</option>
+                <option value="live-online">Live Online (Cohort)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Duration
+              </label>
+              <input
+                type="text"
+                value={durationWeeks}
+                onChange={(e) => setDurationWeeks(e.target.value)}
+                placeholder="e.g. 8 Weeks, 1 Semester"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Weekly Commitment
+              </label>
+              <input
+                type="text"
+                value={timeCommitment}
+                onChange={(e) => setTimeCommitment(e.target.value)}
+                placeholder="e.g. 6–8 hours / week"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Total Hours
+              </label>
+              <input
+                type="text"
+                value={totalHours}
+                onChange={(e) => setTotalHours(e.target.value)}
+                placeholder="e.g. 48 Total Hours"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Primary Language
+              </label>
+              <input
+                type="text"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                placeholder="e.g. English, French"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Access Duration
+              </label>
+              <input
+                type="text"
+                value={accessDuration}
+                onChange={(e) => setAccessDuration(e.target.value)}
+                placeholder="e.g. Lifetime Access upon Enrollment"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Available Subtitles / Translations (comma-separated)
+            </label>
+            <input
+              type="text"
+              value={subtitlesInput}
+              onChange={(e) => setSubtitlesInput(e.target.value)}
+              placeholder="e.g. English [CC], Spanish, French"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Learning Objectives */}
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+              <Sparkles className="w-5 h-5 mr-2 text-indigo-500" />
+              Learning Objectives: What Students Will Learn
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Add clear takeaways and skills students will acquire after finishing this course.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newObjective}
+              onChange={(e) => setNewObjective(e.target.value)}
+              placeholder="e.g. Architect scalable enterprise backends using microservices"
+              className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddObjective}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Objective</span>
+            </button>
+          </div>
+
+          {learningObjectives.length > 0 && (
+            <ul className="space-y-1.5 pt-1">
+              {learningObjectives.map((obj, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200"
+                >
+                  <span className="flex items-center">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mr-2 shrink-0" />
+                    {obj}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveObjective(idx)}
+                    className="text-slate-400 hover:text-red-500 transition p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Lead Instructor Profile */}
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+              <User className="w-5 h-5 mr-2 text-indigo-500" />
+              Lead Instructor Profile & Credentials
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Highlight the instructor's background, authority, and industry credentials.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Instructor Name
+              </label>
+              <input
+                type="text"
+                value={instructorName}
+                onChange={(e) => setInstructorName(e.target.value)}
+                placeholder="e.g. Dr. Jane Smith"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Professional Title & Credentials
+              </label>
+              <input
+                type="text"
+                value={instructorTitle}
+                onChange={(e) => setInstructorTitle(e.target.value)}
+                placeholder="e.g. Professor of Computer Science, Ex-Senior Architect"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Instructor Biography (Optional)
+            </label>
+            <textarea
+              value={instructorBio}
+              onChange={(e) => setInstructorBio(e.target.value)}
+              placeholder="Detailed educator background, research focus, industry impact, and qualifications..."
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 h-24 text-sm leading-relaxed"
+            />
+          </div>
+        </div>
+
+        {/* Certification Details & Refund Policy */}
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+              <Award className="w-5 h-5 mr-2 text-emerald-500" />
+              Certification Details & Refund Policy
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Clarify credential issuance criteria and money-back guarantee terms.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Certification Criteria & Details (Optional)
+            </label>
+            <textarea
+              value={certificationDetails}
+              onChange={(e) => setCertificationDetails(e.target.value)}
+              placeholder="e.g. Issued upon successful completion of all core modules, assessments, and capstone submissions with a passing score of 70% or higher."
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 h-24 text-sm leading-relaxed"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Refund Policy & Guarantee Window (Optional)
+            </label>
+            <textarea
+              value={refundPolicy}
+              onChange={(e) => setRefundPolicy(e.target.value)}
+              placeholder="e.g. 14-day 100% money-back guarantee prior to the second module unlock."
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 h-20 text-sm leading-relaxed"
+            />
+          </div>
+        </div>
+
+        {/* Frequently Asked Questions (FAQ) */}
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+              <HelpCircle className="w-5 h-5 mr-2 text-indigo-500" />
+              Frequently Asked Questions (FAQ)
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Add common questions and answers to clarify pacing, requirements, and assessments.
+            </p>
+          </div>
+
+          <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Question
+              </label>
+              <input
+                type="text"
+                value={newFaqQ}
+                onChange={(e) => setNewFaqQ(e.target.value)}
+                placeholder="e.g. Are live classes recorded if I miss a lecture?"
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Answer
+              </label>
+              <textarea
+                value={newFaqA}
+                onChange={(e) => setNewFaqA(e.target.value)}
+                placeholder="e.g. Yes, all live sessions are recorded and made accessible in your curriculum within 24 hours."
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 h-20 leading-relaxed"
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleAddFaq}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add FAQ Item</span>
+              </button>
+            </div>
+          </div>
+
+          {faqs.length > 0 && (
+            <div className="space-y-2 pt-1">
+              {faqs.map((faq, idx) => (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs space-y-1 relative"
+                >
+                  <div className="flex items-start justify-between pr-6">
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      Q: {faq.question}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFaq(idx)}
+                      className="text-slate-400 hover:text-red-500 transition absolute top-3 right-3"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    A: {faq.answer}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Admission Intake Session Configuration */}

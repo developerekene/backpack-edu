@@ -42,6 +42,20 @@ export interface UserDocument {
   uploadedAt: string;
 }
 
+export interface SpecialNeedsAccommodations {
+  enabled: boolean;
+  disabilityCategories: string[]; // e.g. "visual_impairment", "hearing_impairment", "adhd_neurodivergent", "dyslexia_reading", "motor_mobility", "chronic_illness", "mental_health", "temporary_injury", "other"
+  otherCategoryDescription?: string;
+  examTimeMultiplier: 1.0 | 1.25 | 1.5 | 2.0;
+  preferredFormatting: string[]; // e.g. "large_text", "dyslexia_font", "extra_breaks", "screen_reader_optimized", "captioning_subtitles", "reduced_motion"
+  medicalNotes?: string;
+  emergencyHealthNotice?: string;
+  requestedServices?: string[]; // e.g. "sign_language", "captions", "notetaker", "braille_tactile", "assistive_tech", "flexible_deadlines"
+  allowInstructorVisibility?: boolean;
+  allowReviewerVisibility?: boolean;
+  updatedAt?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -55,6 +69,7 @@ export interface User {
   userDocuments?: UserDocument[];
   paystackSubaccount?: PaystackSubaccount;
   createdAt?: string;
+  accommodations?: SpecialNeedsAccommodations;
 
   // Organization attributes stored directly in personalInformation map
   description?: string;
@@ -116,11 +131,31 @@ export interface AdmissionSession {
   closedAt?: string;
 }
 
+export interface CourseReview {
+  id: string;
+  userName: string;
+  userAvatar?: string;
+  rating: number;
+  date: string;
+  title: string;
+  comment: string;
+  verified: boolean;
+  role?: string;
+}
+
+export interface CourseFAQ {
+  question: string;
+  answer: string;
+  category?: string;
+}
+
 export interface Course {
   id: string;
   orgId: string;
   title: string;
+  subtitle?: string;
   description: string;
+  coverImageUrl?: string;
   price: number;
   currency: string;
   paymentTerms?: "one-time" | "installment";
@@ -138,6 +173,30 @@ export interface Course {
     | "other";
   instructorName?: string;
   instructorId?: string;
+  instructorBio?: string;
+  instructorTitle?: string;
+  instructorAvatarUrl?: string;
+  pacing?: "self-paced" | "live-online" | "blended";
+  timeCommitment?: string;
+  durationWeeks?: number | string;
+  totalHours?: number | string;
+  language?: string;
+  subtitles?: string[];
+  accessDuration?: string;
+  learningObjectives?: string[];
+  whyItMatters?: string;
+  prerequisites?: string[];
+  certificationDetails?: string;
+  refundPolicy?: string;
+  rating?: number;
+  reviewCount?: number;
+  reviews?: CourseReview[];
+  faqs?: CourseFAQ[];
+  studentMetrics?: {
+    enrolledCount?: number;
+    completionRate?: string;
+    satisfactionRate?: string;
+  };
   requiredDocuments?: string[];
   requirements?: string;
   applicationProcess?: string;
@@ -146,6 +205,9 @@ export interface Course {
   activeSessionId?: string;
   activeSessionName?: string;
   admissionSessions?: AdmissionSession[];
+  fundingModel?: "direct_tuition" | "donations_sponsorships";
+  tuitionCostPerStudent?: number;
+  totalDonationsReceived?: number;
   modules: CourseModule[];
   certificateConfig?: {
     enabled: boolean;
@@ -231,6 +293,32 @@ export interface EnrollmentRequest {
   rejectionReason?: string;
   rejectedSessionId?: string;
   reapplicationHistory?: ReapplicationRecord[];
+  isSponsored?: boolean;
+  sponsorName?: string;
+  sponsorEmail?: string;
+  accommodations?: SpecialNeedsAccommodations;
+}
+
+export interface CourseDonation {
+  id: string;
+  courseId: string;
+  courseTitle?: string;
+  orgId: string;
+  amount: number;
+  currency: string;
+  donorName?: string;
+  donorEmail: string;
+  isAnonymous?: boolean;
+  donationType: "general" | "sponsorship";
+  numberOfStudents?: number;
+  sponsoredStudentEmails?: string[];
+  sponsoredStudents?: { name?: string; email: string }[];
+  donorNote?: string;
+  message?: string;
+  paymentReference?: string;
+  transactionRef?: string;
+  status?: string;
+  createdAt: string;
 }
 
 export interface UserProgress {
