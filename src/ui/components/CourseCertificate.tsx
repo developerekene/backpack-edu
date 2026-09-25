@@ -225,15 +225,6 @@ export const CourseCertificate = ({
               zIndex: 0,
             }}
           ></div>
-          {authorizedSealUrl && (
-            <div className="absolute top-8 right-8 w-24 h-24 opacity-20 pointer-events-none z-10">
-              <img
-                src={authorizedSealUrl}
-                alt="Seal"
-                className="w-full h-full object-contain"
-              />
-            </div>
-          )}
 
           <div
             className="text-center flex-1 flex flex-col justify-center relative z-10"
@@ -278,43 +269,74 @@ export const CourseCertificate = ({
             className="flex justify-between items-end border-t pt-6 mt-8 relative z-10"
             style={{ borderColor: `${primaryColor}40` }}
           >
-            <div className="text-left" style={{ color: fontColor }}>
-              <div className="text-xs opacity-60 font-mono mb-1">
-                ID: {certId}
-              </div>
-              <div className="text-xs opacity-60 font-mono">
-                Date: {dateIssued}
-              </div>
+            <div className="w-1/3 text-left">
+              {authorizedSealUrl ? (
+                <div className="inline-block text-center">
+                  <img
+                    src={authorizedSealUrl}
+                    alt="Seal"
+                    className="h-16 object-contain mb-2"
+                  />
+                  <div
+                    className="text-[10px] uppercase tracking-wider font-bold"
+                    style={{ color: fontColor }}
+                  >
+                    Official Seal
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: fontColor }}>
+                  <div className="text-xs opacity-60 font-mono mb-1">
+                    ID: {certId}
+                  </div>
+                  <div className="text-xs opacity-60 font-mono">
+                    Date: {dateIssued}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {signatureUrl ? (
-              <div className="text-center">
-                <img
-                  src={signatureUrl}
-                  alt="Signature"
-                  className="h-12 object-contain mb-2"
-                />
-                <div
-                  className="text-xs uppercase tracking-wider font-bold border-t pt-1"
-                  style={{ color: fontColor, borderColor: `${primaryColor}40` }}
-                >
-                  Authorized Signature
+            {authorizedSealUrl && (
+              <div className="w-1/3 text-center pb-1" style={{ color: fontColor }}>
+                <div className="text-xs opacity-60 font-mono mb-1">
+                  ID: {certId}
                 </div>
-              </div>
-            ) : (
-              <div className="text-center">
-                <div
-                  className="h-12 mb-2 border-b w-32 mx-auto"
-                  style={{ borderColor: `${primaryColor}40` }}
-                ></div>
-                <div
-                  className="text-xs uppercase tracking-wider font-bold"
-                  style={{ color: fontColor }}
-                >
-                  Authorized Signature
+                <div className="text-xs opacity-60 font-mono">
+                  Date: {dateIssued}
                 </div>
               </div>
             )}
+
+            <div className="w-1/3 text-right flex flex-col items-end">
+              {signatureUrl ? (
+                <div className="text-center">
+                  <img
+                    src={signatureUrl}
+                    alt="Signature"
+                    className="h-12 object-contain mb-2"
+                  />
+                  <div
+                    className="text-xs uppercase tracking-wider font-bold border-t pt-1"
+                    style={{ color: fontColor, borderColor: `${primaryColor}40` }}
+                  >
+                    Authorized Signature
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <div
+                    className="h-12 mb-2 border-b w-32 mx-auto"
+                    style={{ borderColor: `${primaryColor}40` }}
+                  ></div>
+                  <div
+                    className="text-xs uppercase tracking-wider font-bold"
+                    style={{ color: fontColor }}
+                  >
+                    Authorized Signature
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </>
       );
@@ -342,16 +364,6 @@ export const CourseCertificate = ({
             className="absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-10 z-0"
             style={{ backgroundColor: primaryColor }}
           ></div>
-
-          {authorizedSealUrl && (
-            <div className="absolute bottom-8 right-8 w-32 h-32 opacity-10 pointer-events-none z-10">
-              <img
-                src={authorizedSealUrl}
-                alt="Seal"
-                className="w-full h-full object-contain"
-              />
-            </div>
-          )}
 
           <div
             className="relative z-10 flex flex-col h-full pl-8"
@@ -404,16 +416,30 @@ export const CourseCertificate = ({
               )}
             </div>
 
-            <div className="flex justify-between items-end mt-8">
-              <div
-                className="text-left p-4 rounded-xl border"
-                style={{ color: fontColor, backgroundColor: "#f8fafc", borderColor: "#f1f5f9" }}
-              >
-                <div className="text-xs opacity-60 font-mono mb-1">
-                  CERT_ID // {certId}
-                </div>
-                <div className="text-xs opacity-60 font-mono">
-                  ISSUED // {dateIssued}
+            <div className="flex justify-between items-end mt-8 z-10">
+              <div className="flex gap-4 items-end">
+                {authorizedSealUrl && (
+                  <div className="text-center">
+                    <img
+                      src={authorizedSealUrl}
+                      alt="Seal"
+                      className="h-16 object-contain mb-2 mx-auto"
+                    />
+                    <div className="text-[10px] uppercase tracking-wider font-bold opacity-60">
+                      Official Seal
+                    </div>
+                  </div>
+                )}
+                <div
+                  className="text-left p-4 rounded-xl border"
+                  style={{ color: fontColor, backgroundColor: "#f8fafc", borderColor: "#f1f5f9" }}
+                >
+                  <div className="text-xs opacity-60 font-mono mb-1">
+                    CERT_ID // {certId}
+                  </div>
+                  <div className="text-xs opacity-60 font-mono">
+                    ISSUED // {dateIssued}
+                  </div>
                 </div>
               </div>
 
@@ -455,15 +481,6 @@ export const CourseCertificate = ({
             className="w-full h-full border border-opacity-50 p-8 flex flex-col relative"
             style={{ borderColor: primaryColor }}
           >
-            {authorizedSealUrl && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 opacity-5 pointer-events-none">
-                <img
-                  src={authorizedSealUrl}
-                  alt="Seal"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            )}
 
             <div
               className="text-center flex-1 flex flex-col justify-center relative z-10"
@@ -507,46 +524,77 @@ export const CourseCertificate = ({
             </div>
 
             <div className="flex justify-between items-end mt-8 relative z-10">
-              <div className="text-left" style={{ color: fontColor }}>
-                <div className="text-xs opacity-60 font-mono mb-1">
-                  No: {certId}
-                </div>
-                <div className="text-xs opacity-60 font-mono">
-                  Date: {dateIssued}
-                </div>
+              <div className="w-1/3 text-left">
+                {authorizedSealUrl ? (
+                  <div className="inline-block text-center">
+                    <img
+                      src={authorizedSealUrl}
+                      alt="Seal"
+                      className="h-16 object-contain mb-2"
+                    />
+                    <div
+                      className="text-[10px] uppercase tracking-widest font-bold"
+                      style={{ color: fontColor }}
+                    >
+                      Official Seal
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: fontColor }}>
+                    <div className="text-xs opacity-60 font-mono mb-1">
+                      No: {certId}
+                    </div>
+                    <div className="text-xs opacity-60 font-mono">
+                      Date: {dateIssued}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {signatureUrl ? (
-                <div className="text-center">
-                  <img
-                    src={signatureUrl}
-                    alt="Signature"
-                    className="h-14 object-contain mb-2"
-                  />
-                  <div
-                    className="text-xs uppercase tracking-widest font-bold border-t pt-2"
-                    style={{
-                      color: fontColor,
-                      borderColor: `${primaryColor}40`,
-                    }}
-                  >
-                    Authorized Signature
+              {authorizedSealUrl && (
+                <div className="w-1/3 text-center pb-2" style={{ color: fontColor }}>
+                  <div className="text-xs opacity-60 font-mono mb-1">
+                    No: {certId}
                   </div>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <div
-                    className="h-14 mb-2 border-b w-40 mx-auto"
-                    style={{ borderColor: `${primaryColor}40` }}
-                  ></div>
-                  <div
-                    className="text-xs uppercase tracking-widest font-bold"
-                    style={{ color: fontColor }}
-                  >
-                    Authorized Signature
+                  <div className="text-xs opacity-60 font-mono">
+                    Date: {dateIssued}
                   </div>
                 </div>
               )}
+
+              <div className="w-1/3 flex flex-col items-end">
+                {signatureUrl ? (
+                  <div className="text-center">
+                    <img
+                      src={signatureUrl}
+                      alt="Signature"
+                      className="h-14 object-contain mb-2"
+                    />
+                    <div
+                      className="text-xs uppercase tracking-widest font-bold border-t pt-2"
+                      style={{
+                        color: fontColor,
+                        borderColor: `${primaryColor}40`,
+                      }}
+                    >
+                      Authorized Signature
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <div
+                      className="h-14 mb-2 border-b w-40 mx-auto"
+                      style={{ borderColor: `${primaryColor}40` }}
+                    ></div>
+                    <div
+                      className="text-xs uppercase tracking-widest font-bold"
+                      style={{ color: fontColor }}
+                    >
+                      Authorized Signature
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -581,12 +629,15 @@ export const CourseCertificate = ({
             </div>
 
             {authorizedSealUrl && (
-              <div className="w-32 h-32 my-auto opacity-90 mx-auto">
+              <div className="my-auto mx-auto text-center">
                 <img
                   src={authorizedSealUrl}
                   alt="Seal"
-                  className="w-full h-full object-contain"
+                  className="w-24 h-24 object-contain mx-auto mb-2"
                 />
+                <div className="text-xs uppercase tracking-wider font-bold opacity-80">
+                  Official Seal
+                </div>
               </div>
             )}
 
@@ -680,15 +731,6 @@ export const CourseCertificate = ({
               zIndex: 0,
             }}
           ></div>
-          {authorizedSealUrl && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 opacity-5 pointer-events-none z-10">
-              <img
-                src={authorizedSealUrl}
-                alt="Seal"
-                className="w-full h-full object-contain"
-              />
-            </div>
-          )}
 
           <div className="text-center w-full z-10" style={{ color: fontColor }}>
             <div className="text-xs uppercase tracking-widest font-medium opacity-60 mb-12">
@@ -735,12 +777,26 @@ export const CourseCertificate = ({
           </div>
 
           <div className="absolute bottom-12 left-12 right-12 flex justify-between items-end z-10">
-            <div
-              className="text-left text-xs opacity-40"
-              style={{ color: fontColor }}
-            >
-              <div>ID: {certId}</div>
-              <div>Date: {dateIssued}</div>
+            <div className="flex gap-6 items-end">
+              {authorizedSealUrl && (
+                <div className="text-center">
+                  <img
+                    src={authorizedSealUrl}
+                    alt="Seal"
+                    className="h-12 object-contain mb-1 mx-auto"
+                  />
+                  <div className="text-[10px] uppercase tracking-wider font-bold opacity-60" style={{ color: fontColor }}>
+                    Official Seal
+                  </div>
+                </div>
+              )}
+              <div
+                className="text-left text-xs opacity-40 pb-1"
+                style={{ color: fontColor }}
+              >
+                <div>ID: {certId}</div>
+                <div>Date: {dateIssued}</div>
+              </div>
             </div>
 
             {signatureUrl && (
@@ -748,8 +804,11 @@ export const CourseCertificate = ({
                 <img
                   src={signatureUrl}
                   alt="Signature"
-                  className="h-10 object-contain ml-auto opacity-80"
+                  className="h-10 object-contain ml-auto opacity-80 mb-1"
                 />
+                <div className="text-[10px] uppercase tracking-wider font-bold opacity-60" style={{ color: fontColor }}>
+                  Authorized Signature
+                </div>
               </div>
             )}
           </div>
@@ -995,6 +1054,9 @@ export const CourseCertificate = ({
                       <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                         Signature
                       </label>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 mb-2 font-medium bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-900/50">
+                        * Please upload an image with a transparent background for best results
+                      </div>
                       <FileUpload
                         label="Upload Signature"
                         accept="image/*"
@@ -1012,6 +1074,9 @@ export const CourseCertificate = ({
                       <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                         Official Seal
                       </label>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 mb-2 font-medium bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-900/50">
+                        * Please upload an image with a transparent background for best results
+                      </div>
                       <FileUpload
                         label="Upload Seal"
                         accept="image/*"
