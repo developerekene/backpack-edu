@@ -208,6 +208,7 @@ export interface Course {
   fundingModel?: "direct_tuition" | "donations_sponsorships";
   tuitionCostPerStudent?: number;
   totalDonationsReceived?: number;
+  donationTargetAmount?: number;
   modules: CourseModule[];
   certificateConfig?: {
     enabled: boolean;
@@ -318,6 +319,8 @@ export interface CourseDonation {
   paymentReference?: string;
   transactionRef?: string;
   status?: string;
+  donorOrganization?: string;
+  seatsSponsored?: number;
   createdAt: string;
 }
 
