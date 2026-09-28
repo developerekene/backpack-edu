@@ -5,9 +5,6 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Copy, Check } from "lucide-react";
 
-// Requires: npm install react-markdown remark-gfm react-syntax-highlighter
-//           npm install -D @types/react-syntax-highlighter
-
 function CodeBlockRenderer({
   language,
   value,
