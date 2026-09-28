@@ -53,7 +53,7 @@ import { AdmissionSessionManagerModal } from "../components/AdmissionSessionMana
 import { CourseModulesTab } from "../components/CourseModulesTab";
 import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
-import { CourseDiscussions } from "../components/discussion/CourseDiscussions";
+import { CourseDiscussions } from "../components/discussion/CourseDiscussions ";
 import { SpecialNeedsAccommodations } from "../../types";
 
 const CourseDetails = () => {
@@ -202,10 +202,14 @@ const CourseDetails = () => {
   const isVocationalDonationFunded =
     courseOrg?.orgType === "vocational" &&
     course?.fundingModel === "donations_sponsorships";
-  const gate = isVocationalDonationFunded && course ? getCourseAdmissionGate(course.id) : null;
-  const courseDonationList = isVocationalDonationFunded && course
-    ? courseDonations.filter((d) => d.courseId === course.id)
-    : [];
+  const gate =
+    isVocationalDonationFunded && course
+      ? getCourseAdmissionGate(course.id)
+      : null;
+  const courseDonationList =
+    isVocationalDonationFunded && course
+      ? courseDonations.filter((d) => d.courseId === course.id)
+      : [];
 
   const isStudentApproved = myEnrollment?.status === "approved";
   const isStudentPaidOrFree =
@@ -239,11 +243,11 @@ const CourseDetails = () => {
   const canManageSessions = isOrganization || hasOrgAccess;
   const canEditCourse = Boolean(
     hasOrgAccess ||
-      hasInstructorAccess ||
-      currentUser?.id === course?.instructorId ||
-      (isOrganization &&
-        (course?.orgId === currentUser?.id ||
-          course?.orgId === `org_${currentUser?.id}`))
+    hasInstructorAccess ||
+    currentUser?.id === course?.instructorId ||
+    (isOrganization &&
+      (course?.orgId === currentUser?.id ||
+        course?.orgId === `org_${currentUser?.id}`)),
   );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
@@ -489,7 +493,8 @@ const CourseDetails = () => {
                     setAlertConfig({
                       isOpen: true,
                       title: "Role Restriction",
-                      message: "Only student and instructor accounts can apply for courses.",
+                      message:
+                        "Only student and instructor accounts can apply for courses.",
                       type: "info",
                     });
                     return;
@@ -575,7 +580,8 @@ const CourseDetails = () => {
                 setAlertConfig({
                   isOpen: true,
                   title: "Role Restriction",
-                  message: "Only student and instructor accounts can apply for courses.",
+                  message:
+                    "Only student and instructor accounts can apply for courses.",
                   type: "info",
                 });
                 return;
@@ -752,7 +758,9 @@ const CourseDetails = () => {
           message={alertConfig.message}
           type={alertConfig.type}
           onConfirm={alertConfig.onConfirm}
-          onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+          onCancel={() =>
+            setAlertConfig((prev) => ({ ...prev, isOpen: false }))
+          }
         />
       </div>
     );
@@ -812,7 +820,9 @@ const CourseDetails = () => {
               </button>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/course/${course.id}?donate=true`);
+                  navigator.clipboard.writeText(
+                    `${window.location.origin}/course/${course.id}?donate=true`,
+                  );
                   setLinkCopied(true);
                   setTimeout(() => setLinkCopied(false), 2500);
                 }}
@@ -938,7 +948,8 @@ const CourseDetails = () => {
             onClick={() => setActiveTab("donations")}
             className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "donations" ? "text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
           >
-            <HeartHandshake className="w-4 h-4 mr-2 text-emerald-500" /> Sponsorship & Donations
+            <HeartHandshake className="w-4 h-4 mr-2 text-emerald-500" />{" "}
+            Sponsorship & Donations
             <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
               {courseDonationList.length}
             </span>
@@ -982,42 +993,65 @@ const CourseDetails = () => {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center space-x-2.5 text-emerald-800 dark:text-emerald-300 font-bold">
                           <HeartHandshake className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-base">Vocational Tuition Covered by Donations & Sponsorships</span>
+                          <span className="text-base">
+                            Vocational Tuition Covered by Donations &
+                            Sponsorships
+                          </span>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${
-                          gate.canAdmitMore
-                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                            : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                        }`}>
-                          {gate.canAdmitMore ? `${gate.remainingSpots} Open Funded Seat(s)` : 'Awaiting More Donations'}
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${
+                            gate.canAdmitMore
+                              ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                              : "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                          }`}
+                        >
+                          {gate.canAdmitMore
+                            ? `${gate.remainingSpots} Open Funded Seat(s)`
+                            : "Awaiting More Donations"}
                         </span>
                       </div>
 
                       <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                        Tuition fees for students in this course are completely funded by community donors and sponsors. Admitted students pay <strong>$0 tuition</strong>. As community donations are pledged, admission seats unlock progressively until reaching the session limit.
+                        Tuition fees for students in this course are completely
+                        funded by community donors and sponsors. Admitted
+                        students pay <strong>$0 tuition</strong>. As community
+                        donations are pledged, admission seats unlock
+                        progressively until reaching the session limit.
                       </p>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                         <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Raised</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Raised
+                          </span>
                           <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
-                            {gate.currency} {gate.totalDonations.toLocaleString()}
+                            {gate.currency}{" "}
+                            {gate.totalDonations.toLocaleString()}
                           </span>
                         </div>
                         <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cost / Student</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Cost / Student
+                          </span>
                           <span className="text-base font-extrabold text-slate-900 dark:text-white">
-                            {gate.currency} {formatPriceWithDecimals(getEffectivePrice(gate.tuitionCostPerStudent))}
+                            {gate.currency}{" "}
+                            {formatPriceWithDecimals(
+                              getEffectivePrice(gate.tuitionCostPerStudent),
+                            )}
                           </span>
                         </div>
                         <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Funded Seats</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Funded Seats
+                          </span>
                           <span className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">
                             {gate.maxAdmissibleStudents} max
                           </span>
                         </div>
                         <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Enrolled</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Enrolled
+                          </span>
                           <span className="text-base font-extrabold text-slate-900 dark:text-white">
                             {gate.currentlyAdmittedCount}
                           </span>
@@ -1448,7 +1482,9 @@ const CourseDetails = () => {
                       Vocational Tuition Funding Hall
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-                      This course is tuition-free for admitted students, powered directly by generous individual donors and corporate sponsors.
+                      This course is tuition-free for admitted students, powered
+                      directly by generous individual donors and corporate
+                      sponsors.
                     </p>
                   </div>
 
@@ -1464,21 +1500,36 @@ const CourseDetails = () => {
                 {gate && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="p-5 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800">
-                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 block uppercase">Total Raised</span>
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 block uppercase">
+                        Total Raised
+                      </span>
                       <div className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">
                         {gate.currency} {gate.totalDonations.toLocaleString()}
                       </div>
                       {course.donationTargetAmount && (
                         <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
-                          Goal: {gate.currency} {course.donationTargetAmount.toLocaleString()} ({Math.min(100, Math.round((gate.totalDonations / course.donationTargetAmount) * 100))}%)
+                          Goal: {gate.currency}{" "}
+                          {course.donationTargetAmount.toLocaleString()} (
+                          {Math.min(
+                            100,
+                            Math.round(
+                              (gate.totalDonations /
+                                course.donationTargetAmount) *
+                                100,
+                            ),
+                          )}
+                          %)
                         </div>
                       )}
                     </div>
 
                     <div className="p-5 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800">
-                      <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 block uppercase">Tuition Cost / Student</span>
+                      <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 block uppercase">
+                        Tuition Cost / Student
+                      </span>
                       <div className="text-2xl font-extrabold text-indigo-700 dark:text-indigo-300 mt-1">
-                        {gate.currency} {gate.tuitionCostPerStudent.toLocaleString()}
+                        {gate.currency}{" "}
+                        {gate.tuitionCostPerStudent.toLocaleString()}
                       </div>
                       <div className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-1">
                         Covers training, tools & certification
@@ -1486,22 +1537,33 @@ const CourseDetails = () => {
                     </div>
 
                     <div className="p-5 bg-teal-50 dark:bg-teal-950/40 rounded-2xl border border-teal-200 dark:border-teal-800">
-                      <span className="text-xs font-bold text-teal-700 dark:text-teal-300 block uppercase">Funded Admission Spots</span>
+                      <span className="text-xs font-bold text-teal-700 dark:text-teal-300 block uppercase">
+                        Funded Admission Spots
+                      </span>
                       <div className="text-2xl font-extrabold text-teal-700 dark:text-teal-300 mt-1">
-                        {gate.currentlyAdmittedCount} / {gate.maxAdmissibleStudents}
+                        {gate.currentlyAdmittedCount} /{" "}
+                        {gate.maxAdmissibleStudents}
                       </div>
                       <div className="text-[11px] text-teal-600 dark:text-teal-400 mt-1">
-                        {gate.remainingSpots > 0 ? `${gate.remainingSpots} seats open right now` : 'All funded seats filled'}
+                        {gate.remainingSpots > 0
+                          ? `${gate.remainingSpots} seats open right now`
+                          : "All funded seats filled"}
                       </div>
                     </div>
 
                     <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-xs font-bold text-slate-500 block uppercase">Next Seat Unlocks At</span>
+                      <span className="text-xs font-bold text-slate-500 block uppercase">
+                        Next Seat Unlocks At
+                      </span>
                       <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
-                        {gate.nextSeatNeededAmount > 0 ? `+${gate.currency} ${gate.nextSeatNeededAmount.toLocaleString()}` : 'Session Full'}
+                        {gate.nextSeatNeededAmount > 0
+                          ? `+${gate.currency} ${gate.nextSeatNeededAmount.toLocaleString()}`
+                          : "Session Full"}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1">
-                        {gate.nextSeatNeededAmount > 0 ? 'additional donations needed' : 'maximum batch limit reached'}
+                        {gate.nextSeatNeededAmount > 0
+                          ? "additional donations needed"
+                          : "maximum batch limit reached"}
                       </div>
                     </div>
                   </div>
@@ -1509,14 +1571,16 @@ const CourseDetails = () => {
 
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                    Pledges & Sponsoring Contributors ({courseDonationList.length})
+                    Pledges & Sponsoring Contributors (
+                    {courseDonationList.length})
                   </h3>
 
                   {courseDonationList.length === 0 ? (
                     <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                       <HeartHandshake className="w-10 h-10 text-slate-400 mx-auto mb-2" />
                       <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                        Be the first generous contributor to sponsor students for this course!
+                        Be the first generous contributor to sponsor students
+                        for this course!
                       </p>
                       <button
                         onClick={() => setShowDonationModal(true)}
@@ -1536,7 +1600,9 @@ const CourseDetails = () => {
                           <div className="flex items-start justify-between">
                             <div>
                               <div className="font-bold text-slate-900 dark:text-white flex items-center">
-                                <span>{donation.donorName || "Anonymous Donor"}</span>
+                                <span>
+                                  {donation.donorName || "Anonymous Donor"}
+                                </span>
                                 {donation.donorOrganization && (
                                   <span className="ml-2 text-xs font-normal text-slate-500">
                                     • {donation.donorOrganization}
@@ -1544,7 +1610,9 @@ const CourseDetails = () => {
                                 )}
                               </div>
                               <span className="text-[11px] text-slate-400">
-                                {new Date(donation.createdAt).toLocaleDateString(undefined, {
+                                {new Date(
+                                  donation.createdAt,
+                                ).toLocaleDateString(undefined, {
                                   month: "short",
                                   day: "numeric",
                                   year: "numeric",
@@ -1553,7 +1621,8 @@ const CourseDetails = () => {
                             </div>
 
                             <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-sm border border-emerald-500/20">
-                              {donation.currency} {donation.amount.toLocaleString()}
+                              {donation.currency}{" "}
+                              {donation.amount.toLocaleString()}
                             </span>
                           </div>
 
@@ -1564,21 +1633,25 @@ const CourseDetails = () => {
                           )}
 
                           <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
-                            <span className={`px-2 py-0.5 rounded-md font-semibold ${
-                              donation.donationType === "sponsorship"
-                                ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            }`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-semibold ${
+                                donation.donationType === "sponsorship"
+                                  ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              }`}
+                            >
                               {donation.donationType === "sponsorship"
                                 ? `Direct Sponsorship (${donation.seatsSponsored || 1} Seat${(donation.seatsSponsored || 1) > 1 ? "s" : ""})`
                                 : "General Tuition Donation"}
                             </span>
 
-                            {donation.sponsoredStudentEmails && donation.sponsoredStudentEmails.length > 0 && (
-                              <span className="text-slate-500">
-                                Sponsored: {donation.sponsoredStudentEmails.join(", ")}
-                              </span>
-                            )}
+                            {donation.sponsoredStudentEmails &&
+                              donation.sponsoredStudentEmails.length > 0 && (
+                                <span className="text-slate-500">
+                                  Sponsored:{" "}
+                                  {donation.sponsoredStudentEmails.join(", ")}
+                                </span>
+                              )}
                           </div>
                         </div>
                       ))}
