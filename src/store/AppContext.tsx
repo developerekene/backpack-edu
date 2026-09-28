@@ -1,4 +1,5 @@
-import React, {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
   createContext,
   useContext,
   useEffect,
@@ -13,7 +14,6 @@ import {
   updateDoc,
   doc,
   getDoc,
-  setDoc,
 } from "firebase/firestore";
 import {
   Assessment,
@@ -238,40 +238,40 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     loadCache("orgJoinRequests", []),
   );
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>(() =>
-    loadCache("orgMembers", []),
+    loadCache("course.orgMembers", []),
   );
   const [userProgress, setUserProgress] = useState<UserProgress[]>(() =>
-    loadCache("userProgress", []),
+    loadCache("course.userProgress", []),
   );
   const [materials, setMaterials] = useState<Material[]>(() =>
-    loadCache("materials", []),
+    loadCache("course.materials", []),
   );
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
-  >(() => loadCache("attendanceRecords", []));
+  >(() => loadCache("course.attendance", []));
   const [assessments, setAssessments] = useState<Assessment[]>(() =>
-    loadCache("assessments", []),
+    loadCache("course.assessments", []),
   );
   const [submissions, setSubmissions] = useState<Submission[]>(() =>
-    loadCache("submissions", []),
+    loadCache("course.submissions", []),
   );
   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(() =>
-    loadCache("scheduleEvents", []),
+    loadCache("course.scheduleEvents", []),
   );
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    loadCache("messages", []),
+    loadCache("course.messages", []),
   );
   const [discussionChannels, setDiscussionChannels] = useState<
     DiscussionChannel[]
-  >(() => loadCache("discussionChannels", []));
+  >(() => loadCache("course.discussionChannels", []));
   const [discussionMessages, setDiscussionMessages] = useState<
     DiscussionMessage[]
-  >(() => loadCache("discussionMessages", []));
+  >(() => loadCache("course.discussionMessages", []));
   const [discussionPolls, setDiscussionPolls] = useState<DiscussionPoll[]>(() =>
-    loadCache("discussionPolls", []),
+    loadCache("course.discussionPolls", []),
   );
   const [coursePresence, setCoursePresence] = useState<CoursePresence[]>(() =>
-    loadCache("coursePresence", []),
+    loadCache("course.coursePresence", []),
   );
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
@@ -326,15 +326,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const userObj = getUserData(data);
-        const currentList: T[] = Array.isArray(userObj[field])
-          ? (userObj[field] as T[])
-          : [];
+
+        // Correctly resolve nested fields (e.g. 'course.courses' -> userObj.course.courses)
+        let currentList: T[] = [];
+        const fieldParts = field.split(".");
+        if (fieldParts.length === 2 && fieldParts[0] === "course") {
+          const courseObj = (userObj.course as Record<string, any>) || {};
+          if (Array.isArray(courseObj[fieldParts[1]])) {
+            currentList = courseObj[fieldParts[1]] as T[];
+          }
+        } else {
+          if (Array.isArray(userObj[field])) {
+            currentList = userObj[field] as T[];
+          }
+        }
+
         const updatedList = updateFn(currentList);
-        const updatedUser = {
-          ...userObj,
-          [field]: updatedList,
-        };
-        await updateDoc(docRef, { user: updatedUser });
+
+        // Use Firestore dot notation to natively update the nested field without overwriting other map fields
+        await updateDoc(docRef, { [`user.${field}`]: updatedList });
       }
     } catch (err) {
       console.error(`Error updating ${field} in backpack/${userId}:`, err);
@@ -379,107 +389,180 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Fetch all global data and user-specific data from backpack documents
   const loadAllBackpackData = async () => {
-      try {
-        const [
-          backpackSnap,
-          coursesSnap,
-          enrollmentsSnap,
-          orgJoinReqsSnap,
-          membersSnap,
-          progressSnap,
-          materialsSnap,
-          attendanceSnap,
-          assessmentsSnap,
-          submissionsSnap,
-          eventsSnap,
-          messagesSnap
-        ] = await Promise.all([
-          getDocs(collection(db, "backpack")),
-          getDocs(collectionGroup(db, "courses")),
-          getDocs(collectionGroup(db, "enrollmentRequests")),
-          getDocs(collectionGroup(db, "orgJoinRequests")),
-          getDocs(collectionGroup(db, "orgMembers")),
-          getDocs(collectionGroup(db, "userProgress")),
-          getDocs(collectionGroup(db, "materials")),
-          getDocs(collectionGroup(db, "attendanceRecords")),
-          getDocs(collectionGroup(db, "assessments")),
-          getDocs(collectionGroup(db, "submissions")),
-          getDocs(collectionGroup(db, "scheduleEvents")),
-          getDocs(collectionGroup(db, "messages")),
-        ]);
+    try {
+      const [
+        backpackSnap,
+        coursesSnap,
+        enrollmentsSnap,
+        orgJoinReqsSnap,
+        membersSnap,
+        progressSnap,
+        materialsSnap,
+        attendanceSnap,
+        assessmentsSnap,
+        submissionsSnap,
+        eventsSnap,
+        messagesSnap,
+      ] = await Promise.all([
+        getDocs(collection(db, "backpack")),
+        getDocs(collectionGroup(db, "courses")),
+        getDocs(collectionGroup(db, "enrollmentRequests")),
+        getDocs(collectionGroup(db, "orgJoinRequests")),
+        getDocs(collectionGroup(db, "course.orgMembers")),
+        getDocs(collectionGroup(db, "course.userProgress")),
+        getDocs(collectionGroup(db, "course.materials")),
+        getDocs(collectionGroup(db, "course.attendance")),
+        getDocs(collectionGroup(db, "course.assessments")),
+        getDocs(collectionGroup(db, "course.submissions")),
+        getDocs(collectionGroup(db, "course.scheduleEvents")),
+        getDocs(collectionGroup(db, "course.messages")),
+      ]);
 
-        const allOrganizations: Organization[] = [];
-        backpackSnap.docs.forEach((docSnap) => {
-          const data = docSnap.data();
-          const userObj = getUserData(data);
-          const personalInfo = (userObj.personalInformation as Record<string, unknown>) || {};
-          if (
-            personalInfo.role === "organization" ||
-            personalInfo.orgType ||
-            personalInfo.registrationId ||
-            personalInfo.accreditationStatus ||
-            personalInfo.isAccredited
-          ) {
-            allOrganizations.push({
-              id: (personalInfo.id as string) || docSnap.id,
-              name: (personalInfo.fullname as string) || (personalInfo.name as string) || "Unnamed Organization",
-              description: (personalInfo.description as string) || "",
-              logoUrl: personalInfo.logoUrl as string | undefined,
-              ownerId: (personalInfo.ownerId as string) || docSnap.id,
-              baseCurrency: (personalInfo.baseCurrency as string) || "USD",
-              location: personalInfo.location as string | undefined,
-              orgType: (personalInfo.orgType as "basic" | "higher" | "vocational") || "basic",
-              kycVerified: (personalInfo.kycVerified as boolean) ?? false,
-              kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
-              address: personalInfo.address as string | undefined,
-              registrationId: personalInfo.registrationId as string | undefined,
-              isAccredited: (personalInfo.isAccredited as boolean) ?? false,
-              accreditingBody: personalInfo.accreditingBody as string | undefined,
-              accreditationStatus: (personalInfo.accreditationStatus as "accredited" | "pending" | "unaccredited") || (personalInfo.isAccredited ? "accredited" : "unaccredited"),
-              accreditationDocUrl: personalInfo.accreditationDocUrl as string | undefined,
-              motto: personalInfo.motto as string | undefined,
-              phone: personalInfo.phone as string | undefined,
-              website: personalInfo.website as string | undefined,
-              themeColor: personalInfo.themeColor as string | undefined,
-              academicHighlights: personalInfo.academicHighlights as string[] | undefined,
-              isDeleted: (personalInfo.isDeleted as boolean) ?? false,
-              paystackSubaccount: personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
-            });
-          }
-        });
-
-        const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
-          const map = new Map<string, T>();
-          arr.forEach((item) => {
-            if (item.id) map.set(item.id, item);
+      const allOrganizations: Organization[] = [];
+      backpackSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const userObj = getUserData(data);
+        const personalInfo =
+          (userObj.personalInformation as Record<string, unknown>) || {};
+        if (
+          personalInfo.role === "organization" ||
+          personalInfo.orgType ||
+          personalInfo.registrationId ||
+          personalInfo.accreditationStatus ||
+          personalInfo.isAccredited
+        ) {
+          allOrganizations.push({
+            id: (personalInfo.id as string) || docSnap.id,
+            name:
+              (personalInfo.fullname as string) ||
+              (personalInfo.name as string) ||
+              "Unnamed Organization",
+            description: (personalInfo.description as string) || "",
+            logoUrl: personalInfo.logoUrl as string | undefined,
+            ownerId: (personalInfo.ownerId as string) || docSnap.id,
+            baseCurrency: (personalInfo.baseCurrency as string) || "USD",
+            location: personalInfo.location as string | undefined,
+            orgType:
+              (personalInfo.orgType as "basic" | "higher" | "vocational") ||
+              "basic",
+            kycVerified: (personalInfo.kycVerified as boolean) ?? false,
+            kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
+            address: personalInfo.address as string | undefined,
+            registrationId: personalInfo.registrationId as string | undefined,
+            isAccredited: (personalInfo.isAccredited as boolean) ?? false,
+            accreditingBody: personalInfo.accreditingBody as string | undefined,
+            accreditationStatus:
+              (personalInfo.accreditationStatus as
+                | "accredited"
+                | "pending"
+                | "unaccredited") ||
+              (personalInfo.isAccredited ? "accredited" : "unaccredited"),
+            accreditationDocUrl: personalInfo.accreditationDocUrl as
+              | string
+              | undefined,
+            motto: personalInfo.motto as string | undefined,
+            phone: personalInfo.phone as string | undefined,
+            website: personalInfo.website as string | undefined,
+            themeColor: personalInfo.themeColor as string | undefined,
+            academicHighlights: personalInfo.academicHighlights as
+              | string[]
+              | undefined,
+            isDeleted: (personalInfo.isDeleted as boolean) ?? false,
+            paystackSubaccount:
+              personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
           });
-          return Array.from(map.values());
-        };
+        }
+      });
 
-        const updateAndCache = <T,>(key: string, data: T, setter: (val: T) => void) => {
-          setter(data);
-          try { localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data)); } catch { /* ignore */ }
-        };
+      const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
+        const map = new Map<string, T>();
+        arr.forEach((item) => {
+          if (item.id) map.set(item.id, item);
+        });
+        return Array.from(map.values());
+      };
 
-        updateAndCache("organizations", dedupeById(allOrganizations), setOrganizations);
-        updateAndCache("courses", dedupeById(coursesSnap.docs.map(d => d.data() as Course)), setCourses);
-        updateAndCache("enrollmentRequests", dedupeById(enrollmentsSnap.docs.map(d => d.data() as EnrollmentRequest)), setEnrollmentRequests);
-        updateAndCache("orgJoinRequests", dedupeById(orgJoinReqsSnap.docs.map(d => d.data() as OrgJoinRequest)), setOrgJoinRequests);
-        updateAndCache("userProgress", dedupeById(progressSnap.docs.map(d => d.data() as UserProgress)), setUserProgress);
-        updateAndCache("materials", dedupeById(materialsSnap.docs.map(d => d.data() as Material)), setMaterials);
-        updateAndCache("attendanceRecords", attendanceSnap.docs.map(d => d.data() as AttendanceRecord), setAttendanceRecords);
-        updateAndCache("assessments", dedupeById(assessmentsSnap.docs.map(d => d.data() as Assessment)), setAssessments);
-        updateAndCache("submissions", dedupeById(submissionsSnap.docs.map(d => d.data() as Submission)), setSubmissions);
-        updateAndCache("scheduleEvents", dedupeById(eventsSnap.docs.map(d => d.data() as ScheduleEvent)), setScheduleEvents);
-        updateAndCache("orgMembers", dedupeById(membersSnap.docs.map(d => d.data() as OrgMember)), setOrgMembers);
-        updateAndCache("messages", dedupeById(messagesSnap.docs.map(d => d.data() as ChatMessage)), setMessages);
+      const updateAndCache = <T,>(
+        key: string,
+        data: T,
+        setter: (val: T) => void,
+      ) => {
+        setter(data);
+        try {
+          localStorage.setItem(`bp_cache_${key}`, JSON.stringify(data));
+        } catch {
+          /* ignore */
+        }
+      };
 
-      } catch (err) {
-        console.error("loadAllBackpackData failed:", err);
-      } finally {
-        setIsLoadingApp(false);
-      }
-    };
+      updateAndCache(
+        "organizations",
+        dedupeById(allOrganizations),
+        setOrganizations,
+      );
+      updateAndCache(
+        "courses",
+        dedupeById(coursesSnap.docs.map((d) => d.data() as Course)),
+        setCourses,
+      );
+      updateAndCache(
+        "enrollmentRequests",
+        dedupeById(
+          enrollmentsSnap.docs.map((d) => d.data() as EnrollmentRequest),
+        ),
+        setEnrollmentRequests,
+      );
+      updateAndCache(
+        "orgJoinRequests",
+        dedupeById(orgJoinReqsSnap.docs.map((d) => d.data() as OrgJoinRequest)),
+        setOrgJoinRequests,
+      );
+      updateAndCache(
+        "course.userProgress",
+        dedupeById(progressSnap.docs.map((d) => d.data() as UserProgress)),
+        setUserProgress,
+      );
+      updateAndCache(
+        "course.materials",
+        dedupeById(materialsSnap.docs.map((d) => d.data() as Material)),
+        setMaterials,
+      );
+      updateAndCache(
+        "course.attendance",
+        attendanceSnap.docs.map((d) => d.data() as AttendanceRecord),
+        setAttendanceRecords,
+      );
+      updateAndCache(
+        "course.assessments",
+        dedupeById(assessmentsSnap.docs.map((d) => d.data() as Assessment)),
+        setAssessments,
+      );
+      updateAndCache(
+        "course.submissions",
+        dedupeById(submissionsSnap.docs.map((d) => d.data() as Submission)),
+        setSubmissions,
+      );
+      updateAndCache(
+        "course.scheduleEvents",
+        dedupeById(eventsSnap.docs.map((d) => d.data() as ScheduleEvent)),
+        setScheduleEvents,
+      );
+      updateAndCache(
+        "course.orgMembers",
+        dedupeById(membersSnap.docs.map((d) => d.data() as OrgMember)),
+        setOrgMembers,
+      );
+      updateAndCache(
+        "course.messages",
+        dedupeById(messagesSnap.docs.map((d) => d.data() as ChatMessage)),
+        setMessages,
+      );
+    } catch (err) {
+      console.error("loadAllBackpackData failed:", err);
+    } finally {
+      setIsLoadingApp(false);
+    }
+  };
 
   useEffect(() => {
     loadAllBackpackData();
@@ -585,7 +668,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const cleaned = sanitizeForFirestore(course);
     const targetUid = course.orgId || currentUser?.id || "";
     if (targetUid) {
-      await setDoc(doc(db, "backpack", targetUid, "courses", course.id), cleaned);
+      await updateBackpackUserField<Course>(
+        targetUid,
+        "course.courses",
+        (list) => [...list.filter((c) => c.id !== course.id), cleaned],
+      );
     }
     setCourses((prev) => [...prev.filter((c) => c.id !== course.id), cleaned]);
   };
@@ -597,7 +684,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const targetUid = existingCourse.orgId || currentUser?.id || "";
     if (targetUid) {
-      await updateDoc(doc(db, "backpack", targetUid, "courses", courseId), cleaned);
+      await updateBackpackUserField<Course>(
+        targetUid,
+        "course.courses",
+        (list) =>
+          list.map((c) => (c.id === courseId ? { ...c, ...cleaned } : c)),
+      );
     }
     setCourses((prev) =>
       prev.map((c) => (c.id === courseId ? { ...c, ...cleaned } : c)),
@@ -608,16 +700,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const cleaned = sanitizeForFirestore(donation);
     const targetUid = donation.orgId || currentUser?.id || "";
     if (targetUid) {
-      await setDoc(doc(db, "backpack", targetUid, "courseDonations", donation.id), cleaned);
+      await updateBackpackUserField<CourseDonation>(
+        targetUid,
+        "courseDonations",
+        (list) => [...list.filter((d) => d.id !== donation.id), cleaned],
+      );
     }
-    setCourseDonations((prev) => [...prev.filter((d) => d.id !== donation.id), cleaned]);
+    setCourseDonations((prev) => [
+      ...prev.filter((d) => d.id !== donation.id),
+      cleaned,
+    ]);
   };
 
   // Enrollment Request Operations (stored in backpack/{userId}.user.enrollmentRequests & org's backpack)
   const addEnrollmentRequest = async (req: EnrollmentRequest) => {
-    const existingReq = enrollmentRequests.find((r) => r.userId === req.userId && r.courseId === req.courseId);
+    const existingReq = enrollmentRequests.find(
+      (r) => r.userId === req.userId && r.courseId === req.courseId,
+    );
     let reapplicationHistory = req.reapplicationHistory || [];
-    if (existingReq && (existingReq.status === "rejected" || existingReq.status === "cancelled")) {
+    if (
+      existingReq &&
+      (existingReq.status === "rejected" || existingReq.status === "cancelled")
+    ) {
       const pastRecord: ReapplicationRecord = {
         id: existingReq.id,
         sessionId: existingReq.sessionId,
@@ -627,16 +731,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         rejectedAt: existingReq.rejectedAt,
         rejectionReason: existingReq.rejectionReason,
       };
-      reapplicationHistory = [...(existingReq.reapplicationHistory || []), pastRecord];
+      reapplicationHistory = [
+        ...(existingReq.reapplicationHistory || []),
+        pastRecord,
+      ];
     }
     const payload: EnrollmentRequest = { ...req, reapplicationHistory };
     const cleaned = sanitizeForFirestore(payload);
 
-    if (req.userId) await setDoc(doc(db, "backpack", req.userId, "enrollmentRequests", req.id), cleaned);
-    if (req.orgId && req.orgId !== req.userId) await setDoc(doc(db, "backpack", req.orgId, "enrollmentRequests", req.id), cleaned);
+    if (req.userId)
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.userId,
+        "enrollmentRequests",
+        (list) => [...list.filter((r) => r.id !== req.id), cleaned],
+      );
+    if (req.orgId && req.orgId !== req.userId)
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.orgId,
+        "enrollmentRequests",
+        (list) => [...list.filter((r) => r.id !== req.id), cleaned],
+      );
 
     setEnrollmentRequests((prev) => [
-      ...prev.filter((r) => r.id !== req.id && !(r.courseId === req.courseId && r.userId === req.userId)),
+      ...prev.filter(
+        (r) =>
+          r.id !== req.id &&
+          !(r.courseId === req.courseId && r.userId === req.userId),
+      ),
       cleaned,
     ]);
 
@@ -651,7 +772,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateEnrollmentRequest = async (id: string, status?: "approved" | "rejected" | "cancelled" | "pending", paymentStatus?: "unpaid" | "paid", rejectionReason?: string) => {
+  const updateEnrollmentRequest = async (
+    id: string,
+    status?: "approved" | "rejected" | "cancelled" | "pending",
+    paymentStatus?: "unpaid" | "paid",
+    rejectionReason?: string,
+  ) => {
     const req = enrollmentRequests.find((r) => r.id === id);
     if (!req) return;
     const updates: Partial<EnrollmentRequest> = {};
@@ -663,38 +789,75 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (req.sessionId) updates.rejectedSessionId = req.sessionId;
     }
     const cleanUpdates = sanitizeForFirestore(updates);
-    if (req.userId) await updateDoc(doc(db, "backpack", req.userId, "enrollmentRequests", req.id), cleanUpdates);
-    if (req.orgId && req.orgId !== req.userId) await updateDoc(doc(db, "backpack", req.orgId, "enrollmentRequests", req.id), cleanUpdates);
+    if (req.userId)
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.userId,
+        "enrollmentRequests",
+        (list) =>
+          list.map((r) => (r.id === req.id ? { ...r, ...cleanUpdates } : r)),
+      );
+    if (req.orgId && req.orgId !== req.userId)
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.orgId,
+        "enrollmentRequests",
+        (list) =>
+          list.map((r) => (r.id === req.id ? { ...r, ...cleanUpdates } : r)),
+      );
 
     if (status && status !== "cancelled") {
       const sessionInfo = req.sessionName ? ` for ${req.sessionName}` : "";
       addNotification({
         userId: req.userId,
         title: `Enrollment Application ${status.toUpperCase()}`,
-        message: status === "approved"
-          ? `Congratulations! Your admission application for "${req.courseTitle || "the course"}"${sessionInfo} has been approved.`
-          : `Your application for "${req.courseTitle || "the course"}"${sessionInfo} was declined.${rejectionReason ? ` Note: ${rejectionReason}` : " You may reapply in the next admission session."}`,
+        message:
+          status === "approved"
+            ? `Congratulations! Your admission application for "${req.courseTitle || "the course"}"${sessionInfo} has been approved.`
+            : `Your application for "${req.courseTitle || "the course"}"${sessionInfo} was declined.${rejectionReason ? ` Note: ${rejectionReason}` : " You may reapply in the next admission session."}`,
         type: "enrollment",
         linkUrl: `/course/${req.courseId}`,
       });
     }
-    setEnrollmentRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+    setEnrollmentRequests((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+    );
   };
 
   const cancelEnrollmentRequest = async (id: string) => {
     const req = enrollmentRequests.find((r) => r.id === id);
     if (!req) return;
-    const updates: Partial<EnrollmentRequest> = { status: "cancelled", cancelledAt: new Date().toISOString() };
+    const updates: Partial<EnrollmentRequest> = {
+      status: "cancelled",
+      cancelledAt: new Date().toISOString(),
+    };
     const cleanUpdates = sanitizeForFirestore(updates);
-    if (req.userId) await updateDoc(doc(db, "backpack", req.userId, "enrollmentRequests", req.id), cleanUpdates);
-    if (req.orgId && req.orgId !== req.userId) await updateDoc(doc(db, "backpack", req.orgId, "enrollmentRequests", req.id), cleanUpdates);
-    
-    addNotification({ userId: req.userId, title: "Course Application Cancelled", message: `Your application for "${req.courseTitle || "Course"}" has been cancelled.`, type: "info" });
-    setEnrollmentRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+    if (req.userId)
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.userId,
+        "enrollmentRequests",
+        (list) =>
+          list.map((r) => (r.id === req.id ? { ...r, ...cleanUpdates } : r)),
+      );
+    if (req.orgId && req.orgId !== req.userId)
+      await updateBackpackUserField<EnrollmentRequest>(
+        req.orgId,
+        "enrollmentRequests",
+        (list) =>
+          list.map((r) => (r.id === req.id ? { ...r, ...cleanUpdates } : r)),
+      );
+
+    addNotification({
+      userId: req.userId,
+      title: "Course Application Cancelled",
+      message: `Your application for "${req.courseTitle || "Course"}" has been cancelled.`,
+      type: "info",
+    });
+    setEnrollmentRequests((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+    );
   };
   const getCourseAdmissionGate = (courseId: string): AdmissionGateStatus => {
     const course = courses.find((c) => c.id === courseId);
-    
+
     if (!course) {
       return {
         isVocational: false,
@@ -713,15 +876,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const org = organizations.find((o) => o.id === course.orgId);
     const isVocational = org?.orgType === "vocational";
     const isDonationFunded = course.fundingModel === "donations_sponsorships";
-    const tuitionCostPerStudent = course.tuitionCostPerStudent || course.price || 0;
+    const tuitionCostPerStudent =
+      course.tuitionCostPerStudent || course.price || 0;
     const currency = course.currency || "USD";
-    
-    const totalDonations = course.totalDonationsReceived || courseDonations
-      .filter((d) => d.courseId === courseId)
-      .reduce((sum, d) => sum + d.amount, 0);
+
+    const totalDonations =
+      course.totalDonationsReceived ||
+      courseDonations
+        .filter((d) => d.courseId === courseId)
+        .reduce((sum, d) => sum + d.amount, 0);
 
     const currentlyAdmittedCount = enrollmentRequests.filter(
-      (r) => r.courseId === courseId && r.status === "approved"
+      (r) => r.courseId === courseId && r.status === "approved",
     ).length;
 
     let maxAdmissibleStudents = -1;
@@ -730,11 +896,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     let nextSeatNeededAmount = 0;
 
     if (isDonationFunded && tuitionCostPerStudent > 0) {
-      maxAdmissibleStudents = Math.floor(totalDonations / tuitionCostPerStudent);
-      remainingSpots = Math.max(0, maxAdmissibleStudents - currentlyAdmittedCount);
+      maxAdmissibleStudents = Math.floor(
+        totalDonations / tuitionCostPerStudent,
+      );
+      remainingSpots = Math.max(
+        0,
+        maxAdmissibleStudents - currentlyAdmittedCount,
+      );
       canAdmitMore = remainingSpots > 0;
-      
-      const currentFundsNeeded = (currentlyAdmittedCount + 1) * tuitionCostPerStudent;
+
+      const currentFundsNeeded =
+        (currentlyAdmittedCount + 1) * tuitionCostPerStudent;
       nextSeatNeededAmount = Math.max(0, currentFundsNeeded - totalDonations);
     }
 
@@ -968,7 +1140,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<OrgMember>(
         targetUid,
-        "orgMembers",
+        "course.orgMembers",
         (list) => [...list.filter((m) => m.id !== member.id), cleaned],
       );
     }
@@ -986,7 +1158,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         : member.orgId;
       await updateBackpackUserField<OrgMember>(
         targetUid,
-        "orgMembers",
+        "course.orgMembers",
         (list) => list.map((m) => (m.id === id ? { ...m, ...updates } : m)),
       );
     }
@@ -1003,7 +1175,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         : member.orgId;
       await updateBackpackUserField<OrgMember>(
         targetUid,
-        "orgMembers",
+        "course.orgMembers",
         (list) => list.filter((m) => m.id !== id),
       );
     }
@@ -1019,7 +1191,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (progress.userId) {
       await updateBackpackUserField<UserProgress>(
         progress.userId,
-        "userProgress",
+        "course.userProgress",
         (list) => {
           const existingIdx = list.findIndex(
             (p) =>
@@ -1050,21 +1222,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Materials (stored in backpack/{targetId}.user.materials)
   const addMaterial = async (material: Material) => {
-    const matId = material.id || `mat_${Math.random().toString(36).substring(2, 15)}`;
+    const matId =
+      material.id || `mat_${Math.random().toString(36).substring(2, 15)}`;
     const cleaned = sanitizeForFirestore({ ...material, id: matId });
     const targetUid = currentUser?.id || "";
 
     if (targetUid) {
-      await setDoc(doc(db, "backpack", targetUid, "courses", material.courseId, "materials", matId), cleaned);
+      await updateBackpackUserField<Material>(
+        targetUid,
+        "course.materials",
+        (list) => [...list, cleaned],
+      );
     }
     setMaterials((prev) => [...prev, cleaned]);
   };
 
   const updateMaterial = async (id: string, updates: Partial<Material>) => {
     const targetUid = currentUser?.id || "";
-    const existing = materials.find(m => m.id === id);
+    const existing = materials.find((m) => m.id === id);
     if (targetUid && existing) {
-      await updateDoc(doc(db, "backpack", targetUid, "courses", existing.courseId, "materials", id), sanitizeForFirestore(updates));
+      await updateBackpackUserField<Material>(
+        targetUid,
+        "course.materials",
+        (list) => list.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+      );
     }
     setMaterials((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...updates } : m)),
@@ -1081,7 +1262,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       try {
         await updateBackpackUserField<Material>(
           targetUid,
-          "materials",
+          "course.materials",
           (list) => list.filter((m) => m.id !== id),
         );
       } catch (err) {
@@ -1114,7 +1295,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<Assessment>(
         targetUid,
-        "assessments",
+        "course.assessments",
         (list) => [...list.filter((a) => a.id !== assessment.id), cleaned],
       );
     }
@@ -1128,9 +1309,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addSubmission = async (submission: Submission) => {
     const cleaned = sanitizeForFirestore(submission);
     if (submission.userId) {
-      await setDoc(doc(db, "backpack", submission.userId, "courses", submission.courseId, "submissions", submission.id), cleaned);
+      await updateBackpackUserField<Submission>(
+        submission.userId,
+        "course.submissions",
+        (list) => [...list.filter((s) => s.id !== submission.id), cleaned],
+      );
     }
-    setSubmissions((prev) => [...prev.filter((s) => s.id !== submission.id), cleaned]);
+    setSubmissions((prev) => [
+      ...prev.filter((s) => s.id !== submission.id),
+      cleaned,
+    ]);
   };
 
   const updateSubmissionScore = async (
@@ -1142,7 +1330,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (sub && sub.userId) {
       await updateBackpackUserField<Submission>(
         sub.userId,
-        "submissions",
+        "course.submissions",
         (list) =>
           list.map((s) =>
             s.id === id ? { ...s, score, feedback, status: "graded" } : s,
@@ -1164,7 +1352,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
-        "scheduleEvents",
+        "course.scheduleEvents",
         (list) => [...list.filter((e) => e.id !== event.id), cleaned],
       );
     }
@@ -1182,7 +1370,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
-        "scheduleEvents",
+        "course.scheduleEvents",
         (list) => list.map((e) => (e.id === id ? { ...e, ...updates } : e)),
       );
     }
@@ -1208,7 +1396,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
-        "scheduleEvents",
+        "course.scheduleEvents",
         (list) => list.filter((e) => e.id !== id),
       );
     }
@@ -1222,7 +1410,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const targetUid = course?.orgId || currentUser?.id || "";
     await updateBackpackUserField<ChatMessage>(
       targetUid,
-      "messages",
+      "course.messages",
       (list) => [...list, cleaned],
     );
     setMessages((prev) => [...prev, msg]);
@@ -1235,7 +1423,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<DiscussionChannel>(
         targetUid,
-        "discussionChannels",
+        "course.discussionChannels",
         (list) => [...list.filter((c) => c.id !== channel.id), cleaned],
       );
     }
@@ -1252,7 +1440,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<DiscussionMessage>(
         targetUid,
-        "discussionMessages",
+        "course.discussionMessages",
         (list) => [...list.filter((m) => m.id !== message.id), cleaned],
       );
     }
@@ -1273,7 +1461,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (parentTargetUid) {
           await updateBackpackUserField<DiscussionMessage>(
             parentTargetUid,
-            "discussionMessages",
+            "course.discussionMessages",
             (list) => list.map((m) => (m.id === parent.id ? updatedParent : m)),
           );
         }
@@ -1307,7 +1495,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<DiscussionMessage>(
         targetUid,
-        "discussionMessages",
+        "course.discussionMessages",
         (list) => list.map((m) => (m.id === messageId ? updatedMessage : m)),
       );
     }
@@ -1326,7 +1514,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<DiscussionMessage>(
         targetUid,
-        "discussionMessages",
+        "course.discussionMessages",
         (list) => list.map((m) => (m.id === messageId ? updatedMessage : m)),
       );
     }
@@ -1342,7 +1530,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<DiscussionPoll>(
         targetUid,
-        "discussionPolls",
+        "course.discussionPolls",
         (list) => [...list.filter((p) => p.id !== poll.id), cleaned],
       );
     }
@@ -1360,8 +1548,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const poll = discussionPolls.find((p) => p.id === pollId);
     if (!poll) return;
 
-    // One vote per user per poll: remove this user from every option first,
-    // then add them to the chosen one (lets a vote change count as a switch).
     const updatedOptions = poll.options.map((o) => ({
       ...o,
       votes: o.votes.filter((id) => id !== userId),
@@ -1375,7 +1561,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<DiscussionPoll>(
         targetUid,
-        "discussionPolls",
+        "course.discussionPolls",
         (list) => list.map((p) => (p.id === pollId ? updatedPoll : p)),
       );
     }
@@ -1384,10 +1570,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  // Heartbeat presence. "Online" is derived in the UI as
-  // (Date.now() - lastActiveAt) < 2 minutes -- there is no disconnect
-  // hook in this storage pattern, so a closed tab simply ages out rather
-  // than being detected immediately.
   const pingPresence = async (
     courseId: string,
     userId: string,
@@ -1408,7 +1590,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<CoursePresence>(
         targetUid,
-        "coursePresence",
+        "course.coursePresence",
         (list) => [...list.filter((p) => p.id !== entry.id), cleaned],
       );
     }
@@ -1457,7 +1639,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<DiscussionMessage>(
         targetUid,
-        "discussionMessages",
+        "course.discussionMessages",
         (list) => list.map((m) => (m.id === messageId ? updatedMessage : m)),
       );
     }
