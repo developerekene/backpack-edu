@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { LiveKitRoom, VideoConference } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { AccessToken } from 'livekit-server-sdk';
@@ -11,14 +11,16 @@ import {
 } from 'livekit-client';
 import { 
   Video, VideoOff, Mic, MicOff, Monitor, MessageSquare, 
-  Users, Send, PhoneOff, Hand
+  Users, Send, PhoneOff, Hand, ExternalLink, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
+import { useAppContext } from '../../store/AppContext';
 
 interface LiveKitCallProps {
   roomName: string;
   participantName?: string;
   userRole?: string;
+  courseId?: string;
   onClose?: () => void;
 }
 
@@ -32,29 +34,30 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   roomName,
   participantName = 'Guest User',
   userRole,
+  courseId,
   onClose
 }) => {
   const { currentUser } = useAuth();
+  const { coursePresence, pingPresence } = useAppContext();
+
   const effectiveRole = userRole || currentUser?.role || 'student';
   const roleLabel = effectiveRole === 'organization' ? 'Organization' 
     : effectiveRole === 'instructor' ? 'Instructor' 
     : effectiveRole === 'student' ? 'Student' 
     : 'Participant';
 
-  const [token, setToken] = useState<string>('');
-  const [guestName, setGuestName] = useState<string>(participantName);
+  const guestName = participantName || currentUser?.name || 'Guest User';
 
-  if (participantName && guestName !== participantName) {
-    setGuestName(participantName);
-  }
+  const [token, setToken] = useState<string>('');
   const [useLiveKitServer, setUseLiveKitServer] = useState<boolean>(false);
+  const [engineMode, setEngineMode] = useState<'conference' | 'camera-test'>('conference');
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isVideoOff, setIsVideoOff] = useState<boolean>(false);
   const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false);
   const [handRaised, setHandRaised] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'video' | 'chat' | 'participants'>('video');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { sender: 'System', text: `Welcome to room ${roomName}. Authenticated as ${roleLabel}!`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
+    { sender: 'System', text: `Connected to live room "${roomName}". Authenticated as ${roleLabel}.`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
   ]);
   const [newMessage, setNewMessage] = useState<string>('');
   const [hasPermissionsError, setHasPermissionsError] = useState<boolean>(false);
@@ -68,20 +71,85 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
   const wsUrl = import.meta.env.VITE_LIVEKIT_URL;
 
+  // Normalized clean room name ensuring all participants join the identical room
+  const cleanRoomName = useMemo(() => {
+    return (roomName || 'backpack-live-class')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'backpack-live-class';
+  }, [roomName]);
+
+  const jitsiConferenceUrl = useMemo(() => {
+    return `https://meet.jit.si/${cleanRoomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(guestName)}`;
+  }, [cleanRoomName, guestName]);
+
+  // Keep presence updated for the course live room
+  useEffect(() => {
+    if (!currentUser || !courseId) return;
+    const ping = () => {
+      pingPresence(
+        courseId,
+        currentUser.id,
+        guestName,
+        effectiveRole === 'instructor' || effectiveRole === 'organization' ? 'instructor' : 'student'
+      );
+    };
+    ping();
+    const interval = setInterval(ping, 25000);
+    return () => clearInterval(interval);
+  }, [currentUser, courseId, guestName, effectiveRole, pingPresence]);
+
+  // Extract online members for this room/course
+  const onlinePeople = useMemo(() => {
+    if (!courseId) return [{ userId: currentUser?.id || 'you', userName: guestName, role: effectiveRole }];
+    const seen = new Set<string>();
+    const list = coursePresence
+      .filter((p) => p.courseId === courseId)
+      .filter((p) => {
+        if (seen.has(p.userId)) return false;
+        seen.add(p.userId);
+        return true;
+      })
+      .map((p) => ({ userId: p.userId, userName: p.userName, role: p.role }));
+    return list.length > 0 ? list : [{ userId: currentUser?.id || 'you', userName: guestName, role: effectiveRole }];
+  }, [coursePresence, courseId, currentUser?.id, guestName, effectiveRole]);
+
   // Initialize Media Stream for local WebRTC call fallback
   useEffect(() => {
     let mounted = true;
 
     async function initLocalStream() {
-      if (wsUrl && wsUrl !== 'wss://demo.livekit.cloud') {
-        // Try LiveKit Server mode
+      // First attempt to fetch LiveKit token from server route /api/livekit/token
+      try {
+        const res = await fetch('/api/livekit/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomName: cleanRoomName, participantName: guestName }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token && mounted) {
+            setToken(data.token);
+            if (data.wsUrl || wsUrl) {
+              setUseLiveKitServer(true);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Backend livekit token check notice:', err);
+      }
+
+      if (wsUrl) {
+        // Try LiveKit Server mode directly
         try {
           const apiKey = import.meta.env.VITE_LIVEKIT_API_KEY || 'devkey';
           const apiSecret = import.meta.env.VITE_LIVEKIT_API_SECRET || 'secretsecretsecretsecretsecretsecret';
           const identity = `${guestName.replace(/\s+/g, '_')}_${Math.random().toString(36).substring(2, 7)}`;
           
           const at = new AccessToken(apiKey, apiSecret, { identity, name: guestName });
-          at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+          at.addGrant({ roomJoin: true, room: cleanRoomName, canPublish: true, canSubscribe: true });
           const jwt = await at.toJwt();
           
           if (mounted) {
@@ -94,23 +162,25 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         }
       }
 
-      // Fallback: WebRTC In-App Camera Stream
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        });
-        if (!mounted) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
+      if (engineMode === 'camera-test') {
+        // Fallback: WebRTC In-App Camera Stream
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+          });
+          if (!mounted) {
+            stream.getTracks().forEach(t => t.stop());
+            return;
+          }
+          streamRef.current = stream;
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+        } catch (err) {
+          console.warn('Camera/Mic permission restricted or not available:', err);
+          setHasPermissionsError(true);
         }
-        streamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        console.warn('Camera/Mic permission restricted or not available:', err);
-        setHasPermissionsError(true);
       }
     }
 
@@ -122,8 +192,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomName, wsUrl]);
+  }, [cleanRoomName, wsUrl, engineMode, guestName]);
 
   const toggleMute = () => {
     if (streamRef.current) {
@@ -346,21 +415,23 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   return (
     <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col" style={{ height: '75vh' }}>
       {/* Top Header */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20">
+      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20 flex-wrap gap-2">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg">
             <Video className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-white text-sm flex items-center">
-              Live Room: {roomName}
-              <span className="ml-2 px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-semibold rounded-full border border-indigo-500/30">
-                Direct Bypass Mode
+            <div className="flex items-center space-x-2">
+              <h3 className="font-bold text-white text-sm">
+                Live Classroom: {cleanRoomName}
+              </h3>
+              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
+                Multi-User Room
               </span>
-            </h3>
-            <span className="text-xs text-emerald-400 flex items-center mt-0.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5" />
-              Connected as <strong className="ml-1 text-slate-200">{guestName}</strong>
+            </div>
+            <span className="text-xs text-slate-300 flex items-center mt-0.5">
+              Connected as <strong className="ml-1 text-white">{guestName}</strong>
               <span className="ml-2 px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-md border border-indigo-500/30 uppercase tracking-wide">
                 {roleLabel}
               </span>
@@ -369,6 +440,28 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* Pop-Out Window Link */}
+          <a
+            href={jitsiConferenceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center space-x-1"
+            title="Open video in standalone window"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Pop Out</span>
+          </a>
+
+          {/* Toggle between Multi-User Conference and Camera Test */}
+          <button
+            onClick={() => setEngineMode(m => m === 'conference' ? 'camera-test' : 'conference')}
+            className="p-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center space-x-1"
+            title="Toggle between Multi-User Video Conference and Camera Self-Test"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">{engineMode === 'conference' ? 'Camera Mode' : 'Conference Mode'}</span>
+          </button>
+
           <button
             onClick={() => setActiveTab(activeTab === 'chat' ? 'video' : 'chat')}
             className={`p-2 rounded-lg text-xs font-semibold transition flex items-center ${activeTab === 'chat' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
@@ -382,7 +475,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             className={`p-2 rounded-lg text-xs font-semibold transition flex items-center ${activeTab === 'participants' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
           >
             <Users className="w-4 h-4 mr-1" />
-            People (1)
+            People ({onlinePeople.length})
           </button>
 
           {onClose && (
@@ -391,7 +484,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition flex items-center ml-2 shadow-sm"
             >
               <PhoneOff className="w-4 h-4 mr-1.5" />
-              Leave Call
+              Leave
             </button>
           )}
         </div>
@@ -400,10 +493,17 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       {/* Main Call View */}
       <div className="flex-1 relative flex overflow-hidden bg-slate-950">
         {/* Main Video Stage */}
-        <div className="flex-1 relative bg-slate-900 flex items-center justify-center p-4 overflow-hidden">
+        <div className="flex-1 relative bg-slate-900 flex items-center justify-center p-2 sm:p-4 overflow-hidden">
           {/* Main Stage Container */}
           <div className="w-full h-full relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
-            {isVideoOff ? (
+            {engineMode === 'conference' ? (
+              <iframe
+                src={jitsiConferenceUrl}
+                allow="camera; microphone; display-capture; autoplay; clipboard-write; fullscreen"
+                className="w-full h-full border-0 rounded-2xl bg-slate-950"
+                title={`Live Classroom Conference: ${cleanRoomName}`}
+              />
+            ) : isVideoOff ? (
               <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
                 <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 text-2xl font-bold uppercase shadow-inner">
                   {guestName.slice(0, 2)}
@@ -423,7 +523,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                 </div>
                 <h4 className="text-lg font-bold text-white">Camera Preview Unavailable</h4>
                 <p className="text-xs text-slate-400">
-                  You are connected in audio/virtual mode as <strong className="text-indigo-400">{guestName} ({roleLabel})</strong>. Your mic controls and meeting functions remain fully active.
+                  You are connected in audio/virtual mode as <strong className="text-indigo-400">{guestName} ({roleLabel})</strong>. Switch to Conference Mode above to join the shared room.
                 </p>
               </div>
             ) : (
@@ -441,19 +541,18 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                     <span>Presenting Screen Live</span>
                   </div>
                 )}
+                {/* User Label Overlay */}
+                <div className="absolute bottom-4 left-4 bg-slate-900/85 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-700/60 flex items-center space-x-2.5 text-xs font-semibold text-white shadow-lg">
+                  <span className="font-bold">{guestName}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 uppercase tracking-wider">
+                    {roleLabel}
+                  </span>
+                  <span className="text-slate-400 text-[11px]">(You)</span>
+                  {isMuted && <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />}
+                  {handRaised && <span className="text-amber-400 ml-1">✋ Hand Raised</span>}
+                </div>
               </>
             )}
-
-            {/* User Label Overlay */}
-            <div className="absolute bottom-4 left-4 bg-slate-900/85 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-700/60 flex items-center space-x-2.5 text-xs font-semibold text-white shadow-lg">
-              <span className="font-bold">{guestName}</span>
-              <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 uppercase tracking-wider">
-                {roleLabel}
-              </span>
-              <span className="text-slate-400 text-[11px]">(You)</span>
-              {isMuted && <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />}
-              {handRaised && <span className="text-amber-400 ml-1">✋ Hand Raised</span>}
-            </div>
           </div>
         </div>
 
@@ -462,7 +561,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
             <div className="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-900">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                {activeTab === 'chat' ? 'Meeting Chat' : 'Participants (1)'}
+                {activeTab === 'chat' ? 'Meeting Chat' : `Participants (${onlinePeople.length})`}
               </h4>
               <button onClick={() => setActiveTab('video')} className="text-slate-400 hover:text-white text-xs">
                 Close
@@ -488,7 +587,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                     type="text"
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
+                    placeholder="Type meeting chat..."
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
                   />
                   <button type="submit" className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">
@@ -498,76 +597,81 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               </div>
             ) : (
               <div className="p-3 space-y-3 overflow-y-auto text-xs">
-                <div className="p-3 bg-slate-800/90 rounded-xl border border-slate-700/60 flex items-center justify-between shadow-sm">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold text-xs">
-                      {guestName.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="font-bold text-white flex items-center gap-1.5">
-                        <span>{guestName}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">(You)</span>
+                <p className="text-[11px] text-slate-400">
+                  Real-time course classroom members connected:
+                </p>
+                {onlinePeople.map((p) => {
+                  const isMe = p.userId === currentUser?.id;
+                  return (
+                    <div key={p.userId} className="p-2.5 bg-slate-800/90 rounded-xl border border-slate-700/60 flex items-center justify-between shadow-sm">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold text-xs">
+                          {p.userName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-bold text-white flex items-center gap-1.5">
+                            <span>{p.userName}</span>
+                            {isMe && <span className="text-[10px] text-emerald-400 font-medium">(You)</span>}
+                          </div>
+                          <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+                            {p.role}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mt-0.5">
-                        {roleLabel}
-                      </div>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     </div>
-                  </div>
-                  {isMuted ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4 text-emerald-400" />}
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 text-center space-y-1">
-                  <p className="text-xs font-semibold text-slate-400">1 Participant in Room</p>
-                  <p className="text-[10px] text-slate-500">Solo call session active. Waiting for other members to join.</p>
-                </div>
+                  );
+                })}
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Bottom Control Bar */}
-      <div className="bg-slate-900 border-t border-slate-800 px-6 py-3 flex items-center justify-center space-x-4 z-20">
-        <button
-          onClick={toggleMute}
-          className={`p-3 rounded-xl border transition-all ${isMuted ? 'bg-red-600/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
-          title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
-        >
-          {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-        </button>
+      {/* Bottom Control Bar for camera test mode */}
+      {engineMode === 'camera-test' && (
+        <div className="bg-slate-900 border-t border-slate-800 px-6 py-3 flex items-center justify-center space-x-4 z-20">
+          <button
+            onClick={toggleMute}
+            className={`p-3 rounded-xl border transition-all ${isMuted ? 'bg-red-600/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
+            title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
+          >
+            {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
 
-        <button
-          onClick={toggleVideo}
-          className={`p-3 rounded-xl border transition-all ${isVideoOff ? 'bg-red-600/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
-          title={isVideoOff ? 'Turn On Camera' : 'Turn Off Camera'}
-        >
-          {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-        </button>
+          <button
+            onClick={toggleVideo}
+            className={`p-3 rounded-xl border transition-all ${isVideoOff ? 'bg-red-600/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
+            title={isVideoOff ? 'Turn On Camera' : 'Turn Off Camera'}
+          >
+            {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+          </button>
 
-        <button
-          onClick={toggleScreenShare}
-          className={`p-3 rounded-xl border transition-all ${isScreenSharing ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
-          title="Share Screen"
-        >
-          <Monitor className="w-5 h-5" />
-        </button>
+          <button
+            onClick={toggleScreenShare}
+            className={`p-3 rounded-xl border transition-all ${isScreenSharing ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
+            title="Share Screen"
+          >
+            <Monitor className="w-5 h-5" />
+          </button>
 
-        <button
-          onClick={() => setHandRaised(!handRaised)}
-          className={`p-3 rounded-xl border transition-all ${handRaised ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
-          title="Raise Hand"
-        >
-          <Hand className="w-5 h-5" />
-        </button>
+          <button
+            onClick={() => setHandRaised(!handRaised)}
+            className={`p-3 rounded-xl border transition-all ${handRaised ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
+            title="Raise Hand"
+          >
+            <Hand className="w-5 h-5" />
+          </button>
 
-        <button
-          onClick={handleLeave}
-          className="p-3 bg-red-600 hover:bg-red-500 text-white rounded-xl transition shadow-md border border-red-500"
-          title="Leave Meeting"
-        >
-          <PhoneOff className="w-5 h-5" />
-        </button>
-      </div>
+          <button
+            onClick={handleLeave}
+            className="p-3 bg-red-600 hover:bg-red-500 text-white rounded-xl transition shadow-md border border-red-500"
+            title="Leave Meeting"
+          >
+            <PhoneOff className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
       {/* Screen Share Permission & iFrame Limitation Notice Modal */}
       {showScreenShareNotice && (
@@ -583,13 +687,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               </p>
             </div>
             <div className="flex flex-col gap-2 pt-2">
-              <button
-                onClick={() => window.open(window.location.href, '_blank')}
+              <a
+                href={typeof window !== 'undefined' ? window.location.href : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-lg flex items-center justify-center space-x-2"
               >
                 <Monitor className="w-4 h-4" />
                 <span>Open App in Standalone Tab</span>
-              </button>
+              </a>
               <button
                 onClick={() => setShowScreenShareNotice(false)}
                 className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"

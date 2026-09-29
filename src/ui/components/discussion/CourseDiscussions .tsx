@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppContext } from "../../../store/AppContext";
 import { useAuth } from "../../../store/AuthContext";
 import {
@@ -56,7 +56,12 @@ export function CourseDiscussions({
     .filter((c) => c.courseId === courseId)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const activeChannel =
+    courseChannels.find((c) => c.id === selectedChannelId) || courseChannels[0];
+  const activeChannelId = activeChannel?.id ?? null;
+  const setActiveChannelId = setSelectedChannelId;
+
   const [expandedThreadId, setExpandedThreadId] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
@@ -67,26 +72,23 @@ export function CourseDiscussions({
   const [showPollForm, setShowPollForm] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [now, setNow] = useState(() => Date.now());
 
   // Provision a default channel once, if this course has none yet.
   useEffect(() => {
-    if (courseChannels.length > 0) {
-      setActiveChannelId((prev) => prev ?? courseChannels[0].id);
-      return;
+    if (courseChannels.length === 0) {
+      const defaultChannel: DiscussionChannel = {
+        id: `dchan_general_${courseId}`,
+        courseId,
+        name: "general-discussion",
+        description: "Course-wide discussion",
+        pinned: true,
+        order: 0,
+        createdAt: new Date().toISOString(),
+      };
+      addDiscussionChannel(defaultChannel);
     }
-    const defaultChannel: DiscussionChannel = {
-      id: `dchan_general_${courseId}`,
-      courseId,
-      name: "general-discussion",
-      description: "Course-wide discussion",
-      pinned: true,
-      order: 0,
-      createdAt: new Date().toISOString(),
-    };
-    addDiscussionChannel(defaultChannel);
-    setActiveChannelId(defaultChannel.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseId, courseChannels.length]);
+  }, [courseId, courseChannels.length, addDiscussionChannel]);
 
   // Mark the active channel as read (for the unread badge) whenever it
   // changes or new messages land in it while it's open.
@@ -116,7 +118,10 @@ export function CourseDiscussions({
   // visible instead.
   useEffect(() => {
     const tick = () => {
-      if (document.visibilityState === "visible") refreshData();
+      if (document.visibilityState === "visible") {
+        setNow(Date.now());
+        refreshData();
+      }
     };
     const interval = setInterval(tick, POLL_INTERVAL_MS);
     document.addEventListener("visibilitychange", tick);
@@ -146,7 +151,7 @@ export function CourseDiscussions({
   }, [courseId, currentUser?.id]);
 
   const onlinePeople = useMemo(() => {
-    const cutoff = Date.now() - ONLINE_WINDOW_MS;
+    const cutoff = now - ONLINE_WINDOW_MS;
     const seen = new Set<string>();
     return coursePresence
       .filter((p) => p.courseId === courseId && p.lastActiveAt > cutoff)
@@ -156,7 +161,7 @@ export function CourseDiscussions({
         return true;
       })
       .map((p) => ({ userId: p.userId, userName: p.userName, role: p.role }));
-  }, [coursePresence, courseId]);
+  }, [coursePresence, courseId, now]);
 
   const faculty = useMemo(() => {
     const onlineIds = new Set(onlinePeople.map((p) => p.userId));
@@ -176,8 +181,6 @@ export function CourseDiscussions({
         online: onlineIds.has(m.userId || m.id),
       }));
   }, [orgMembers, courseId, onlinePeople]);
-
-  const activeChannel = courseChannels.find((c) => c.id === activeChannelId);
 
   const repliesFor = (messageId: string) =>
     discussionMessages
@@ -219,52 +222,65 @@ export function CourseDiscussions({
     .filter((p) => p.channelId === activeChannelId)
     .sort((a, b) => b.createdAt - a.createdAt);
 
-  const handleSend = async (
-    text: string,
-    attachmentUrl?: string,
-    attachmentType?: "image" | "video" | "document",
-  ) => {
-    if (!currentUser || !activeChannelId) return;
-    const msg: DiscussionMessage = {
-      id: generateId("dmsg"),
-      channelId: activeChannelId,
-      courseId,
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      senderRole: isStudent ? "student" : "instructor",
-      text,
-      fileUrl: attachmentUrl,
-      fileType: attachmentType,
-      createdAt: Date.now(),
-    };
-    await addDiscussionMessage(msg);
-  };
+  const handleSend = useCallback(
+    async (
+      text: string,
+      attachmentUrl?: string,
+      attachmentType?: "image" | "video" | "document",
+    ) => {
+      if (!currentUser || !activeChannelId) return;
+      const msg: DiscussionMessage = {
+        id: generateId("dmsg"),
+        channelId: activeChannelId,
+        courseId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderRole: isStudent ? "student" : "instructor",
+        text,
+        fileUrl: attachmentUrl,
+        fileType: attachmentType,
+        createdAt: Date.now(),
+      };
+      await addDiscussionMessage(msg);
+    },
+    [currentUser, activeChannelId, courseId, isStudent, addDiscussionMessage],
+  );
 
-  const handleReply = async (parentId: string) => {
-    if (!currentUser || !activeChannelId) return;
-    const draft = replyDrafts[parentId]?.trim();
-    if (!draft) return;
-    const reply: DiscussionMessage = {
-      id: generateId("dmsg"),
-      channelId: activeChannelId,
+  const handleReply = useCallback(
+    async (parentId: string) => {
+      if (!currentUser || !activeChannelId) return;
+      const draft = replyDrafts[parentId]?.trim();
+      if (!draft) return;
+      const reply: DiscussionMessage = {
+        id: generateId("dmsg"),
+        channelId: activeChannelId,
+        courseId,
+        parentId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderRole: isStudent ? "student" : "instructor",
+        text: draft,
+        createdAt: Date.now(),
+      };
+      await addDiscussionMessage(reply);
+      setReplyDrafts((prev) => ({ ...prev, [parentId]: "" }));
+    },
+    [
+      currentUser,
+      activeChannelId,
+      replyDrafts,
       courseId,
-      parentId,
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      senderRole: isStudent ? "student" : "instructor",
-      text: draft,
-      createdAt: Date.now(),
-    };
-    await addDiscussionMessage(reply);
-    setReplyDrafts((prev) => ({ ...prev, [parentId]: "" }));
-  };
+      isStudent,
+      addDiscussionMessage,
+    ],
+  );
 
   const handleToggleSave = (messageId: string) => {
     if (!currentUser) return;
     setSavedIds(toggleSavedMessage(currentUser.id, messageId));
   };
 
-  const handleCreatePoll = async () => {
+  const handleCreatePoll = useCallback(async () => {
     if (!currentUser || !activeChannelId) return;
     const cleanOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
     if (!pollQuestion.trim() || cleanOptions.length < 2) return;
@@ -285,7 +301,14 @@ export function CourseDiscussions({
     setPollQuestion("");
     setPollOptions(["", ""]);
     setShowPollForm(false);
-  };
+  }, [
+    currentUser,
+    activeChannelId,
+    pollOptions,
+    pollQuestion,
+    courseId,
+    addPoll,
+  ]);
 
   const isSubscribed =
     !!currentUser && !!activeChannel?.subscriberIds?.includes(currentUser.id);

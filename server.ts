@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { AccessToken } from "livekit-server-sdk";
 
 const app = express();
 const PORT = 3000;
@@ -313,6 +314,40 @@ app.get("/api/paystack/verify/:reference", async (req, res) => {
     isDemo: true,
     message: "Verified in demo/preview mode",
   });
+});
+
+// --- LiveKit Token generation endpoint ---
+app.post("/api/livekit/token", async (req, res) => {
+  try {
+    const { roomName, participantName, identity } = req.body;
+    const apiKey =
+      process.env.LIVEKIT_API_KEY ||
+      process.env.VITE_LIVEKIT_API_KEY ||
+      "devkey";
+    const apiSecret =
+      process.env.LIVEKIT_API_SECRET ||
+      process.env.VITE_LIVEKIT_API_SECRET ||
+      "secretsecretsecretsecretsecretsecret";
+    const wsUrl = process.env.LIVEKIT_URL || process.env.VITE_LIVEKIT_URL;
+
+    const participantIdentity =
+      identity ||
+      `${(participantName || "user").replace(/\s+/g, "_")}_${Math.random().toString(36).substring(2, 7)}`;
+    const at = new AccessToken(apiKey, apiSecret, {
+      identity: participantIdentity,
+      name: participantName || "Participant",
+    });
+    at.addGrant({
+      roomJoin: true,
+      room: roomName || "backpack-live-class",
+      canPublish: true,
+      canSubscribe: true,
+    });
+    const token = await at.toJwt();
+    return res.json({ token, wsUrl: wsUrl || null, roomName });
+  } catch (err) {
+    return res.status(500).json({ error: String(err) });
+  }
 });
 
 // Health check

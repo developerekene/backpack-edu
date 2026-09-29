@@ -10,14 +10,15 @@ export function PollCard({
   currentUserId: string | undefined;
   onVote: (optionId: string) => void;
 }) {
+  const [now] = React.useState(() => Date.now());
   const totalVotes = poll.options.reduce((acc, o) => acc + o.votes.length, 0);
-  const isClosed = Date.now() > poll.closesAt;
+  const isClosed = now > poll.closesAt;
   const myVote = poll.options.find(
     (o) => currentUserId && o.votes.includes(currentUserId),
   );
   const hoursLeft = Math.max(
     0,
-    Math.ceil((poll.closesAt - Date.now()) / (1000 * 60 * 60)),
+    Math.ceil((poll.closesAt - now) / (1000 * 60 * 60)),
   );
 
   return (

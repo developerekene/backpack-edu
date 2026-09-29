@@ -2,24 +2,30 @@ import React, { useState } from 'react';
 import { useAppContext } from '../../store/AppContext';
 import { useAuth } from '../../store/AuthContext';
 import { ScheduleEvent } from '../../types';
-import { Calendar, Video, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Video, Plus, Trash2, PhoneOff } from 'lucide-react';
 import { ProctoringSession } from './ProctoringSession';
 import { LiveKitCall } from './LiveKitCall';
+import { getLiveClassRoomName, getJitsiMeetingUrl } from '../../lib/liveClass';
 
-export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isStudent: boolean }) => {
-    const { scheduleEvents, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, organizations, courses } = useAppContext();
+export const CourseSchedule = ({
+    courseId,
+    isStudent,
+    onJoinLiveCall,
+    onStartLiveCall,
+}: {
+    courseId: string;
+    isStudent: boolean;
+    onJoinLiveCall?: (roomName: string) => void;
+    onStartLiveCall?: (roomName: string) => void;
+}) => {
+    const { scheduleEvents, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, organizations } = useAppContext();
     const { currentUser } = useAuth();
     const courseEvents = scheduleEvents.filter(e => e.courseId === courseId).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-    const currentCourse = courses.find(c => c.id === courseId);
     const myOrg = organizations.find(o => o.ownerId === currentUser?.id || o.id === currentUser?.id);
-    const courseOrg = organizations.find(o => o.id === currentCourse?.orgId || o.ownerId === currentCourse?.orgId) || myOrg;
-    const organisationName = (courseOrg?.name || "organisation").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const courseTitle = (currentCourse?.title || "course").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     
-    const getEventRoomName = (evt: ScheduleEvent) => {
-        const timestamp = new Date(`${evt.date}T${evt.time}`).getTime() || evt.id;
-        return `${organisationName}-${courseTitle}-${timestamp}`;
+    const getEventRoomName = (evt: Partial<ScheduleEvent>) => {
+        return getLiveClassRoomName(evt, courseId);
     };
     
     const participantDisplayName = currentUser?.role === 'organization'
@@ -44,8 +50,8 @@ export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isSt
 
     const handleCreateEvent = async (e: React.FormEvent) => {
         e.preventDefault();
-        const eventTimestamp = date && time ? new Date(`${date}T${time}`).getTime() : Date.now();
-        const defaultMeetingUrl = `https://meet.jit.si/${organisationName}-${courseTitle}-${eventTimestamp}`;
+        const roomName = getLiveClassRoomName({ courseId }, courseId);
+        const defaultMeetingUrl = getJitsiMeetingUrl(roomName);
         const newEvent: ScheduleEvent = {
             id: `evt_${Math.random().toString(36).substring(2, 15)}`,
             courseId,
@@ -131,9 +137,7 @@ export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isSt
                                                 {!isStudent && (
                                                     <button 
                                                         onClick={() => {
-                                                            if (confirm("Delete this event from the timetable?")) {
-                                                                deleteScheduleEvent(evt.id);
-                                                            }
+                                                            deleteScheduleEvent(evt.id);
                                                         }}
                                                         title="Delete event"
                                                         className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
@@ -145,17 +149,22 @@ export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isSt
                                         </div>
                                         {evt.meetingUrl && (
                                             <div className="mt-3 flex flex-col gap-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {activeLiveKitRoom === getEventRoomName(evt) ? (
-                                                        <span className="inline-flex items-center px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-sm font-bold">
-                                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse mr-2" /> Live Call Active
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    {evt.isActive && (
+                                                        <span className="inline-flex items-center px-3.5 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold">
+                                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2" /> Live Call Active
                                                         </span>
-                                                    ) : !evt.isActive ? (
+                                                    )}
+
+                                                    {!evt.isActive ? (
                                                         !isStudent ? (
                                                             <button 
                                                                 onClick={async () => {
-                                                                    await updateScheduleEvent(evt.id, { isActive: true });
-                                                                    setActiveLiveKitRoom(getEventRoomName(evt));
+                                                                    const room = getEventRoomName(evt);
+                                                                    const meetingUrl = evt.meetingUrl || getJitsiMeetingUrl(room);
+                                                                    await updateScheduleEvent(evt.id, { isActive: true, meetingUrl });
+                                                                    setActiveLiveKitRoom(room);
+                                                                    if (onStartLiveCall) onStartLiveCall(room);
                                                                 }}
                                                                 className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition shadow-sm"
                                                             >
@@ -167,21 +176,44 @@ export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isSt
                                                             </span>
                                                         )
                                                     ) : (
-                                                        isStudent && (evt.type === 'lecture' || evt.type === 'exam') && activeProctoringId !== evt.id ? (
+                                                        <>
                                                             <button 
-                                                                onClick={() => setActiveProctoringId(evt.id)}
-                                                                className="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-500 text-slate-900 dark:text-white rounded-lg text-sm font-bold transition shadow-sm"
-                                                            >
-                                                                <Video className="w-4 h-4 mr-2" /> Start Monitored Session to Join
-                                                            </button>
-                                                        ) : (
-                                                            <button 
-                                                                onClick={() => setActiveLiveKitRoom(getEventRoomName(evt))} 
-                                                                className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm ${isPast ? 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-700 hover:text-slate-900 dark:text-white' : 'bg-emerald-600 text-white hover:bg-emerald-500'}`}
+                                                                onClick={() => {
+                                                                    const room = getEventRoomName(evt);
+                                                                    setActiveLiveKitRoom(room);
+                                                                    if (onJoinLiveCall) onJoinLiveCall(room);
+                                                                }} 
+                                                                className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm ${
+                                                                    activeLiveKitRoom === getEventRoomName(evt)
+                                                                        ? 'bg-emerald-700 text-white'
+                                                                        : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                                                                }`}
                                                             >
                                                                 <Video className="w-4 h-4 mr-2" /> Join Video Call
                                                             </button>
-                                                        )
+
+                                                            {!isStudent && (
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        await updateScheduleEvent(evt.id, { isActive: false });
+                                                                        setActiveLiveKitRoom(null);
+                                                                    }}
+                                                                    className="inline-flex items-center px-3 py-2 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white rounded-lg text-xs font-bold transition border border-red-500/30"
+                                                                    title="End this live call"
+                                                                >
+                                                                    <PhoneOff className="w-3.5 h-3.5 mr-1" /> End Call
+                                                                </button>
+                                                            )}
+
+                                                            {isStudent && evt.type === 'exam' && activeProctoringId !== evt.id && (
+                                                                <button 
+                                                                    onClick={() => setActiveProctoringId(evt.id)}
+                                                                    className="inline-flex items-center px-3 py-2 bg-amber-600/20 text-amber-300 hover:bg-amber-600 hover:text-white rounded-lg text-xs font-bold transition border border-amber-500/30"
+                                                                >
+                                                                    Monitored Exam Mode
+                                                                </button>
+                                                            )}
+                                                        </>
                                                     )}
                                                 </div>
                                                 
@@ -191,6 +223,7 @@ export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isSt
                                                             roomName={getEventRoomName(evt)}
                                                             participantName={participantDisplayName}
                                                             userRole={currentUser?.role}
+                                                            courseId={courseId}
                                                             onClose={() => setActiveLiveKitRoom(null)}
                                                         />
                                                     </div>

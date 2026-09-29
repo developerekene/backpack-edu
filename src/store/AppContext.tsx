@@ -14,6 +14,7 @@ import {
   updateDoc,
   doc,
   getDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import {
   Assessment,
@@ -41,6 +42,7 @@ import {
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
 import { generateId } from "../lib/id";
+import { getLiveClassRoomName, getJitsiMeetingUrl } from "../lib/liveClass";
 
 export interface AdmissionGateStatus {
   isVocational: boolean;
@@ -419,6 +421,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ]);
 
       const allOrganizations: Organization[] = [];
+      const allScheduleEventsFromBackpack: ScheduleEvent[] = [];
+      const allCoursesFromBackpack: Course[] = [];
+      const allMaterialsFromBackpack: Material[] = [];
+      const allAssessmentsFromBackpack: Assessment[] = [];
+      const allSubmissionsFromBackpack: Submission[] = [];
+      const allAttendanceFromBackpack: AttendanceRecord[] = [];
+      const allMembersFromBackpack: OrgMember[] = [];
+      const allProgressFromBackpack: UserProgress[] = [];
+      const allEnrollmentsFromBackpack: EnrollmentRequest[] = [];
+      const allDonationsFromBackpack: CourseDonation[] = [];
+      const allOrgJoinReqsFromBackpack: OrgJoinRequest[] = [];
+
       backpackSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
         const userObj = getUserData(data);
@@ -472,6 +486,58 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
           });
         }
+
+        // Extract nested user course collections stored within backpack documents
+        const courseObj = (userObj.course as Record<string, unknown>) || {};
+        if (Array.isArray(courseObj.scheduleEvents)) {
+          allScheduleEventsFromBackpack.push(
+            ...(courseObj.scheduleEvents as ScheduleEvent[]),
+          );
+        }
+        if (Array.isArray(courseObj.courses)) {
+          allCoursesFromBackpack.push(...(courseObj.courses as Course[]));
+        }
+        if (Array.isArray(courseObj.materials)) {
+          allMaterialsFromBackpack.push(...(courseObj.materials as Material[]));
+        }
+        if (Array.isArray(courseObj.assessments)) {
+          allAssessmentsFromBackpack.push(
+            ...(courseObj.assessments as Assessment[]),
+          );
+        }
+        if (Array.isArray(courseObj.attendance)) {
+          allAttendanceFromBackpack.push(
+            ...(courseObj.attendance as AttendanceRecord[]),
+          );
+        }
+        if (Array.isArray(courseObj.submissions)) {
+          allSubmissionsFromBackpack.push(
+            ...(courseObj.submissions as Submission[]),
+          );
+        }
+        if (Array.isArray(courseObj.orgMembers)) {
+          allMembersFromBackpack.push(...(courseObj.orgMembers as OrgMember[]));
+        }
+        if (Array.isArray(courseObj.userProgress)) {
+          allProgressFromBackpack.push(
+            ...(courseObj.userProgress as UserProgress[]),
+          );
+        }
+        if (Array.isArray(userObj.enrollmentRequests)) {
+          allEnrollmentsFromBackpack.push(
+            ...(userObj.enrollmentRequests as EnrollmentRequest[]),
+          );
+        }
+        if (Array.isArray(userObj.courseDonations)) {
+          allDonationsFromBackpack.push(
+            ...(userObj.courseDonations as CourseDonation[]),
+          );
+        }
+        if (Array.isArray(userObj.orgJoinRequests)) {
+          allOrgJoinReqsFromBackpack.push(
+            ...(userObj.orgJoinRequests as OrgJoinRequest[]),
+          );
+        }
       });
 
       const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
@@ -502,54 +568,87 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       );
       updateAndCache(
         "courses",
-        dedupeById(coursesSnap.docs.map((d) => d.data() as Course)),
+        dedupeById([
+          ...allCoursesFromBackpack,
+          ...coursesSnap.docs.map((d) => d.data() as Course),
+        ]),
         setCourses,
       );
       updateAndCache(
         "enrollmentRequests",
-        dedupeById(
-          enrollmentsSnap.docs.map((d) => d.data() as EnrollmentRequest),
-        ),
+        dedupeById([
+          ...allEnrollmentsFromBackpack,
+          ...enrollmentsSnap.docs.map((d) => d.data() as EnrollmentRequest),
+        ]),
         setEnrollmentRequests,
       );
       updateAndCache(
         "orgJoinRequests",
-        dedupeById(orgJoinReqsSnap.docs.map((d) => d.data() as OrgJoinRequest)),
+        dedupeById([
+          ...allOrgJoinReqsFromBackpack,
+          ...orgJoinReqsSnap.docs.map((d) => d.data() as OrgJoinRequest),
+        ]),
         setOrgJoinRequests,
       );
       updateAndCache(
+        "courseDonations",
+        dedupeById(allDonationsFromBackpack),
+        setCourseDonations,
+      );
+      updateAndCache(
         "course.userProgress",
-        dedupeById(progressSnap.docs.map((d) => d.data() as UserProgress)),
+        dedupeById([
+          ...allProgressFromBackpack,
+          ...progressSnap.docs.map((d) => d.data() as UserProgress),
+        ]),
         setUserProgress,
       );
       updateAndCache(
         "course.materials",
-        dedupeById(materialsSnap.docs.map((d) => d.data() as Material)),
+        dedupeById([
+          ...allMaterialsFromBackpack,
+          ...materialsSnap.docs.map((d) => d.data() as Material),
+        ]),
         setMaterials,
       );
       updateAndCache(
         "course.attendance",
-        attendanceSnap.docs.map((d) => d.data() as AttendanceRecord),
+        dedupeById([
+          ...allAttendanceFromBackpack,
+          ...attendanceSnap.docs.map((d) => d.data() as AttendanceRecord),
+        ]),
         setAttendanceRecords,
       );
       updateAndCache(
         "course.assessments",
-        dedupeById(assessmentsSnap.docs.map((d) => d.data() as Assessment)),
+        dedupeById([
+          ...allAssessmentsFromBackpack,
+          ...assessmentsSnap.docs.map((d) => d.data() as Assessment),
+        ]),
         setAssessments,
       );
       updateAndCache(
         "course.submissions",
-        dedupeById(submissionsSnap.docs.map((d) => d.data() as Submission)),
+        dedupeById([
+          ...allSubmissionsFromBackpack,
+          ...submissionsSnap.docs.map((d) => d.data() as Submission),
+        ]),
         setSubmissions,
       );
       updateAndCache(
         "course.scheduleEvents",
-        dedupeById(eventsSnap.docs.map((d) => d.data() as ScheduleEvent)),
+        dedupeById([
+          ...allScheduleEventsFromBackpack,
+          ...eventsSnap.docs.map((d) => d.data() as ScheduleEvent),
+        ]),
         setScheduleEvents,
       );
       updateAndCache(
         "course.orgMembers",
-        dedupeById(membersSnap.docs.map((d) => d.data() as OrgMember)),
+        dedupeById([
+          ...allMembersFromBackpack,
+          ...membersSnap.docs.map((d) => d.data() as OrgMember),
+        ]),
         setOrgMembers,
       );
       updateAndCache(
@@ -566,6 +665,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     loadAllBackpackData();
+    let unsubscribe: (() => void) | undefined;
+    try {
+      unsubscribe = onSnapshot(
+        collection(db, "backpack"),
+        () => {
+          loadAllBackpackData();
+        },
+        (err) => {
+          console.warn("Backpack realtime listener notice:", err);
+        },
+      );
+    } catch (e) {
+      console.warn("Could not bind backpack listener:", e);
+    }
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [currentUser]);
 
   // Organization Operations (stored inside backpack/{userId} -> user -> personalInformation)
@@ -1346,7 +1462,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Schedule Events (stored in backpack/{targetId}.user.scheduleEvents)
   const addScheduleEvent = async (event: ScheduleEvent) => {
-    const cleaned = sanitizeForFirestore(event);
+    const canonicalRoom = getLiveClassRoomName(event, event.courseId);
+    const meetingUrl =
+      event.meetingUrl?.trim() || getJitsiMeetingUrl(canonicalRoom);
+    const cleaned = sanitizeForFirestore({
+      ...event,
+      meetingUrl,
+    });
     const targetUid = currentUser?.id || "";
 
     if (targetUid) {
@@ -1356,20 +1478,63 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         (list) => [...list.filter((e) => e.id !== event.id), cleaned],
       );
     }
+    const course = courses.find((c) => c.id === event.courseId);
+    if (course?.orgId && course.orgId !== targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(
+        course.orgId,
+        "course.scheduleEvents",
+        (list) => [...list.filter((e) => e.id !== event.id), cleaned],
+      );
+    }
+
     setScheduleEvents((prev) => [
       ...prev.filter((e) => e.id !== event.id),
       cleaned,
     ]);
+
+    if (event.isActive) {
+      const courseTitle = course?.title || "Course";
+      addNotification({
+        title: `📹 Live Class Started: ${event.title}`,
+        message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
+        type: "live_class",
+        linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
+      });
+      sendPushNotification(`Live Class Started: ${event.title}`, {
+        body: `The live stream for "${courseTitle}" has started. Click to join!`,
+        linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
+      });
+    }
   };
 
   const updateScheduleEvent = async (
     id: string,
     updates: Partial<ScheduleEvent>,
   ) => {
+    const existingEvt = scheduleEvents.find((e) => e.id === id);
+    const effectiveCourseId = updates.courseId || existingEvt?.courseId;
+    const course = courses.find((c) => c.id === effectiveCourseId);
+
+    const mergedEvt: Partial<ScheduleEvent> = {
+      ...existingEvt,
+      ...updates,
+    };
+    if (updates.isActive && !mergedEvt.meetingUrl) {
+      const room = getLiveClassRoomName(mergedEvt, effectiveCourseId);
+      updates.meetingUrl = getJitsiMeetingUrl(room);
+    }
+
     const targetUid = currentUser?.id || "";
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
+        "course.scheduleEvents",
+        (list) => list.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+      );
+    }
+    if (course?.orgId && course.orgId !== targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(
+        course.orgId,
         "course.scheduleEvents",
         (list) => list.map((e) => (e.id === id ? { ...e, ...updates } : e)),
       );
@@ -1379,23 +1544,38 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       prev.map((e) => (e.id === id ? { ...e, ...updates } : e)),
     );
     if (updates.isActive) {
-      const evt = scheduleEvents.find((e) => e.id === id);
-      if (evt) {
-        addNotification({
-          title: `📹 Live Class Started: ${evt.title}`,
-          message: `The live stream for this class has officially started. Click to join now!`,
-          type: "live_class",
-          linkUrl: `/course/${evt.courseId}`,
-        });
-      }
+      const evt = existingEvt || scheduleEvents.find((e) => e.id === id);
+      const courseTitle = course?.title || "Course";
+      addNotification({
+        title: `📹 Live Class Started: ${updates.title || evt?.title || "Class Session"}`,
+        message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
+        type: "live_class",
+        linkUrl: `/course/${evt?.courseId || effectiveCourseId}?live=true&eventId=${id}`,
+      });
+      sendPushNotification(
+        `Live Class Started: ${updates.title || evt?.title || "Class Session"}`,
+        {
+          body: `The live stream for "${courseTitle}" has started. Click to join!`,
+          linkUrl: `/course/${evt?.courseId || effectiveCourseId}?live=true&eventId=${id}`,
+        },
+      );
     }
   };
 
   const deleteScheduleEvent = async (id: string) => {
+    const existingEvt = scheduleEvents.find((e) => e.id === id);
+    const course = courses.find((c) => c.id === existingEvt?.courseId);
     const targetUid = currentUser?.id || "";
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
+        "course.scheduleEvents",
+        (list) => list.filter((e) => e.id !== id),
+      );
+    }
+    if (course?.orgId && course.orgId !== targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(
+        course.orgId,
         "course.scheduleEvents",
         (list) => list.filter((e) => e.id !== id),
       );
