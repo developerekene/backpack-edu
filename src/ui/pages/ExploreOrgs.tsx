@@ -825,7 +825,7 @@ const ExploreOrgs = () => {
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
-        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

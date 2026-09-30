@@ -690,7 +690,7 @@ const Dashboard = () => {
 
   // Organization / Instructor Dashboard Logic
   const myOrgMemberRecords = orgMembers.filter(
-    (m) => m.email === currentUser.email,
+    (m) => m.email?.toLowerCase() === currentUser.email?.toLowerCase(),
   );
   let assignedCourseIds: string[] = [];
   myOrgMemberRecords.forEach((record) => {

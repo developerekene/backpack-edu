@@ -137,12 +137,12 @@ const CourseDetails = () => {
     isOpen: boolean;
     title: string;
     message: string;
-    onConfirm: () => Promise<void> | void;
+    type?: "info" | "warning" | "error" | "success" | "danger";
+    onConfirm?: () => Promise<void> | void;
   }>({
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
   });
 
   const course = courses.find((c) => c.id === courseId);
@@ -496,6 +496,9 @@ const CourseDetails = () => {
                       message:
                         "Only student and instructor accounts can apply for courses.",
                       type: "info",
+                      onConfirm: () => {
+                        setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+                      },
                     });
                     return;
                   }

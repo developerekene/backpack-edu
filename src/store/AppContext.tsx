@@ -13,6 +13,7 @@ import {
   updateDoc,
   doc,
   getDoc,
+  query,
 } from "firebase/firestore";
 import {
   Assessment,
@@ -363,26 +364,57 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       read: false,
     };
 
-    setNotifications((prev) => [newNotif, ...prev]);
+    const targetUid = notifData.userId || currentUser?.id;
+    if (targetUid) {
+      updateBackpackUserField<AppNotification>(
+        targetUid,
+        "notifications",
+        (list) => [newNotif, ...list],
+      ).catch(console.error);
+    }
 
-    // Send push notification if granted
-    sendPushNotification(newNotif.title, {
-      body: newNotif.message,
-      linkUrl: newNotif.linkUrl,
-    });
+    if (!notifData.userId || notifData.userId === currentUser?.id) {
+      setNotifications((prev) => [newNotif, ...prev]);
+      // Send push notification if granted
+      sendPushNotification(newNotif.title, {
+        body: newNotif.message,
+        linkUrl: newNotif.linkUrl,
+      });
+    }
   };
 
   const markNotificationRead = (id: string) => {
+    if (currentUser?.id) {
+      updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        (list) => list.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      ).catch(console.error);
+    }
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
   };
 
   const markAllNotificationsRead = () => {
+    if (currentUser?.id) {
+      updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        (list) => list.map((n) => ({ ...n, read: true })),
+      ).catch(console.error);
+    }
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const clearNotifications = () => {
+    if (currentUser?.id) {
+      updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        () => [],
+      ).catch(console.error);
+    }
     setNotifications([]);
   };
 
@@ -492,6 +524,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             allEvents.push(...(courseObj.scheduleEvents as ScheduleEvent[]));
           if (Array.isArray(courseObj.messages))
             allMessages.push(...(courseObj.messages as ChatMessage[]));
+        }
+
+        if (docSnap.id === currentUser?.id) {
+          if (Array.isArray(userObj.notifications)) {
+            setNotifications(userObj.notifications as AppNotification[]);
+          }
         }
       });
 
@@ -1155,6 +1193,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ...prev.filter((m) => m.id !== member.id),
       cleaned,
     ]);
+
+    if (member.status === "invited") {
+      let invitedUserId = member.userId;
+      if (!invitedUserId && member.email) {
+        try {
+          const q = query(collection(db, "backpack"));
+          const snap = await getDocs(q);
+          for (const docSnap of snap.docs) {
+            const data = docSnap.data() as Record<string, any>;
+            const userObj = getUserData(data);
+            const pi = (userObj.personalInformation as Record<string, any>) || {};
+            if (pi.email?.toLowerCase() === member.email.toLowerCase()) {
+              invitedUserId = docSnap.id;
+              break;
+            }
+          }
+        } catch (err) {
+          console.error("Error finding user by email:", err);
+        }
+      }
+
+      if (invitedUserId) {
+        addNotification({
+          userId: invitedUserId,
+          title: `Organization Invite`,
+          message: `You have been invited to join an organization as a ${member.role}.`,
+          type: "enrollment",
+        });
+      }
+    }
   };
 
   const updateOrgMember = async (id: string, updates: Partial<OrgMember>) => {
