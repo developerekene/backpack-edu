@@ -850,7 +850,9 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
                     <button
                       onClick={() => {
                         setOpen(false);
-                        if (evt.courseId) onNavigate(`/course/${evt.courseId}`);
+                        if (evt.courseId) {
+                          onNavigate(`/course/${evt.courseId}?live=true&eventId=${evt.id}`);
+                        }
                       }}
                       className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1.5"
                     >

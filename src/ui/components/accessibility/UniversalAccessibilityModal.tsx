@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   useAccessibility,
   TextScale,
@@ -213,9 +214,17 @@ export const UniversalAccessibilityModal: React.FC = () => {
     },
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] shadow-2xl animate-in zoom-in-95 duration-200 my-auto">
+  if (!isAccessibilityModalOpen) return null;
+
+  const modalNode = (
+    <div
+      className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-start sm:justify-center p-3 sm:p-6 overflow-y-auto pt-20 sm:pt-6 pb-8"
+      style={{ zIndex: 99999 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closeAccessibilityModal();
+      }}
+    >
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] shadow-2xl animate-in zoom-in-95 duration-200 my-auto relative z-10">
         {/* Modal Top Header */}
         <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 shrink-0">
           <div className="flex items-center space-x-3">
@@ -1000,4 +1009,8 @@ export const UniversalAccessibilityModal: React.FC = () => {
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modalNode, document.body)
+    : modalNode;
 };

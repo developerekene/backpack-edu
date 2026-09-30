@@ -56,9 +56,9 @@ const Index: React.FC = () => {
                 <ColorFilterOverlay />
                 <ReadingFocusRuler />
                 <TTSFloatingController />
-                <UniversalAccessibilityModal />
                 <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
                   <Navbar />
+                  <UniversalAccessibilityModal />
                   <main className="flex-1 max-w-7xl w-full mx-auto p-6">
                     <Routes>
                       <Route path="/" element={<Home />} />

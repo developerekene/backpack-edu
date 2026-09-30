@@ -41,6 +41,7 @@ import {
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
 import { generateId } from "../lib/id";
+import { getLiveClassRoomName, getJitsiMeetingUrl } from "../lib/liveClass";
 
 export interface AdmissionGateStatus {
   isVocational: boolean;
@@ -571,6 +572,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setOrgJoinRequests,
       );
       updateAndCache(
+        "courseDonations",
+        dedupeById(allDonationsFromBackpack),
+        setCourseDonations,
+      );
+      updateAndCache(
         "course.userProgress",
         dedupeById(allUserProgress),
         setUserProgress,
@@ -611,6 +617,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     loadAllBackpackData();
+    let unsubscribe: (() => void) | undefined;
+    try {
+      unsubscribe = onSnapshot(
+        collection(db, "backpack"),
+        () => {
+          loadAllBackpackData();
+        },
+        (err) => {
+          console.warn("Backpack realtime listener notice:", err);
+        },
+      );
+    } catch (e) {
+      console.warn("Could not bind backpack listener:", e);
+    }
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [currentUser]);
 
   // Organization Operations (stored inside backpack/{userId} -> user -> personalInformation)
@@ -1203,7 +1226,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           for (const docSnap of snap.docs) {
             const data = docSnap.data() as Record<string, any>;
             const userObj = getUserData(data);
-            const pi = (userObj.personalInformation as Record<string, any>) || {};
+            const pi =
+              (userObj.personalInformation as Record<string, any>) || {};
             if (pi.email?.toLowerCase() === member.email.toLowerCase()) {
               invitedUserId = docSnap.id;
               break;
@@ -1421,7 +1445,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Schedule Events (stored in backpack/{targetId}.user.scheduleEvents)
   const addScheduleEvent = async (event: ScheduleEvent) => {
-    const cleaned = sanitizeForFirestore(event);
+    const canonicalRoom = getLiveClassRoomName(event, event.courseId);
+    const meetingUrl =
+      event.meetingUrl?.trim() || getJitsiMeetingUrl(canonicalRoom);
+    const cleaned = sanitizeForFirestore({
+      ...event,
+      meetingUrl,
+    });
     const targetUid = currentUser?.id || "";
 
     if (targetUid) {
@@ -1431,20 +1461,63 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         (list) => [...list.filter((e) => e.id !== event.id), cleaned],
       );
     }
+    const course = courses.find((c) => c.id === event.courseId);
+    if (course?.orgId && course.orgId !== targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(
+        course.orgId,
+        "course.scheduleEvents",
+        (list) => [...list.filter((e) => e.id !== event.id), cleaned],
+      );
+    }
+
     setScheduleEvents((prev) => [
       ...prev.filter((e) => e.id !== event.id),
       cleaned,
     ]);
+
+    if (event.isActive) {
+      const courseTitle = course?.title || "Course";
+      addNotification({
+        title: `📹 Live Class Started: ${event.title}`,
+        message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
+        type: "live_class",
+        linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
+      });
+      sendPushNotification(`Live Class Started: ${event.title}`, {
+        body: `The live stream for "${courseTitle}" has started. Click to join!`,
+        linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
+      });
+    }
   };
 
   const updateScheduleEvent = async (
     id: string,
     updates: Partial<ScheduleEvent>,
   ) => {
+    const existingEvt = scheduleEvents.find((e) => e.id === id);
+    const effectiveCourseId = updates.courseId || existingEvt?.courseId;
+    const course = courses.find((c) => c.id === effectiveCourseId);
+
+    const mergedEvt: Partial<ScheduleEvent> = {
+      ...existingEvt,
+      ...updates,
+    };
+    if (updates.isActive && !mergedEvt.meetingUrl) {
+      const room = getLiveClassRoomName(mergedEvt, effectiveCourseId);
+      updates.meetingUrl = getJitsiMeetingUrl(room);
+    }
+
     const targetUid = currentUser?.id || "";
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
+        "course.scheduleEvents",
+        (list) => list.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+      );
+    }
+    if (course?.orgId && course.orgId !== targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(
+        course.orgId,
         "course.scheduleEvents",
         (list) => list.map((e) => (e.id === id ? { ...e, ...updates } : e)),
       );
@@ -1454,23 +1527,38 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       prev.map((e) => (e.id === id ? { ...e, ...updates } : e)),
     );
     if (updates.isActive) {
-      const evt = scheduleEvents.find((e) => e.id === id);
-      if (evt) {
-        addNotification({
-          title: `📹 Live Class Started: ${evt.title}`,
-          message: `The live stream for this class has officially started. Click to join now!`,
-          type: "live_class",
-          linkUrl: `/course/${evt.courseId}`,
-        });
-      }
+      const evt = existingEvt || scheduleEvents.find((e) => e.id === id);
+      const courseTitle = course?.title || "Course";
+      addNotification({
+        title: `📹 Live Class Started: ${updates.title || evt?.title || "Class Session"}`,
+        message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
+        type: "live_class",
+        linkUrl: `/course/${evt?.courseId || effectiveCourseId}?live=true&eventId=${id}`,
+      });
+      sendPushNotification(
+        `Live Class Started: ${updates.title || evt?.title || "Class Session"}`,
+        {
+          body: `The live stream for "${courseTitle}" has started. Click to join!`,
+          linkUrl: `/course/${evt?.courseId || effectiveCourseId}?live=true&eventId=${id}`,
+        },
+      );
     }
   };
 
   const deleteScheduleEvent = async (id: string) => {
+    const existingEvt = scheduleEvents.find((e) => e.id === id);
+    const course = courses.find((c) => c.id === existingEvt?.courseId);
     const targetUid = currentUser?.id || "";
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
+        "course.scheduleEvents",
+        (list) => list.filter((e) => e.id !== id),
+      );
+    }
+    if (course?.orgId && course.orgId !== targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(
+        course.orgId,
         "course.scheduleEvents",
         (list) => list.filter((e) => e.id !== id),
       );
