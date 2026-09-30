@@ -548,6 +548,7 @@ export interface Submission {
   id: string;
   assessmentId: string;
   userId: string;
+  userName?: string;
   courseId: string;
   submittedAt: string;
   content: string;

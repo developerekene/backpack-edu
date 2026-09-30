@@ -54,7 +54,7 @@ import { CourseModulesTab } from "../components/CourseModulesTab";
 import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
 import { CourseDiscussions } from "../components/discussion/CourseDiscussions ";
-import { SpecialNeedsAccommodations } from "../../types";
+import { SpecialNeedsAccommodations, ScheduleEvent } from "../../types";
 import { getLiveClassRoomName, getJitsiMeetingUrl } from "../../lib/liveClass";
 
 const CourseDetails = () => {
@@ -75,6 +75,7 @@ const CourseDetails = () => {
     orgMembers,
     scheduleEvents,
     addScheduleEvent,
+    updateScheduleEvent,
     organizations,
     courseDonations,
     getCourseAdmissionGate,

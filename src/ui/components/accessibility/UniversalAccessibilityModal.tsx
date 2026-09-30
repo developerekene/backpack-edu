@@ -8,7 +8,6 @@ import {
   ExamMultiplier,
 } from "../../../store/AccessibilityContext";
 import { useAuth } from "../../../store/AuthContext";
-import { useAppContext } from "../../../store/AppContext";
 import {
   X,
   Sparkles,
@@ -67,8 +66,7 @@ export const UniversalAccessibilityModal: React.FC = () => {
     resetToDefaults,
   } = useAccessibility();
 
-  const { currentUser } = useAuth();
-  const { updateUserProfile } = useAppContext();
+  const { currentUser, updateCurrentUser } = useAuth();
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
 
   // Local state for health/disability categories
@@ -118,15 +116,16 @@ export const UniversalAccessibilityModal: React.FC = () => {
       emergencyHealthNotice: emergencyNotice.trim() || undefined,
       allowInstructorVisibility: true,
       allowReviewerVisibility: true,
+      preferredFormatting: studentAccommodations.preferredFormatting || [],
       updatedAt: new Date().toISOString(),
     };
 
     updateAccommodations(updatedPlan);
 
     // If logged in, also sync to user profile
-    if (currentUser?.id && updateUserProfile) {
+    if (currentUser?.id && updateCurrentUser) {
       try {
-        await updateUserProfile({
+        await updateCurrentUser({
           ...currentUser,
           accommodations: updatedPlan,
         });

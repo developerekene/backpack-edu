@@ -14,7 +14,7 @@ import {
   BookOpen, Send, GraduationCap, ArrowLeft, Palette, 
   CheckCircle2, ExternalLink, FileText, Search, 
   DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed, UserCheck,
-  HeartHandshake
+  HeartHandshake, ArrowRight
 } from "lucide-react";
 
 export interface OrgPublicProfileProps {
@@ -772,7 +772,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                           <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Donate/Sponsor
                         </button>
                       )}
-                      {currentUser?.role === 'organization' || currentUser?.accountType === 'organization' ? (
+                      {currentUser?.role === 'organization' ? (
                         <button
                           onClick={() => navigate(`/course/${course.id}`)}
                           className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95"
@@ -807,7 +807,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                                 navigate('/login');
                                 return;
                               }
-                              if (currentUser.role === 'organization' || currentUser.accountType === 'organization') {
+                              if (currentUser.role === 'organization') {
                                 alert("Only student and instructor accounts can apply for courses.");
                                 return;
                               }
@@ -837,7 +837,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                               navigate('/login');
                               return;
                             }
-                            if (currentUser.role === 'organization' || currentUser.accountType === 'organization') {
+                            if (currentUser.role === 'organization') {
                               alert("Only student and instructor accounts can apply for courses.");
                               return;
                             }

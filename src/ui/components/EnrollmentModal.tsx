@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Course, EnrollmentRequest, SpecialNeedsAccommodations } from '../../types';
-import { X, Send, CheckCircle, FileText, Award, ShieldCheck, Plus, Trash2, Paperclip, MessageSquare, AlertCircle, Accessibility, Sparkles, Clock, Check, Settings2 } from 'lucide-react';
+import { X, Send, CheckCircle, FileText, Award, ShieldCheck, Plus, Trash2, Paperclip, MessageSquare, AlertCircle, Accessibility, Sparkles, Clock, Check, Settings2, HeartHandshake } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { useAppContext } from '../../store/AppContext';
 import { useAccessibility, ExamMultiplier } from '../../store/AccessibilityContext';
@@ -124,6 +124,7 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
             emergencyHealthNotice: emergencyNotice.trim() || undefined,
             allowInstructorVisibility: true,
             allowReviewerVisibility: true,
+            preferredFormatting: [],
             updatedAt: new Date().toISOString()
         } : undefined;
 

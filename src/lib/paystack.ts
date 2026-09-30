@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import emailjs from "@emailjs/browser";
+// @ts-expect-error
 import PaystackPop from "@paystack/inline-js";
 
 export const SERVICE_ID = "service_o1jbklr";

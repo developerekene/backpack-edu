@@ -14,6 +14,7 @@ import {
   doc,
   getDoc,
   query,
+  onSnapshot
 } from "firebase/firestore";
 import {
   Assessment,
@@ -436,6 +437,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const allSubmissions: Submission[] = [];
       const allEvents: ScheduleEvent[] = [];
       const allMessages: ChatMessage[] = [];
+      const allDonationsFromBackpack: CourseDonation[] = [];
 
       backpackSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
@@ -502,6 +504,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (Array.isArray(userObj.orgJoinRequests)) {
           allOrgJoinRequests.push(
             ...(userObj.orgJoinRequests as OrgJoinRequest[]),
+          );
+        }
+        if (Array.isArray(userObj.courseDonations)) {
+          allDonationsFromBackpack.push(
+            ...(userObj.courseDonations as CourseDonation[]),
           );
         }
 
