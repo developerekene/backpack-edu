@@ -9,12 +9,12 @@ import {
 import { db } from "../lib/firebase";
 import {
   collection,
-  collectionGroup,
   getDocs,
   updateDoc,
   doc,
   getDoc,
-  onSnapshot,
+  query,
+  onSnapshot
 } from "firebase/firestore";
 import {
   Assessment,
@@ -366,76 +366,84 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       read: false,
     };
 
-    setNotifications((prev) => [newNotif, ...prev]);
+    const targetUid = notifData.userId || currentUser?.id;
+    if (targetUid) {
+      updateBackpackUserField<AppNotification>(
+        targetUid,
+        "notifications",
+        (list) => [newNotif, ...list],
+      ).catch(console.error);
+    }
 
-    // Send push notification if granted
-    sendPushNotification(newNotif.title, {
-      body: newNotif.message,
-      linkUrl: newNotif.linkUrl,
-    });
+    if (!notifData.userId || notifData.userId === currentUser?.id) {
+      setNotifications((prev) => [newNotif, ...prev]);
+      // Send push notification if granted
+      sendPushNotification(newNotif.title, {
+        body: newNotif.message,
+        linkUrl: newNotif.linkUrl,
+      });
+    }
   };
 
   const markNotificationRead = (id: string) => {
+    if (currentUser?.id) {
+      updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        (list) => list.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      ).catch(console.error);
+    }
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
   };
 
   const markAllNotificationsRead = () => {
+    if (currentUser?.id) {
+      updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        (list) => list.map((n) => ({ ...n, read: true })),
+      ).catch(console.error);
+    }
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const clearNotifications = () => {
+    if (currentUser?.id) {
+      updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        () => [],
+      ).catch(console.error);
+    }
     setNotifications([]);
   };
 
   // Fetch all global data and user-specific data from backpack documents
   const loadAllBackpackData = async () => {
     try {
-      const [
-        backpackSnap,
-        coursesSnap,
-        enrollmentsSnap,
-        orgJoinReqsSnap,
-        membersSnap,
-        progressSnap,
-        materialsSnap,
-        attendanceSnap,
-        assessmentsSnap,
-        submissionsSnap,
-        eventsSnap,
-        messagesSnap,
-      ] = await Promise.all([
-        getDocs(collection(db, "backpack")),
-        getDocs(collectionGroup(db, "courses")),
-        getDocs(collectionGroup(db, "enrollmentRequests")),
-        getDocs(collectionGroup(db, "orgJoinRequests")),
-        getDocs(collectionGroup(db, "course.orgMembers")),
-        getDocs(collectionGroup(db, "course.userProgress")),
-        getDocs(collectionGroup(db, "course.materials")),
-        getDocs(collectionGroup(db, "course.attendance")),
-        getDocs(collectionGroup(db, "course.assessments")),
-        getDocs(collectionGroup(db, "course.submissions")),
-        getDocs(collectionGroup(db, "course.scheduleEvents")),
-        getDocs(collectionGroup(db, "course.messages")),
-      ]);
+      const backpackSnap = await getDocs(collection(db, "backpack"));
 
       const allOrganizations: Organization[] = [];
-      const allScheduleEventsFromBackpack: ScheduleEvent[] = [];
-      const allCoursesFromBackpack: Course[] = [];
-      const allMaterialsFromBackpack: Material[] = [];
-      const allAssessmentsFromBackpack: Assessment[] = [];
-      const allSubmissionsFromBackpack: Submission[] = [];
-      const allAttendanceFromBackpack: AttendanceRecord[] = [];
-      const allMembersFromBackpack: OrgMember[] = [];
-      const allProgressFromBackpack: UserProgress[] = [];
-      const allEnrollmentsFromBackpack: EnrollmentRequest[] = [];
+      const allCourses: Course[] = [];
+      const allEnrollmentRequests: EnrollmentRequest[] = [];
+      const allOrgJoinRequests: OrgJoinRequest[] = [];
+      const allOrgMembers: OrgMember[] = [];
+      const allUserProgress: UserProgress[] = [];
+      const allMaterials: Material[] = [];
+      const allAttendance: AttendanceRecord[] = [];
+      const allAssessments: Assessment[] = [];
+      const allSubmissions: Submission[] = [];
+      const allEvents: ScheduleEvent[] = [];
+      const allMessages: ChatMessage[] = [];
       const allDonationsFromBackpack: CourseDonation[] = [];
-      const allOrgJoinReqsFromBackpack: OrgJoinRequest[] = [];
 
       backpackSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
         const userObj = getUserData(data);
+
+        // Extract organization data
         const personalInfo =
           (userObj.personalInformation as Record<string, unknown>) || {};
         if (
@@ -487,45 +495,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           });
         }
 
-        // Extract nested user course collections stored within backpack documents
-        const courseObj = (userObj.course as Record<string, unknown>) || {};
-        if (Array.isArray(courseObj.scheduleEvents)) {
-          allScheduleEventsFromBackpack.push(
-            ...(courseObj.scheduleEvents as ScheduleEvent[]),
-          );
-        }
-        if (Array.isArray(courseObj.courses)) {
-          allCoursesFromBackpack.push(...(courseObj.courses as Course[]));
-        }
-        if (Array.isArray(courseObj.materials)) {
-          allMaterialsFromBackpack.push(...(courseObj.materials as Material[]));
-        }
-        if (Array.isArray(courseObj.assessments)) {
-          allAssessmentsFromBackpack.push(
-            ...(courseObj.assessments as Assessment[]),
-          );
-        }
-        if (Array.isArray(courseObj.attendance)) {
-          allAttendanceFromBackpack.push(
-            ...(courseObj.attendance as AttendanceRecord[]),
-          );
-        }
-        if (Array.isArray(courseObj.submissions)) {
-          allSubmissionsFromBackpack.push(
-            ...(courseObj.submissions as Submission[]),
-          );
-        }
-        if (Array.isArray(courseObj.orgMembers)) {
-          allMembersFromBackpack.push(...(courseObj.orgMembers as OrgMember[]));
-        }
-        if (Array.isArray(courseObj.userProgress)) {
-          allProgressFromBackpack.push(
-            ...(courseObj.userProgress as UserProgress[]),
-          );
-        }
+        // Extract nested arrays
         if (Array.isArray(userObj.enrollmentRequests)) {
-          allEnrollmentsFromBackpack.push(
+          allEnrollmentRequests.push(
             ...(userObj.enrollmentRequests as EnrollmentRequest[]),
+          );
+        }
+        if (Array.isArray(userObj.orgJoinRequests)) {
+          allOrgJoinRequests.push(
+            ...(userObj.orgJoinRequests as OrgJoinRequest[]),
           );
         }
         if (Array.isArray(userObj.courseDonations)) {
@@ -533,10 +511,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             ...(userObj.courseDonations as CourseDonation[]),
           );
         }
-        if (Array.isArray(userObj.orgJoinRequests)) {
-          allOrgJoinReqsFromBackpack.push(
-            ...(userObj.orgJoinRequests as OrgJoinRequest[]),
-          );
+
+        const courseObj = userObj.course as Record<string, unknown> | undefined;
+        if (courseObj) {
+          if (Array.isArray(courseObj.courses))
+            allCourses.push(...(courseObj.courses as Course[]));
+          if (Array.isArray(courseObj.orgMembers))
+            allOrgMembers.push(...(courseObj.orgMembers as OrgMember[]));
+          if (Array.isArray(courseObj.userProgress))
+            allUserProgress.push(...(courseObj.userProgress as UserProgress[]));
+          if (Array.isArray(courseObj.materials))
+            allMaterials.push(...(courseObj.materials as Material[]));
+          if (Array.isArray(courseObj.attendance))
+            allAttendance.push(...(courseObj.attendance as AttendanceRecord[]));
+          if (Array.isArray(courseObj.assessments))
+            allAssessments.push(...(courseObj.assessments as Assessment[]));
+          if (Array.isArray(courseObj.submissions))
+            allSubmissions.push(...(courseObj.submissions as Submission[]));
+          if (Array.isArray(courseObj.scheduleEvents))
+            allEvents.push(...(courseObj.scheduleEvents as ScheduleEvent[]));
+          if (Array.isArray(courseObj.messages))
+            allMessages.push(...(courseObj.messages as ChatMessage[]));
+        }
+
+        if (docSnap.id === currentUser?.id) {
+          if (Array.isArray(userObj.notifications)) {
+            setNotifications(userObj.notifications as AppNotification[]);
+          }
         }
       });
 
@@ -566,28 +567,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         dedupeById(allOrganizations),
         setOrganizations,
       );
-      updateAndCache(
-        "courses",
-        dedupeById([
-          ...allCoursesFromBackpack,
-          ...coursesSnap.docs.map((d) => d.data() as Course),
-        ]),
-        setCourses,
-      );
+      updateAndCache("courses", dedupeById(allCourses), setCourses);
       updateAndCache(
         "enrollmentRequests",
-        dedupeById([
-          ...allEnrollmentsFromBackpack,
-          ...enrollmentsSnap.docs.map((d) => d.data() as EnrollmentRequest),
-        ]),
+        dedupeById(allEnrollmentRequests),
         setEnrollmentRequests,
       );
       updateAndCache(
         "orgJoinRequests",
-        dedupeById([
-          ...allOrgJoinReqsFromBackpack,
-          ...orgJoinReqsSnap.docs.map((d) => d.data() as OrgJoinRequest),
-        ]),
+        dedupeById(allOrgJoinRequests),
         setOrgJoinRequests,
       );
       updateAndCache(
@@ -597,65 +585,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       );
       updateAndCache(
         "course.userProgress",
-        dedupeById([
-          ...allProgressFromBackpack,
-          ...progressSnap.docs.map((d) => d.data() as UserProgress),
-        ]),
+        dedupeById(allUserProgress),
         setUserProgress,
       );
       updateAndCache(
         "course.materials",
-        dedupeById([
-          ...allMaterialsFromBackpack,
-          ...materialsSnap.docs.map((d) => d.data() as Material),
-        ]),
+        dedupeById(allMaterials),
         setMaterials,
       );
-      updateAndCache(
-        "course.attendance",
-        dedupeById([
-          ...allAttendanceFromBackpack,
-          ...attendanceSnap.docs.map((d) => d.data() as AttendanceRecord),
-        ]),
-        setAttendanceRecords,
-      );
+      updateAndCache("course.attendance", allAttendance, setAttendanceRecords); // attendance might not have id dedupe in old code
       updateAndCache(
         "course.assessments",
-        dedupeById([
-          ...allAssessmentsFromBackpack,
-          ...assessmentsSnap.docs.map((d) => d.data() as Assessment),
-        ]),
+        dedupeById(allAssessments),
         setAssessments,
       );
       updateAndCache(
         "course.submissions",
-        dedupeById([
-          ...allSubmissionsFromBackpack,
-          ...submissionsSnap.docs.map((d) => d.data() as Submission),
-        ]),
+        dedupeById(allSubmissions),
         setSubmissions,
       );
       updateAndCache(
         "course.scheduleEvents",
-        dedupeById([
-          ...allScheduleEventsFromBackpack,
-          ...eventsSnap.docs.map((d) => d.data() as ScheduleEvent),
-        ]),
+        dedupeById(allEvents),
         setScheduleEvents,
       );
       updateAndCache(
         "course.orgMembers",
-        dedupeById([
-          ...allMembersFromBackpack,
-          ...membersSnap.docs.map((d) => d.data() as OrgMember),
-        ]),
+        dedupeById(allOrgMembers),
         setOrgMembers,
       );
-      updateAndCache(
-        "course.messages",
-        dedupeById(messagesSnap.docs.map((d) => d.data() as ChatMessage)),
-        setMessages,
-      );
+      updateAndCache("course.messages", dedupeById(allMessages), setMessages);
     } catch (err) {
       console.error("loadAllBackpackData failed:", err);
     } finally {
@@ -1264,6 +1223,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ...prev.filter((m) => m.id !== member.id),
       cleaned,
     ]);
+
+    if (member.status === "invited") {
+      let invitedUserId = member.userId;
+      if (!invitedUserId && member.email) {
+        try {
+          const q = query(collection(db, "backpack"));
+          const snap = await getDocs(q);
+          for (const docSnap of snap.docs) {
+            const data = docSnap.data() as Record<string, any>;
+            const userObj = getUserData(data);
+            const pi =
+              (userObj.personalInformation as Record<string, any>) || {};
+            if (pi.email?.toLowerCase() === member.email.toLowerCase()) {
+              invitedUserId = docSnap.id;
+              break;
+            }
+          }
+        } catch (err) {
+          console.error("Error finding user by email:", err);
+        }
+      }
+
+      if (invitedUserId) {
+        addNotification({
+          userId: invitedUserId,
+          title: `Organization Invite`,
+          message: `You have been invited to join an organization as a ${member.role}.`,
+          type: "enrollment",
+        });
+      }
+    }
   };
 
   const updateOrgMember = async (id: string, updates: Partial<OrgMember>) => {

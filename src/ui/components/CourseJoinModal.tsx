@@ -70,7 +70,7 @@ export const CourseJoinModal: React.FC<CourseJoinModalProps> = ({
             // 2. Check if an existing request exists or create an approved enrollment
             const existingReq = enrollmentRequests.find(r => r.userId === currentUser.id && r.courseId === course.id);
             if (existingReq) {
-                await updateEnrollmentRequest(existingReq.id, 'approved', feeRequired ? 'paid' : 'paid', documents);
+                await updateEnrollmentRequest(existingReq.id, 'approved', feeRequired ? 'paid' : 'paid');
             } else {
                 await addEnrollmentRequest({
                     id: generateId('req'),

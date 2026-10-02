@@ -54,7 +54,7 @@ import { CourseModulesTab } from "../components/CourseModulesTab";
 import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
 import { CourseDiscussions } from "../components/discussion/CourseDiscussions ";
-import { SpecialNeedsAccommodations } from "../../types";
+import { SpecialNeedsAccommodations, ScheduleEvent } from "../../types";
 import { getLiveClassRoomName, getJitsiMeetingUrl } from "../../lib/liveClass";
 
 const CourseDetails = () => {
@@ -75,6 +75,7 @@ const CourseDetails = () => {
     orgMembers,
     scheduleEvents,
     addScheduleEvent,
+    updateScheduleEvent,
     organizations,
     courseDonations,
     getCourseAdmissionGate,
@@ -171,12 +172,12 @@ const CourseDetails = () => {
     isOpen: boolean;
     title: string;
     message: string;
-    onConfirm: () => Promise<void> | void;
+    type?: "info" | "warning" | "error" | "success" | "danger";
+    onConfirm?: () => Promise<void> | void;
   }>({
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
   });
 
   const course = courses.find((c) => c.id === courseId);
@@ -565,6 +566,9 @@ const CourseDetails = () => {
                       message:
                         "Only student and instructor accounts can apply for courses.",
                       type: "info",
+                      onConfirm: () => {
+                        setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+                      },
                     });
                     return;
                   }

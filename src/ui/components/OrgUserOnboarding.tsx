@@ -102,7 +102,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     // Check if target email belongs to an organization account
     const matchedUser = registeredUsers.find(u => u.email?.toLowerCase() === cleanEmail);
     if (matchedUser && matchedUser.role === 'organization') {
-      setErrorMsg("Organization users cannot be invited to courses.");
+      alert("Organization users cannot be invited to courses.");
       setIsSubmitting(false);
       return;
     }

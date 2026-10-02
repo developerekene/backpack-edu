@@ -164,7 +164,7 @@ export const EditCourseDetailsModal: React.FC<EditCourseDetailsModalProps> = ({
         pacing: pacing ? pacing : undefined,
         durationWeeks: durationWeeks.trim() || undefined,
         timeCommitment: timeCommitment.trim() || undefined,
-        totalHours: totalHours.trim() || undefined,
+        totalHours: String(totalHours).trim() || undefined,
         language: language.trim() || undefined,
         subtitles: parsedSubtitles.length > 0 ? parsedSubtitles : undefined,
         accessDuration: accessDuration.trim() || undefined,

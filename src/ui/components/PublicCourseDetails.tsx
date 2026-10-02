@@ -41,7 +41,7 @@ interface PublicCourseDetailsProps {
     role?: string;
     email?: string;
   } | null;
-  enrollmentStatus?: "approved" | "pending" | "rejected" | "none";
+  enrollmentStatus?: "approved" | "pending" | "rejected" | "cancelled" | "none";
   paymentStatus?: "paid" | "unpaid";
   hasActiveInvite?: boolean;
   isVocationalFunded?: boolean;
