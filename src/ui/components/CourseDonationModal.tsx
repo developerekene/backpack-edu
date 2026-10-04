@@ -138,6 +138,7 @@ export const CourseDonationModal: React.FC<CourseDonationModalProps> = ({
       email: payerEmail,
       amount: computedAmount,
       currency,
+      subaccount: org?.paystackSubaccount?.subaccount_code,
       reference: generatedRef,
       studentDetails: {
         firstName: isAnonymous ? "Generous" : (donorName.trim().split(" ")[0] || "Generous"),

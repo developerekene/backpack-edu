@@ -7,9 +7,21 @@ export const SERVICE_ID = "service_o1jbklr";
 export const TEMPLATE_ID = "template_p8h58ur";
 export const PUBLIC_KEY = "hcj3DsJ8MfNfUrE8J";
 
-// Live key and Test key:
-// export const PAYSTACK_KEY = "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
-export const PAYSTACK_KEY = "pk_test_db0145199289f83c428d57cf70755142bb0b8b28"; // replace with your own key
+// Live key and Test key provided for Backpack:
+export const PAYSTACK_LIVE_KEY = "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
+export const PAYSTACK_TEST_KEY = "pk_test_db0145199289f83c428d57cf70755142bb0b8b28";
+
+// Active Paystack public key — configured to TEST mode until hosted live:
+export const PAYSTACK_KEY =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_PAYSTACK_PUBLIC_KEY) ||
+  PAYSTACK_TEST_KEY;
+
+export const getPaystackPublicKey = (useLive = false): string => {
+  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_PAYSTACK_PUBLIC_KEY) {
+    return import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+  }
+  return useLive ? PAYSTACK_LIVE_KEY : PAYSTACK_TEST_KEY;
+};
 
 export const generateReferenceNumber = (): string => {
   const prefix = "DT";
@@ -25,6 +37,7 @@ export interface PaystackTransactionOptions {
   subaccount?: string;
   split_code?: string;
   reference?: string;
+  useLiveKey?: boolean;
   metadata?: Record<string, unknown>;
   studentDetails?: {
     firstName?: string;
@@ -100,6 +113,15 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
       console.warn("EmailJS notification note:", emailErr);
     }
 
+    // Verify transaction server-side
+    try {
+      fetch(`/api/paystack/verify/${finalRef}`).catch((err) =>
+        console.warn("Background server-side verify notice:", err),
+      );
+    } catch {
+      // ignore
+    }
+
     if (options.onSuccess) {
       options.onSuccess({ ...res, reference: finalRef });
     }
@@ -121,12 +143,13 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
   };
 
   try {
+    const activeKey = options.useLiveKey ? PAYSTACK_LIVE_KEY : PAYSTACK_KEY;
+
     // 1. Try PaystackPop instance from @paystack/inline-js
     const payStack = new PaystackPop();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const txConfig: any = {
-      // key: "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4",
-      key: PAYSTACK_KEY, // replace with your own key
+      key: activeKey,
       email: options.email,
       amount: amountInKobo,
       ref: referenceNumber,
@@ -138,6 +161,7 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
 
     if (options.subaccount) {
       txConfig.subaccount = options.subaccount;
+      txConfig.bearer = "account"; // Platform bears transaction fees
     }
     if (options.split_code) {
       txConfig.split_code = options.split_code;
@@ -152,9 +176,10 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
     // Fallback if window.PaystackPop is available
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const win = window as any;
+    const activeKey = options.useLiveKey ? PAYSTACK_LIVE_KEY : PAYSTACK_KEY;
     if (win.PaystackPop && typeof win.PaystackPop.setup === "function") {
       const handler = win.PaystackPop.setup({
-        key: PAYSTACK_KEY,
+        key: activeKey,
         email: options.email,
         amount: amountInKobo,
         ref: referenceNumber,

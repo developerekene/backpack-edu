@@ -578,6 +578,7 @@ export interface ScheduleEvent {
 export interface AppNotification {
   id: string;
   userId?: string;
+  courseId?: string;
   title: string;
   message: string;
   type: "live_class" | "enrollment" | "grade" | "material" | "info";

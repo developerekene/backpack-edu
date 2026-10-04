@@ -42,6 +42,7 @@ export const Navbar = () => {
     scheduleEvents,
     courses,
     notifications,
+    enrollmentRequests = [],
     orgMembers,
     organizations,
     markNotificationRead,
@@ -60,7 +61,45 @@ export const Navbar = () => {
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
   const moreRef = useRef<HTMLDivElement>(null);
 
-  const activeLiveCalls = scheduleEvents.filter((e) => e.isActive);
+  // Determine authorized / enrolled course IDs for the current user
+  const userEnrolledCourseIds = currentUser
+    ? currentUser.role === "student"
+      ? [
+          ...enrollmentRequests
+            .filter((req) => req.userId === currentUser.id && req.status === "approved")
+            .map((req) => req.courseId),
+          ...orgMembers
+            .filter(
+              (m) =>
+                (m.id === currentUser.id ||
+                  m.email?.toLowerCase() === currentUser.email?.toLowerCase()) &&
+                m.status === "active",
+            )
+            .flatMap((m) => m.courseIds || []),
+        ]
+      : [
+          ...courses
+            .filter(
+              (c) =>
+                c.createdBy === currentUser.id ||
+                c.orgId === currentUser.id ||
+                (currentUser.orgId && c.orgId === currentUser.orgId),
+            )
+            .map((c) => c.id),
+          ...orgMembers
+            .filter(
+              (m) =>
+                m.id === currentUser.id ||
+                m.email?.toLowerCase() === currentUser.email?.toLowerCase(),
+            )
+            .flatMap((m) => m.courseIds || []),
+        ]
+    : [];
+
+  // Strictly only show live class alerts for classrooms the user is actually enrolled in or instructing
+  const activeLiveCalls = scheduleEvents.filter(
+    (e) => e.isActive && e.courseId && userEnrolledCourseIds.includes(e.courseId),
+  );
 
   const studentInvites =
     currentUser?.role === "student"
@@ -94,9 +133,25 @@ export const Navbar = () => {
     };
   });
 
-  const rawUserNotifications = notifications.filter(
-    (n) => !n.userId || n.userId === currentUser?.id,
-  );
+  const rawUserNotifications = notifications.filter((n) => {
+    // Must belong to this user if userId is specified
+    if (n.userId && n.userId !== currentUser?.id) {
+      return false;
+    }
+    // If course-specific notification, only show if user is enrolled or instructor
+    if (n.courseId) {
+      return userEnrolledCourseIds.includes(n.courseId);
+    }
+    // If linkUrl points to a specific course /course/:courseId
+    if (n.linkUrl && n.linkUrl.startsWith("/course/")) {
+      const parts = n.linkUrl.split("?")[0].split("/");
+      const urlCourseId = parts[2];
+      if (urlCourseId && !userEnrolledCourseIds.includes(urlCourseId)) {
+        return false;
+      }
+    }
+    return true;
+  });
   const userNotifications = [
     ...inviteNotifications.filter(
       (invNotif) => !rawUserNotifications.some((n) => n.id === invNotif.id),
@@ -364,30 +419,6 @@ export const Navbar = () => {
                   )}
                   <span>{currentUser.name}</span>
                 </Link>
-
-                <NotificationsBell
-                  unreadCount={unreadCount}
-                  userNotifications={userNotifications}
-                  pushPermission={pushPermission}
-                  testPushStatus={testPushStatus}
-                  activeLiveCalls={activeLiveCalls}
-                  courses={courses}
-                  onRequestPush={handleRequestPush}
-                  onSendTestPush={handleSendTestPush}
-                  onMarkAllRead={markAllNotificationsRead}
-                  onClearNotifications={clearNotifications}
-                  onMarkRead={markNotificationRead}
-                  onNavigate={navigate}
-                />
-
-                {/*<button
-                  onClick={handleLogout}
-                  className="flex items-center p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition"
-                  title="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                  
-                </button>*/}
               </div>
             ) : (
               <div className="flex space-x-3">
@@ -405,31 +436,52 @@ export const Navbar = () => {
                 </Link>
               </div>
             )}
-
-            <button
-              onClick={() => openAccessibilityModal()}
-              className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
-              title="Special Needs & Accessibility Suite (Dyslexia font, color filters, TTS, reading ruler, exam multipliers)"
-              aria-label="Open Special Needs and Accessibility Suite"
-            >
-              <Accessibility className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              {hasActiveFeatures && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800 animate-pulse" />
-              )}
-            </button>
-
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
-              title="Toggle theme"
-            >
-              {theme === "dark" ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
-              )}
-            </button>
           </div>
+
+          {/* Top Navbar Notification Bell for logged in users */}
+          {currentUser && (
+            <NotificationsBell
+              unreadCount={unreadCount}
+              userNotifications={userNotifications}
+              pushPermission={pushPermission}
+              testPushStatus={testPushStatus}
+              activeLiveCalls={activeLiveCalls}
+              courses={courses}
+              onRequestPush={handleRequestPush}
+              onSendTestPush={handleSendTestPush}
+              onMarkAllRead={markAllNotificationsRead}
+              onClearNotifications={clearNotifications}
+              onMarkRead={markNotificationRead}
+              onNavigate={(to) => {
+                setMobileMenuOpen(false);
+                navigate(to);
+              }}
+            />
+          )}
+
+          <button
+            onClick={() => openAccessibilityModal()}
+            className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Special Needs & Accessibility Suite (Dyslexia font, color filters, TTS, reading ruler, exam multipliers)"
+            aria-label="Open Special Needs and Accessibility Suite"
+          >
+            <Accessibility className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            {hasActiveFeatures && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Toggle theme"
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
 
           {/* Mobile Hamburger Button */}
           <button
@@ -564,31 +616,13 @@ export const Navbar = () => {
                     {currentUser.name} ({currentUser.role})
                   </span>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <NotificationsBell
-                    unreadCount={unreadCount}
-                    userNotifications={userNotifications}
-                    pushPermission={pushPermission}
-                    testPushStatus={testPushStatus}
-                    activeLiveCalls={activeLiveCalls}
-                    courses={courses}
-                    onRequestPush={handleRequestPush}
-                    onSendTestPush={handleSendTestPush}
-                    onMarkAllRead={markAllNotificationsRead}
-                    onClearNotifications={clearNotifications}
-                    onMarkRead={markNotificationRead}
-                    onNavigate={(to) => {
-                      setMobileMenuOpen(false);
-                      navigate(to);
-                    }}
-                  />
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold"
-                  >
-                    <LogOut className="w-3.5 h-3.5 mr-1" />
-                  </button>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition"
+                >
+                  <LogOut className="w-3.5 h-3.5 mr-1" />
+                  <span>Logout</span>
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 px-2 pt-2">

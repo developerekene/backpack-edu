@@ -40,10 +40,12 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handlePayment = () => {
+    setErrorMessage(null);
     if (!email) {
-      alert("Please enter a valid email!");
+      setErrorMessage("Please enter a valid email to proceed with payment.");
       return;
     }
 
@@ -88,13 +90,18 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         console.log("Payment error:", error);
         setLoading(false);
         setStatusMessage(null);
-        alert(`⚠️ Payment error: ${error?.message || "Payment could not be completed."}`);
+        setErrorMessage(error?.message || "Payment could not be completed.");
       },
     });
   };
 
   return (
     <div className="w-full space-y-2">
+      {errorMessage && (
+        <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs rounded-xl font-medium">
+          {errorMessage}
+        </div>
+      )}
       <button
         type="button"
         onClick={handlePayment}

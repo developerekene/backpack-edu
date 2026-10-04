@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   ReactNode,
 } from "react";
 import { db } from "../lib/firebase";
@@ -421,7 +422,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Fetch all global data and user-specific data from backpack documents
-  const loadAllBackpackData = async () => {
+  const loadAllBackpackData = useCallback(async () => {
     try {
       const backpackSnap = await getDocs(collection(db, "backpack"));
 
@@ -620,7 +621,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoadingApp(false);
     }
-  };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     loadAllBackpackData();
@@ -641,7 +642,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [currentUser]);
+  }, [loadAllBackpackData]);
 
   // Organization Operations (stored inside backpack/{userId} -> user -> personalInformation)
   const updateOrganization = async (
@@ -1482,18 +1483,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       cleaned,
     ]);
 
-    if (event.isActive) {
+    if (event.isActive && event.courseId) {
       const courseTitle = course?.title || "Course";
-      addNotification({
-        title: `📹 Live Class Started: ${event.title}`,
-        message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
-        type: "live_class",
-        linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
-      });
-      sendPushNotification(`Live Class Started: ${event.title}`, {
-        body: `The live stream for "${courseTitle}" has started. Click to join!`,
-        linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
-      });
+      const enrolledStudentIds = enrollmentRequests
+        .filter((r) => r.courseId === event.courseId && r.status === "approved")
+        .map((r) => r.userId)
+        .filter(Boolean) as string[];
+
+      const assignedInstructorIds = orgMembers
+        .filter((m) => m.courseIds?.includes(event.courseId))
+        .map((m) => m.id)
+        .filter(Boolean) as string[];
+
+      const courseStaffIds = [course?.createdBy, course?.orgId].filter(Boolean) as string[];
+
+      const targetRecipientIds = Array.from(
+        new Set([...enrolledStudentIds, ...assignedInstructorIds, ...courseStaffIds]),
+      );
+
+      for (const recipientId of targetRecipientIds) {
+        addNotification({
+          userId: recipientId,
+          courseId: event.courseId,
+          title: `📹 Live Class Started: ${event.title}`,
+          message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
+          type: "live_class",
+          linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
+        });
+      }
+
+      if (currentUser?.id && targetRecipientIds.includes(currentUser.id)) {
+        sendPushNotification(`Live Class Started: ${event.title}`, {
+          body: `The live stream for "${courseTitle}" has started. Click to join!`,
+          linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
+        });
+      }
     }
   };
 
@@ -1533,22 +1557,44 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setScheduleEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, ...updates } : e)),
     );
-    if (updates.isActive) {
+    if (updates.isActive && effectiveCourseId) {
       const evt = existingEvt || scheduleEvents.find((e) => e.id === id);
       const courseTitle = course?.title || "Course";
-      addNotification({
-        title: `📹 Live Class Started: ${updates.title || evt?.title || "Class Session"}`,
-        message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
-        type: "live_class",
-        linkUrl: `/course/${evt?.courseId || effectiveCourseId}?live=true&eventId=${id}`,
-      });
-      sendPushNotification(
-        `Live Class Started: ${updates.title || evt?.title || "Class Session"}`,
-        {
-          body: `The live stream for "${courseTitle}" has started. Click to join!`,
-          linkUrl: `/course/${evt?.courseId || effectiveCourseId}?live=true&eventId=${id}`,
-        },
+      const eventTitle = updates.title || evt?.title || "Class Session";
+
+      const enrolledStudentIds = enrollmentRequests
+        .filter((r) => r.courseId === effectiveCourseId && r.status === "approved")
+        .map((r) => r.userId)
+        .filter(Boolean) as string[];
+
+      const assignedInstructorIds = orgMembers
+        .filter((m) => m.courseIds?.includes(effectiveCourseId))
+        .map((m) => m.id)
+        .filter(Boolean) as string[];
+
+      const courseStaffIds = [course?.createdBy, course?.orgId].filter(Boolean) as string[];
+
+      const targetRecipientIds = Array.from(
+        new Set([...enrolledStudentIds, ...assignedInstructorIds, ...courseStaffIds]),
       );
+
+      for (const recipientId of targetRecipientIds) {
+        addNotification({
+          userId: recipientId,
+          courseId: effectiveCourseId,
+          title: `📹 Live Class Started: ${eventTitle}`,
+          message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
+          type: "live_class",
+          linkUrl: `/course/${effectiveCourseId}?live=true&eventId=${id}`,
+        });
+      }
+
+      if (currentUser?.id && targetRecipientIds.includes(currentUser.id)) {
+        sendPushNotification(`Live Class Started: ${eventTitle}`, {
+          body: `The live stream for "${courseTitle}" has started. Click to join!`,
+          linkUrl: `/course/${effectiveCourseId}?live=true&eventId=${id}`,
+        });
+      }
     }
   };
 

@@ -5,7 +5,7 @@ import { ScheduleEvent } from '../../types';
 import { Calendar, Video, Plus, Trash2, PhoneOff } from 'lucide-react';
 import { ProctoringSession } from './ProctoringSession';
 import { LiveKitCall } from './LiveKitCall';
-import { getLiveClassRoomName, getJitsiMeetingUrl } from '../../lib/liveClass';
+import { getLiveClassRoomName, getJitsiMeetingUrl, createLiveKitMeetingUrl, getLiveKitDirectUrl } from '../../lib/liveClass';
 
 export const CourseSchedule = ({
     courseId,
@@ -50,10 +50,11 @@ export const CourseSchedule = ({
 
     const handleCreateEvent = async (e: React.FormEvent) => {
         e.preventDefault();
-        const roomName = getLiveClassRoomName({ courseId }, courseId);
+        const newEventId = `evt_${Math.random().toString(36).substring(2, 11)}_${Date.now().toString(36)}`;
+        const roomName = getLiveClassRoomName({ id: newEventId, courseId }, courseId);
         const defaultMeetingUrl = getJitsiMeetingUrl(roomName);
         const newEvent: ScheduleEvent = {
-            id: `evt_${Math.random().toString(36).substring(2, 15)}`,
+            id: newEventId,
             courseId,
             title,
             date,
@@ -161,7 +162,13 @@ export const CourseSchedule = ({
                                                             <button 
                                                                 onClick={async () => {
                                                                     const room = getEventRoomName(evt);
-                                                                    const meetingUrl = evt.meetingUrl || getJitsiMeetingUrl(room);
+                                                                    const livekitRes = await createLiveKitMeetingUrl({
+                                                                        roomName: room,
+                                                                        courseId,
+                                                                        role: 'instructor',
+                                                                        forceSync: true,
+                                                                    });
+                                                                    const meetingUrl = evt.meetingUrl || livekitRes.url || getLiveKitDirectUrl(room);
                                                                     await updateScheduleEvent(evt.id, { isActive: true, meetingUrl });
                                                                     setActiveLiveKitRoom(room);
                                                                     if (onStartLiveCall) onStartLiveCall(room);

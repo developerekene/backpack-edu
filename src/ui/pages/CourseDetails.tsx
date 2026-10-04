@@ -55,7 +55,11 @@ import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
 import { CourseDiscussions } from "../components/discussion/CourseDiscussions ";
 import { SpecialNeedsAccommodations, ScheduleEvent } from "../../types";
-import { getLiveClassRoomName, getJitsiMeetingUrl } from "../../lib/liveClass";
+import { 
+  getLiveClassRoomName, 
+  createLiveKitMeetingUrl, 
+  getLiveKitDirectUrl 
+} from "../../lib/liveClass";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
@@ -151,7 +155,20 @@ const CourseDetails = () => {
     return false;
   });
   const [linkCopied, setLinkCopied] = useState(false);
+  const [copiedClassLink, setCopiedClassLink] = useState(false);
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
+
+  const handleCopyClassUrl = async (targetRoom: string) => {
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const url = `${origin}/live/${targetRoom}`;
+      await navigator.clipboard.writeText(url);
+      setCopiedClassLink(true);
+      setTimeout(() => setCopiedClassLink(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
 
   // Chat state
   // const [chatMsg, setChatMsg] = useState("");
@@ -311,7 +328,6 @@ const CourseDetails = () => {
     }
     return (
       scheduleEvents.find((e) => e.courseId === courseId && e.isActive) ||
-      scheduleEvents.find((e) => e.courseId === courseId) ||
       null
     );
   }, [scheduleEvents, courseId, targetEventId]);
@@ -323,42 +339,81 @@ const CourseDetails = () => {
   }, [scheduleEvents, courseId]);
 
   const getEffectiveRoomName = (call?: ScheduleEvent | null) => {
-    return getLiveClassRoomName(call || activeCall || liveCallActiveEvent, courseId);
+    const target = call || liveCallActiveEvent || activeCall;
+    return getLiveClassRoomName(target, courseId);
   };
 
   const handleStartCall = async () => {
     if (!courseId || !course) return;
-    const roomName = getEffectiveRoomName(activeCall);
-    const meetingUrl = getJitsiMeetingUrl(roomName);
 
-    if (activeCall) {
-      await updateScheduleEvent(activeCall.id, {
-        isActive: true,
-        meetingUrl,
-      });
-    } else {
-      await addScheduleEvent({
-        id: generateId("ev"),
-        courseId,
-        title: `${course.title} - Live Class`,
-        date: new Date().toISOString().split("T")[0],
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        durationMins: 60,
-        type: "lecture",
-        meetingUrl,
-        isActive: true,
-      });
+    // If there is already an active live session for this course, join it
+    if (liveCallActiveEvent) {
+      setIsCallActiveInApp(true);
+      return;
     }
+
+    if (targetEventId) {
+      const match = scheduleEvents.find(
+        (e) => e.id === targetEventId && e.courseId === courseId,
+      );
+      if (match) {
+        const roomName = getLiveClassRoomName(match, courseId);
+        const livekitRes = await createLiveKitMeetingUrl({
+          roomName,
+          participantName: currentUser?.name || "Participant",
+          courseId,
+          role: currentUser?.role || "student",
+          forceSync: true,
+        });
+        const meetingUrl = match.meetingUrl || livekitRes.url || getLiveKitDirectUrl(roomName);
+        await updateScheduleEvent(match.id, {
+          isActive: true,
+          meetingUrl,
+        });
+        setIsCallActiveInApp(true);
+        return;
+      }
+    }
+
+    // Generate a fresh unique session identifier for every newly started live class
+    const newEventId = generateId("ev");
+    const roomName = getLiveClassRoomName({ id: newEventId, courseId }, courseId);
+    
+    // Actively invoke backend /api/livekit/create-url which calls KeySafe Render URL:
+    const livekitRes = await createLiveKitMeetingUrl({
+      roomName,
+      participantName: currentUser?.name || "Participant",
+      courseId,
+      role: currentUser?.role || "student",
+      forceSync: true,
+    });
+    const meetingUrl = livekitRes.url || getLiveKitDirectUrl(roomName);
+
+    await addScheduleEvent({
+      id: newEventId,
+      courseId,
+      title: `${course.title} - Live Class`,
+      date: new Date().toISOString().split("T")[0],
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      durationMins: 60,
+      type: "lecture",
+      meetingUrl,
+      isActive: true,
+    });
     setIsCallActiveInApp(true);
   };
 
   const handleEndCall = async () => {
-    if (liveCallActiveEvent) {
-      await updateScheduleEvent(liveCallActiveEvent.id, { isActive: false });
-    } else if (activeCall?.isActive) {
+    const activeEvts = scheduleEvents.filter(
+      (e) => e.courseId === courseId && e.isActive,
+    );
+    for (const evt of activeEvts) {
+      await updateScheduleEvent(evt.id, { isActive: false });
+    }
+    if (activeCall?.isActive) {
       await updateScheduleEvent(activeCall.id, { isActive: false });
     }
     setIsCallActiveInApp(false);
@@ -985,7 +1040,7 @@ const CourseDetails = () => {
               </div>
             )
           ) : (
-            canStartVideoCall && (
+            (canStartVideoCall || !currentUser || isStudent) && (
               <button
                 onClick={handleStartCall}
                 className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm"
@@ -1016,13 +1071,27 @@ const CourseDetails = () => {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setIsCallActiveInApp(true)}
-            className="px-5 py-2.5 bg-white text-red-600 hover:bg-slate-100 font-extrabold text-sm rounded-xl transition shadow-md flex items-center justify-center shrink-0"
-          >
-            <Video className="w-4 h-4 mr-2 text-red-600" />
-            Join Live Class Now
-          </button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              onClick={() => handleCopyClassUrl(getEffectiveRoomName(liveCallActiveEvent))}
+              className="px-3.5 py-2.5 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-xl transition flex items-center justify-center border border-white/30"
+              title="Copy direct join link to share with students or guests"
+            >
+              {copiedClassLink ? (
+                <Check className="w-4 h-4 mr-1.5 text-emerald-300" />
+              ) : (
+                <Share2 className="w-4 h-4 mr-1.5" />
+              )}
+              <span>{copiedClassLink ? "Copied Link!" : "Copy Class Link"}</span>
+            </button>
+            <button
+              onClick={() => setIsCallActiveInApp(true)}
+              className="px-5 py-2.5 bg-white text-red-600 hover:bg-slate-100 font-extrabold text-sm rounded-xl transition shadow-md flex items-center justify-center shrink-0"
+            >
+              <Video className="w-4 h-4 mr-2 text-red-600" />
+              Join Live Class Now
+            </button>
+          </div>
         </div>
       )}
 
