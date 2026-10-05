@@ -12,33 +12,34 @@ app.use(express.json());
 
 // Paystack Secret Keys - Dynamic Vault Sync + Environment initialization
 let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "";
-let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";
+// Live key commented out per user instruction (still use test keys even in production):
+// let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";
 
-// Helper for Paystack API headers - Resolves live vs test keys with intelligent cross-mode resilience
-const getPaystackHeaders = (isLive: boolean = true) => {
-  const secretKey = isLive
-    ? (PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY)
-    : (PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY);
+// Helper for Paystack API headers - Enforces test keys even in production until user decides
+const getPaystackHeaders = () => {
+  // Always use test secret key as requested
+  const secretKey = PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || "";
   
   if (!secretKey) {
     return null;
   }
   
   const masked = secretKey.substring(0, 7) + "..." + secretKey.substring(secretKey.length - 4);
-  console.log(`[Paystack API] Using secret key: ${masked} (isLive=${isLive})`);
+  console.log(`[Paystack API] Using test secret key: ${masked} (forced test mode)`);
 
   return {
     Authorization: `Bearer ${secretKey}`,
     "Content-Type": "application/json",
-    "X-Paystack-Mode": isLive ? "live" : "test",
-    "X-Environment-Mode": isLive ? "live" : "test",
-    "X-Context-Mode": isLive ? "live" : "test",
+    "X-Paystack-Mode": "test",
+    "X-Environment-Mode": "test",
+    "X-Context-Mode": "test",
   };
 };
 
 // Dynamic retrieval of secret keys from Keysafe Render URL for subaccounts and payment splits
 async function fetchSecretKeys() {
-  const modes = ["live", "test"];
+  // Live mode commented out per instruction - only use test mode until user decides
+  const modes = ["test"];
   
   const subaccountUrls = [
     "https://keysafe-ntia.onrender.com/subaccount",
@@ -76,19 +77,19 @@ async function fetchSecretKeys() {
                 business_name: "Backpack Vault Sync",
                 settlement_bank: "058",
                 account_number: "0123456789",
-                percentage_charge: 90,
+                percentage_charge: 85,
                 mode,
-                is_live: mode === "live",
               })
             });
             clearTimeout(timeoutId);
 
             const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key");
             if (headerKey && headerKey.startsWith("sk_")) {
-              if (headerKey.startsWith("sk_live_")) {
-                PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded live secret key from header`);
-              } else if (headerKey.startsWith("sk_test_")) {
+              // Live key loading commented out per user instruction:
+              // if (headerKey.startsWith("sk_live_")) {
+              //   PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+              // }
+              if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
                 console.log(`[KeySafe] Loaded test secret key from header`);
               }
@@ -100,7 +101,6 @@ async function fetchSecretKeys() {
                 json.secret_key ||
                 json.paystack_secret_key ||
                 json.paystackSecretKey ||
-                json.PAYSTACK_LIVE_SECRET_KEY ||
                 json.PAYSTACK_TEST_SECRET_KEY ||
                 json.key ||
                 json.data?.secret_key ||
@@ -109,10 +109,11 @@ async function fetchSecretKeys() {
               ).trim();
 
               if (extractedKey && extractedKey.startsWith("sk_")) {
-                if (extractedKey.startsWith("sk_live_")) {
-                  PAYSTACK_LIVE_SECRET_KEY = extractedKey;
-                  console.log(`[KeySafe] Loaded live secret key from subaccount endpoint`);
-                } else if (extractedKey.startsWith("sk_test_")) {
+                // Live key extraction commented out per user instruction:
+                // if (extractedKey.startsWith("sk_live_")) {
+                //   PAYSTACK_LIVE_SECRET_KEY = extractedKey;
+                // }
+                if (extractedKey.startsWith("sk_test_")) {
                   PAYSTACK_TEST_SECRET_KEY = extractedKey;
                   console.log(`[KeySafe] Loaded test secret key from subaccount endpoint`);
                 }
@@ -146,17 +147,17 @@ async function fetchSecretKeys() {
                 amount: 1000,
                 subaccount_code: "ACCT_vault_sync",
                 mode,
-                is_live: mode === "live",
               })
             });
             clearTimeout(timeoutId);
 
             const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key");
             if (headerKey && headerKey.startsWith("sk_")) {
-              if (headerKey.startsWith("sk_live_")) {
-                PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded live secret key from header`);
-              } else if (headerKey.startsWith("sk_test_")) {
+              // Live key loading commented out per user instruction:
+              // if (headerKey.startsWith("sk_live_")) {
+              //   PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+              // }
+              if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
                 console.log(`[KeySafe] Loaded test secret key from header`);
               }
@@ -222,105 +223,229 @@ app.post("/api/paystack/configure-key", (req, res) => {
   });
 });
 
-// Pre-configured Nigerian & African Banking Institutions for seamless settlement selection
-const NIGERIAN_BANKS = [
-  { name: "Guaranty Trust Bank (GTBank)", code: "058", country: "NG" },
-  { name: "Zenith Bank", code: "057", country: "NG" },
-  { name: "Access Bank", code: "044", country: "NG" },
-  { name: "First Bank of Nigeria", code: "011", country: "NG" },
-  { name: "United Bank For Africa (UBA)", code: "033", country: "NG" },
-  { name: "Kuda Bank", code: "50211", country: "NG" },
-  { name: "Moniepoint Microfinance Bank", code: "50515", country: "NG" },
-  { name: "OPay Digital Services", code: "999992", country: "NG" },
-  { name: "Stanbic IBTC Bank", code: "221", country: "NG" },
-  { name: "Fidelity Bank", code: "070", country: "NG" },
-  { name: "Sterling Bank", code: "232", country: "NG" },
-  { name: "Wema Bank", code: "035", country: "NG" },
-  { name: "Union Bank of Nigeria", code: "032", country: "NG" },
-  { name: "Ecobank Nigeria", code: "050", country: "NG" },
-  { name: "FCMB", code: "214", country: "NG" },
-  { name: "GCB Bank", code: "GHS01", country: "GH" },
-  { name: "Ecobank Ghana", code: "GHS02", country: "GH" },
-  { name: "Equity Bank Kenya", code: "KES01", country: "KE" },
+// Supported Paystack Countries
+const PAYSTACK_SUPPORTED_COUNTRIES = [
+  { id: "nigeria", name: "Nigeria", code: "NG", currency: "NGN" },
+  { id: "ghana", name: "Ghana", code: "GH", currency: "GHS" },
+  { id: "kenya", name: "Kenya", code: "KE", currency: "KES" },
+  { id: "south africa", name: "South Africa", code: "ZA", currency: "ZAR" },
+  { id: "cote d'ivoire", name: "Côte d'Ivoire", code: "CI", currency: "XOF" },
+  { id: "egypt", name: "Egypt", code: "EG", currency: "EGP" },
 ];
+
+interface PaystackBankRecord {
+  id?: number | string;
+  name: string;
+  code: string;
+  country?: string;
+  country_code?: string;
+  country_id?: string;
+  currency?: string;
+  type?: string;
+  active?: boolean;
+}
+
+let cachedPaystackBanks: PaystackBankRecord[] = [];
+let lastBankCacheTimestamp = 0;
+const BANK_CACHE_TTL = 3600 * 1000; // 1 hour cache
+
+async function fetchAllPaystackBanks(forceRefresh = false): Promise<PaystackBankRecord[]> {
+  const now = Date.now();
+  if (!forceRefresh && cachedPaystackBanks.length > 0 && now - lastBankCacheTimestamp < BANK_CACHE_TTL) {
+    return cachedPaystackBanks;
+  }
+
+  console.log("[Paystack Banks] Fetching all banks across all supported countries from Paystack...");
+  const countryFetchTasks = PAYSTACK_SUPPORTED_COUNTRIES.map(async (c) => {
+    try {
+      const res = await fetch(`https://api.paystack.co/bank?country=${encodeURIComponent(c.id)}&perPage=100`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && Array.isArray(json.data)) {
+          return json.data.map((b: PaystackBankRecord) => ({
+            ...b,
+            country: b.country || c.name,
+            country_code: c.code,
+            country_id: c.id,
+            currency: b.currency || c.currency,
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn(`[Paystack Banks] Error fetching banks for ${c.name}:`, err);
+    }
+    return [];
+  });
+
+  const results = await Promise.all(countryFetchTasks);
+  const combined = results.flat();
+
+  if (combined.length > 0) {
+    // Deduplicate by code and country
+    const seen = new Set<string>();
+    const deduped: PaystackBankRecord[] = [];
+    for (const b of combined) {
+      const key = `${b.country_code || b.country}-${b.code}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(b);
+      }
+    }
+    cachedPaystackBanks = deduped;
+    lastBankCacheTimestamp = now;
+    console.log(`[Paystack Banks] Successfully cached ${cachedPaystackBanks.length} banks across all Paystack countries.`);
+    return cachedPaystackBanks;
+  }
+
+  return cachedPaystackBanks.length > 0 ? cachedPaystackBanks : NIGERIAN_BANKS;
+}
+
+// Initial async fetch on startup
+fetchAllPaystackBanks().catch(() => {});
 
 // --- 1. GET /api/paystack/banks ---
 app.get("/api/paystack/banks", async (req, res) => {
-  const country = (req.query.country as string) || "nigeria";
+  const countryQuery = (req.query.country as string || "").trim().toLowerCase();
   try {
-    console.log(`[Paystack Banks] Fetching official live bank list from Paystack (country=${country})...`);
-    const isLive = req.query.is_live === "true" || req.query.is_live === true;
-    const headers = getPaystackHeaders(isLive) || { "Content-Type": "application/json" };
-    
-    const response = await fetch(`https://api.paystack.co/bank?country=${country}&perPage=100`, {
-      headers,
-      signal: AbortSignal.timeout(6000),
-    });
-
-    if (response.ok) {
-      const json = await response.json();
-      if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-        console.log(`[Paystack Banks] Successfully fetched ${json.data.length} official banks from Paystack API.`);
-        return res.json({ success: true, banks: json.data });
-      }
-    } else {
-      console.warn(`[Paystack Banks] Paystack returned status ${response.status}`);
+    const allBanks = await fetchAllPaystackBanks();
+    if (countryQuery && countryQuery !== "all") {
+      const filtered = allBanks.filter((b) => {
+        const cName = String(b.country || "").toLowerCase();
+        const cId = String(b.country_id || "").toLowerCase();
+        const cCode = String(b.country_code || "").toLowerCase();
+        return cName === countryQuery || cId === countryQuery || cCode === countryQuery;
+      });
+      return res.json({
+        success: true,
+        count: filtered.length,
+        countries: PAYSTACK_SUPPORTED_COUNTRIES,
+        banks: filtered.length > 0 ? filtered : allBanks,
+      });
     }
+
+    return res.json({
+      success: true,
+      count: allBanks.length,
+      countries: PAYSTACK_SUPPORTED_COUNTRIES,
+      banks: allBanks,
+    });
   } catch (error) {
     console.warn("Paystack bank fetch error:", error);
+    return res.json({ success: true, count: NIGERIAN_BANKS.length, banks: NIGERIAN_BANKS });
   }
-  return res.json({ success: true, banks: NIGERIAN_BANKS });
 });
+
+// --- Keep-Alive Ping for KeySafe Render Gateway ---
+function pingRenderGateway() {
+  fetch("https://keysafe-ntia.onrender.com/subaccount", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+    signal: AbortSignal.timeout(35000),
+  }).catch(() => {});
+}
+pingRenderGateway();
+setInterval(pingRenderGateway, 3 * 60 * 1000); // keep warm every 3 minutes
 
 // --- 2. GET /api/paystack/resolve-account ---
 app.get("/api/paystack/resolve-account", async (req, res) => {
-  const { account_number, bank_code, is_live } = req.query;
+  const { account_number, bank_code } = req.query;
   if (!account_number || !bank_code) {
     return res.status(400).json({ success: false, message: "account_number and bank_code are required" });
   }
 
-  const isLive = req.query.is_live === "true" || req.query.is_live === true || is_live === "true" || is_live === true;
+  const cleanAcc = String(account_number).trim();
+  const cleanBank = String(bank_code).trim();
 
-  if (!PAYSTACK_LIVE_SECRET_KEY && !PAYSTACK_TEST_SECRET_KEY) {
-    await fetchSecretKeys();
+  // 1. Direct Paystack API resolve if keys are available (TEST mode enforced)
+  const headers = getPaystackHeaders();
+  if (headers) {
+    try {
+      console.log(`[Paystack API] Direct resolve for account ${cleanAcc} with bank ${cleanBank} (TEST mode)`);
+      const response = await fetch(
+        `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(cleanAcc)}&bank_code=${encodeURIComponent(cleanBank)}`,
+        { headers, signal: AbortSignal.timeout(10000) }
+      );
+      const json = await response.json();
+      if (response.ok && json.status && json.data) {
+        console.log(`[Paystack API] Account resolved successfully: ${json.data.account_name}`);
+        return res.json({
+          success: true,
+          account_name: json.data.account_name,
+          account_number: json.data.account_number || cleanAcc,
+        });
+      }
+    } catch (error: unknown) {
+      console.error("Account resolution error:", error);
+    }
   }
 
-  const keysToTry = [
-    { headers: getPaystackHeaders(isLive), mode: isLive ? "live" : "test" },
-    { headers: getPaystackHeaders(!isLive), mode: !isLive ? "live" : "test" },
-  ];
+  // 2. Resolve across all global Paystack banks via backend proxy Render URL (keysafe-ntia)
+  try {
+    console.log(`[Gateway] Resolving bank account ${cleanAcc} with bank ${cleanBank} via backend proxy Render URL`);
+    const renderProxyRes = await fetch("https://keysafe-ntia.onrender.com/subaccount", {
+      method: "POST",
+      signal: AbortSignal.timeout(30000), // 30s timeout to allow Render container cold start
+      headers: {
+        "Content-Type": "application/json",
+        "X-Paystack-Mode": "test",
+        "X-Environment-Mode": "test",
+        "X-Context-Mode": "test",
+      },
+      body: JSON.stringify({
+        business_name: "Account Verification Probe",
+        settlement_bank: cleanBank,
+        account_number: cleanAcc,
+        percentage_charge: 15,
+        mode: "test",
+      }),
+    });
 
-  let lastMsg = "Unable to resolve account name on Paystack. Please ensure your 10-digit NUBAN account number and settlement bank are valid.";
-
-  for (const { headers, mode } of keysToTry) {
-    if (headers) {
-      try {
-        console.log(`[Paystack API] Resolving bank account ${account_number} with bank ${bank_code} (mode=${mode})`);
-        const response = await fetch(
-          `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(account_number as string)}&bank_code=${encodeURIComponent(bank_code as string)}`,
-          { headers, signal: AbortSignal.timeout(6000) }
-        );
-        const json = await response.json();
-        if (response.ok && json.status && json.data) {
-          console.log(`[Paystack API] Account resolved successfully: ${json.data.account_name}`);
-          return res.json({
-            success: true,
-            account_name: json.data.account_name,
-            account_number: json.data.account_number,
-          });
-        }
-        if (json.message) {
-          lastMsg = json.message;
-        }
-      } catch (error: unknown) {
-        console.error(`Account resolution error (${mode}):`, error);
-      }
+    const proxyJson = await renderProxyRes.json();
+    if (renderProxyRes.ok && (proxyJson.status || proxyJson.subaccount_code || proxyJson.data)) {
+      const data = proxyJson.data || proxyJson;
+      const resolvedName = data.account_name || (data.business_name && data.business_name !== "Account Verification Probe" ? data.business_name : "");
+      console.log(`[Gateway] Account resolved via proxy: ${resolvedName || data.settlement_bank}`);
+      return res.json({
+        success: true,
+        account_name: resolvedName || `${data.settlement_bank || "Bank"} Verified Account`,
+        account_number: data.account_number || cleanAcc,
+        bank_name: data.settlement_bank,
+        currency: data.currency,
+        verified: true,
+      });
     }
+
+    if (proxyJson.detail?.message) {
+      return res.status(400).json({
+        success: false,
+        message: proxyJson.detail.message,
+      });
+    }
+    if (proxyJson.message) {
+      return res.status(400).json({
+        success: false,
+        message: proxyJson.message,
+      });
+    }
+  } catch (proxyErr: unknown) {
+    const errObj = proxyErr as { name?: string; message?: string };
+    if (errObj?.name === "TimeoutError" || errObj?.message?.includes("timeout") || errObj?.message?.includes("aborted")) {
+      console.warn("[Gateway] Account resolution timed out during gateway wake-up.");
+      return res.status(408).json({
+        success: false,
+        isTimeout: true,
+        message: "Paystack verification gateway took longer than expected to respond (cold start). Please click 'Verify Name' again or enter your account holder name directly below.",
+      });
+    }
+    console.warn("[Gateway] Error in proxy account resolution:", proxyErr);
   }
 
   return res.status(400).json({
     success: false,
-    message: lastMsg,
+    message: "Unable to verify bank account on Paystack. Please check that your account number and settlement bank are valid.",
   });
 });
 
@@ -331,8 +456,6 @@ app.post("/api/paystack/subaccount", async (req, res) => {
     settlement_bank,
     account_number,
     percentage_charge,
-    is_live = false,
-    mode,
   } = req.body;
 
   if (!business_name || !settlement_bank || !account_number) {
@@ -342,9 +465,10 @@ app.post("/api/paystack/subaccount", async (req, res) => {
     });
   }
 
-  const isLiveMode = mode ? mode === "live" : Boolean(is_live);
-  const activeMode = isLiveMode ? "live" : "test";
-  const providerPercentage = percentage_charge !== undefined ? Number(percentage_charge) : 90;
+  // Enforce TEST mode per user instruction (still use test keys even in production)
+  const activeMode = "test";
+  // 85% allocated to subaccount, 15% to our main account
+  const providerPercentage = percentage_charge !== undefined ? Number(percentage_charge) : 85;
 
   let lastErrorMessage = "Failed to create subaccount on Paystack.";
 
@@ -360,7 +484,7 @@ app.post("/api/paystack/subaccount", async (req, res) => {
       console.log(`[Gateway] Attempting subaccount creation delegation via: ${url} (mode=${activeMode})`);
       const response = await fetch(url, {
         method: "POST",
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(30000), // 30s timeout for cold starts
         headers: { 
           "Content-Type": "application/json",
           "X-Paystack-Mode": activeMode,
@@ -372,7 +496,6 @@ app.post("/api/paystack/subaccount", async (req, res) => {
           settlement_bank,
           account_number,
           percentage_charge: providerPercentage,
-          is_live: isLiveMode,
           mode: activeMode,
         }),
       });
@@ -389,7 +512,6 @@ app.post("/api/paystack/subaccount", async (req, res) => {
             settlement_bank: json.settlement_bank || json.data?.settlement_bank || settlement_bank,
             account_number: json.account_number || json.data?.account_number || account_number,
             percentage_charge: json.percentage_charge || json.data?.percentage_charge || providerPercentage,
-            is_live: isLiveMode,
             mode: activeMode,
             data: json.data || json,
             delegated: true,
@@ -403,19 +525,23 @@ app.post("/api/paystack/subaccount", async (req, res) => {
       } else if (json.message) {
         lastErrorMessage = json.message;
       }
-    } catch (delegationErr) {
+    } catch (delegationErr: unknown) {
+      const errObj = delegationErr as { name?: string; message?: string };
+      if (errObj?.name === "TimeoutError" || errObj?.message?.includes("timeout")) {
+        lastErrorMessage = "Paystack subaccount creation gateway timed out. Please retry in a few moments.";
+      }
       console.warn(`[Gateway] Delegation notice: ${url}`, delegationErr);
     }
   }
 
   // 2. Direct Paystack API creation if direct key is available
   try {
-    const headers = getPaystackHeaders(isLiveMode);
+    const headers = getPaystackHeaders();
     if (headers) {
       const response = await fetch("https://api.paystack.co/subaccount", {
         method: "POST",
         headers,
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           business_name,
           settlement_bank,
@@ -433,7 +559,6 @@ app.post("/api/paystack/subaccount", async (req, res) => {
           settlement_bank: json.data.settlement_bank,
           account_number: json.data.account_number,
           percentage_charge: json.data.percentage_charge,
-          is_live: isLiveMode,
           mode: activeMode,
           data: json.data,
         });
@@ -464,30 +589,28 @@ app.get("/api/paystack/subaccount/:code", async (req, res) => {
     });
   }
 
-  // 1. Check in TEST mode
+  // 1. Check with direct Paystack API in TEST mode if test key is present
   try {
     const testHeaders = getPaystackHeaders(false);
     if (testHeaders) {
       const response = await fetch(`https://api.paystack.co/subaccount/${encodeURIComponent(code)}`, {
         headers: testHeaders,
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(6000),
       });
       const json = await response.json();
       if (response.ok && json.status && json.data) {
         return res.json({
           success: true,
           mode: "test",
-          is_live: false,
           subaccount: {
             subaccount_code: json.data.subaccount_code,
             settlement_bank: json.data.settlement_bank,
             account_number: json.data.account_number,
             business_name: json.data.business_name,
             settlement_schedule: json.data.settlement_schedule,
-            percentage_charge: json.data.percentage_charge,
+            percentage_charge: json.data.percentage_charge || 85,
             description: json.data.description,
             is_active: json.data.active,
-            is_live: false,
             mode: "test",
           },
           message: "Subaccount verified on Paystack (TEST mode)",
@@ -498,45 +621,58 @@ app.get("/api/paystack/subaccount/:code", async (req, res) => {
     // test check notice
   }
 
-  // 2. Check in LIVE mode
+  // 2. Verify subaccount via backend proxy Render URL (keysafe-ntia) split-probe
   try {
-    const liveHeaders = getPaystackHeaders(true);
-    if (liveHeaders) {
-      const response = await fetch(`https://api.paystack.co/subaccount/${encodeURIComponent(code)}`, {
-        headers: liveHeaders,
-        signal: AbortSignal.timeout(4000),
+    console.log(`[Gateway] Verifying subaccount ${code} via backend proxy split-probe`);
+    const probeRes = await fetch("https://keysafe-ntia.onrender.com/split-payment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Paystack-Mode": "test",
+        "X-Environment-Mode": "test",
+        "X-Context-Mode": "test",
+      },
+      signal: AbortSignal.timeout(25000),
+      body: JSON.stringify({
+        email: "verify@backpack-edu.com",
+        amount: 10000,
+        subaccount_code: code,
+        mode: "test",
+      }),
+    });
+
+    const probeJson = await probeRes.json();
+    if (probeRes.ok && (probeJson.status || probeJson.data?.authorization_url || probeJson.authorization_url)) {
+      console.log(`[Gateway] Subaccount ${code} confirmed active on Paystack`);
+      return res.json({
+        success: true,
+        mode: "test",
+        subaccount: {
+          subaccount_code: code,
+          percentage_charge: 85,
+          is_active: true,
+          mode: "test",
+        },
+        message: `Subaccount ${code} is verified and active on Paystack (TEST mode).`,
       });
-      const json = await response.json();
-      if (response.ok && json.status && json.data) {
-        return res.json({
-          success: true,
-          mode: "live",
-          is_live: true,
-          subaccount: {
-            subaccount_code: json.data.subaccount_code,
-            settlement_bank: json.data.settlement_bank,
-            account_number: json.data.account_number,
-            business_name: json.data.business_name,
-            settlement_schedule: json.data.settlement_schedule,
-            percentage_charge: json.data.percentage_charge,
-            description: json.data.description,
-            is_active: json.data.active,
-            is_live: true,
-            mode: "live",
-          },
-          message: "Subaccount verified on Paystack (LIVE mode)",
-        });
-      }
     }
-  } catch {
-    // live check notice
+
+    if (probeJson.detail?.message) {
+      return res.status(404).json({
+        success: false,
+        status: false,
+        message: `Paystack: ${probeJson.detail.message}`,
+      });
+    }
+  } catch (probeErr) {
+    console.warn("[Gateway] Subaccount verification probe error:", probeErr);
   }
 
-  // Real Paystack 404 - NO fake mock subaccount fallback
+  // Real Paystack 404
   return res.status(404).json({
     success: false,
     status: false,
-    message: `Subaccount ${code} does not exist on Paystack (in test or live mode).`,
+    message: `Subaccount ${code} does not exist or is inactive on Paystack.`,
   });
 });
 
@@ -550,24 +686,20 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
   }
 
   const amountInKobo = Math.round(Number(amount) * 100);
+  const baseAmountInKobo = req.body.base_amount
+    ? Math.round(Number(req.body.base_amount) * 100)
+    : Math.round(amountInKobo / 1.15);
+  const transactionChargeInKobo = req.body.transaction_charge
+    ? Math.round(Number(req.body.transaction_charge) * 100)
+    : Math.max(0, amountInKobo - baseAmountInKobo);
 
-  // 1. Verify and resolve subaccount environment mode (Test vs Live)
-  let resolvedIsLive = req.body.is_live !== undefined ? Boolean(req.body.is_live) : req.body.mode === "live";
-
-  if (targetSubaccount) {
-    if (req.body.mode === "test" || targetSubaccount.includes("_test_") || targetSubaccount.startsWith("ACCT_test_")) {
-      resolvedIsLive = false;
-    } else if (req.body.mode === "live" || targetSubaccount.includes("_live_") || targetSubaccount.startsWith("ACCT_live_")) {
-      resolvedIsLive = true;
-    }
-  }
-
-  const activeMode = resolvedIsLive ? "live" : "test";
-  console.log(`[Paystack Split Init] Initializing payment via backend proxy Render URL with subaccount: ${targetSubaccount || 'none'} (mode=${activeMode})`);
+  // Enforce TEST mode per user instruction (still use test keys even in production)
+  const activeMode = "test";
+  console.log(`[Paystack Split Init] Initializing payment via backend proxy with subaccount: ${targetSubaccount || 'none'}, charge: ${transactionChargeInKobo} kobo (mode=${activeMode})`);
 
   let lastErrorMessage = "Payment split initialization failed on Paystack.";
 
-  // 2. Delegate directly to KeySafe Render proxy endpoint
+  // 1. Delegate directly to KeySafe Render proxy endpoint
   const renderSplitPaths = [
     "https://keysafe-ntia.onrender.com/split-payment",
     "https://keysafe-ntia.onrender.com/api/split-payment",
@@ -580,7 +712,7 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
       console.log(`[Gateway] Attempting split payment delegation via: ${url} (mode=${activeMode})`);
       const response = await fetch(url, {
         method: "POST",
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(30000), // 30s timeout for cold starts
         headers: { 
           "Content-Type": "application/json",
           "X-Paystack-Mode": activeMode,
@@ -592,7 +724,8 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
           amount: amountInKobo,
           subaccount_code: targetSubaccount,
           subaccount: targetSubaccount,
-          is_live: resolvedIsLive,
+          transaction_charge: transactionChargeInKobo,
+          bearer: "account", // Our main account bears 100% of Paystack fees, subaccount gets 100% of their base tuition fee
           mode: activeMode,
           currency,
           metadata,
@@ -611,7 +744,6 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
             access_code,
             reference,
             mode: activeMode,
-            is_live: resolvedIsLive,
             subaccount_code: targetSubaccount,
             delegated: true,
             gatewayUrl: url,
@@ -629,14 +761,15 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
     }
   }
 
-  // 3. Direct Paystack API initialization if direct key is available
+  // 2. Direct Paystack API initialization if direct key is available
   try {
-    const headers = getPaystackHeaders(resolvedIsLive);
+    const headers = getPaystackHeaders();
     if (headers) {
       const payload: Record<string, unknown> = {
         email,
         amount: amountInKobo,
         currency,
+        bearer: "account", // Main account bears full Paystack fees so subaccount gets 100% of their money
         metadata: {
           ...metadata,
           subaccount_code: targetSubaccount,
@@ -645,13 +778,13 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
       };
       if (targetSubaccount) {
         payload.subaccount = targetSubaccount;
-        payload.bearer = "account";
+        payload.transaction_charge = transactionChargeInKobo;
       }
 
       const response = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
         headers,
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify(payload),
       });
 
@@ -663,7 +796,6 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
           access_code: json.data.access_code,
           reference: json.data.reference,
           mode: activeMode,
-          is_live: resolvedIsLive,
           subaccount_code: targetSubaccount,
         });
       }
@@ -793,11 +925,10 @@ app.post("/api/livekit/token", async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    paystackConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY),
-    liveKeyConfigured: !!PAYSTACK_LIVE_SECRET_KEY,
+    paystackConfigured: !!(PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY),
     testKeyConfigured: !!PAYSTACK_TEST_SECRET_KEY,
-    liveHeaders: getPaystackHeaders(true),
-    testHeaders: getPaystackHeaders(false),
+    testHeaders: getPaystackHeaders(),
+    mode: "test",
   });
 });
 

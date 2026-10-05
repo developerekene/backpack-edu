@@ -94,6 +94,18 @@ export const updateBackpackUserField = async <T extends { id?: string }>(
         updatedList = updater(currentList);
         await updateDoc(docRef, { [`user.${field}`]: updatedList });
       }
+    } else {
+      // Document does not exist yet; initialize with setDoc merge
+      const { setDoc } = await import("firebase/firestore");
+      let updatedList: T[];
+      if (field.includes(".")) {
+        const [parent, child] = field.split(".");
+        updatedList = updater([]);
+        await setDoc(docRef, { user: { [parent]: { [child]: updatedList } } }, { merge: true });
+      } else {
+        updatedList = updater([]);
+        await setDoc(docRef, { user: { [field]: updatedList } }, { merge: true });
+      }
     }
   } catch (err) {
     console.error(`Error updating ${field} in backpack/${userId}:`, err);

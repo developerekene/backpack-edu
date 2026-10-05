@@ -6,6 +6,7 @@ import { useAuth } from "../../store/AuthContext";
 import { CourseModule, CourseModuleItem, CourseFAQ } from "../../types";
 import { FileUpload } from "../components/FileUpload";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
+import { PaystackSubaccountOnboarding } from "../components/PaystackSubaccountOnboarding";
 import { generateId } from "../../lib/id";
 import {
   Plus,
@@ -118,6 +119,8 @@ const CourseUpload = () => {
     { id: generateId("mod"), title: "", description: "", items: [] },
   ]);
 
+  const [showSubaccountModal, setShowSubaccountModal] = useState(false);
+
   if (
     !currentUser ||
     (currentUser.role !== "organization" && currentUser.role !== "instructor")
@@ -164,6 +167,12 @@ const CourseUpload = () => {
   );
   const isHigherEduOrg = activeOrg?.orgType === "higher";
   const isVocationalOrg = activeOrg?.orgType === "vocational";
+
+  const activeSubaccount = activeOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
+  const hasSubaccount = Boolean(
+    activeSubaccount?.subaccount_code &&
+    activeSubaccount.subaccount_code.startsWith("ACCT_")
+  );
 
   // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
   if (currentUser.role === "instructor" && approvedOrgs.length === 0) {
@@ -329,6 +338,11 @@ const CourseUpload = () => {
       return;
     }
 
+    if (!hasSubaccount) {
+      setShowSubaccountModal(true);
+      return;
+    }
+
     const targetOrg = organizations.find(
       (o) => o.id === orgIdToUse || o.ownerId === orgIdToUse,
     );
@@ -440,6 +454,32 @@ const CourseUpload = () => {
       {/* Knowledge City notice for freelance creators (instructor only) */}
       {currentUser?.role === "instructor" && (
         <KnowledgeCityBanner variant="instructor" />
+      )}
+
+      {/* Subaccount Prompt Banner */}
+      {!hasSubaccount && (
+        <div className="p-5 bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl space-y-3 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start space-x-3 text-amber-800 dark:text-amber-300">
+              <ShieldAlert className="w-6 h-6 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                  Paystack Settlement Subaccount Required Before Publishing
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 text-xs mt-1 leading-relaxed">
+                  To receive tuition payouts directly into your bank account (85% subaccount split / 15% platform split), your organization must create or link a Paystack settlement subaccount before publishing courses.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSubaccountModal(true)}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs whitespace-nowrap transition shadow-sm"
+            >
+              Set Up Subaccount Now
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="flex items-center justify-between">
@@ -1729,6 +1769,28 @@ const CourseUpload = () => {
           </button>
         </div>
       </form>
+
+      {/* Settlement Subaccount Setup Modal */}
+      {showSubaccountModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full p-6 space-y-4 shadow-xl border border-slate-200 dark:border-slate-800 relative my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center">
+                <Building2 className="w-5 h-5 mr-2 text-indigo-500" />
+                Paystack Settlement Subaccount Setup
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSubaccountModal(false)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <PaystackSubaccountOnboarding />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

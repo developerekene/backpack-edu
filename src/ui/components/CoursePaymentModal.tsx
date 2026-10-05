@@ -67,10 +67,9 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
   const platform15Addition =
     Math.round((paymentAmount - baseTuitionAmount) * 100) / 100;
 
-  // Split calculations (85% Provider / 15% Platform Commission)
-  const providerPercentage = 85;
-  const providerAmount = Math.round(((paymentAmount * providerPercentage) / 100) * 100) / 100;
-  const platformFeeAmount = Math.round((paymentAmount - providerAmount) * 100) / 100;
+  // Split calculations (100% Base Tuition to Provider / 15% Addition to Platform)
+  const providerAmount = baseTuitionAmount; // Organization receives 100% of their set fee
+  const platformFeeAmount = platform15Addition; // Platform receives the 15% fee added to transaction
 
   const handleSuccess = () => {
     setLoading(true);
@@ -205,7 +204,7 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
               <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
                 <span className="flex items-center text-[11px]">
                   <Banknote className="w-3.5 h-3.5 mr-1 text-emerald-500" />
-                  Direct to {providerName} ({providerPercentage}%):
+                  Direct to {providerName} (100% Base Fee):
                 </span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">
                   {course.currency} {formatPriceWithDecimals(providerAmount)}
@@ -213,7 +212,7 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
               </div>
 
               <div className="flex justify-between items-center text-slate-500 text-[11px]">
-                <span>Platform Fee ({100 - providerPercentage}%):</span>
+                <span>Platform Addition (+15% Fee):</span>
                 <span>
                   {course.currency} {formatPriceWithDecimals(platformFeeAmount)}
                 </span>
@@ -258,10 +257,8 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
             amount={paymentAmount}
             currency={course.currency}
             subaccountCode={subaccount?.subaccount_code}
-            isLive={subaccount?.is_live}
-            mode={subaccount?.mode}
+            mode={subaccount?.mode || "test"}
             providerName={providerName}
-            providerSharePercent={providerPercentage}
             courseId={course.id}
             courseTitle={course.title}
             studentName={currentUser.name}

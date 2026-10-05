@@ -13,9 +13,10 @@ export const PAYSTACK_TEST_PUBLIC_KEY =
   import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
   "pk_test_db0145199289f83c428d57cf70755142bb0b8b28";
 
-export const PAYSTACK_LIVE_PUBLIC_KEY =
-  import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY ||
-  "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
+// Live key commented out per user instruction (still use test keys even in production):
+// export const PAYSTACK_LIVE_PUBLIC_KEY =
+//   import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY ||
+//   "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
 
 export const PAYSTACK_KEY = PAYSTACK_TEST_PUBLIC_KEY;
 
@@ -28,12 +29,14 @@ export const generateReferenceNumber = (): string => {
 
 export interface PaystackTransactionOptions {
   email: string;
-  amount: number; // In main currency unit (e.g., NGN), will be converted to Kobo (* 100)
+  amount: number; // Total charged to payer (In main currency unit e.g. NGN)
+  baseAmount?: number; // Base tuition fee (e.g. NGN 100)
+  transactionCharge?: number; // Platform fee addition (e.g. NGN 15)
   currency?: string;
   subaccount?: string;
   subaccount_code?: string;
   split_code?: string;
-  is_live?: boolean;
+  // is_live?: boolean; // Commented out per user instruction
   mode?: "test" | "live";
   reference?: string;
   metadata?: Record<string, unknown>;
@@ -68,27 +71,17 @@ export const triggerPaystackPayment = (options: PaystackTransactionOptions) => {
   }
 
   const amountInKobo = Math.round(options.amount * 100);
+  const baseAmountInKobo = options.baseAmount
+    ? Math.round(options.baseAmount * 100)
+    : Math.round(amountInKobo / 1.15);
+  const transactionChargeInKobo = options.transactionCharge
+    ? Math.round(options.transactionCharge * 100)
+    : Math.max(0, amountInKobo - baseAmountInKobo);
+
   const targetSubaccount = options.subaccount_code || options.subaccount;
 
-  // Verify subaccount environment mode (test vs live)
-  let isLiveMode = false;
-  if (options.is_live !== undefined) {
-    isLiveMode = Boolean(options.is_live);
-  } else if (options.mode === "live") {
-    isLiveMode = true;
-  } else if (options.mode === "test") {
-    isLiveMode = false;
-  } else if (targetSubaccount) {
-    if (targetSubaccount.includes("_test_") || targetSubaccount.startsWith("ACCT_test_")) {
-      isLiveMode = false;
-    } else if (targetSubaccount.includes("_live_") || targetSubaccount.startsWith("ACCT_live_")) {
-      isLiveMode = true;
-    } else {
-      isLiveMode = false; // Default to sandbox test mode
-    }
-  }
-
-  const activePublicKey = isLiveMode ? PAYSTACK_LIVE_PUBLIC_KEY : PAYSTACK_TEST_PUBLIC_KEY;
+  // Always use TEST mode until user decides (per instruction)
+  const activePublicKey = PAYSTACK_TEST_PUBLIC_KEY;
 
   const handleSuccess = async (res: { reference?: string; trxref?: string; status?: string }) => {
     const finalRef = res?.reference || res?.trxref || referenceNumber;
@@ -244,20 +237,23 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
       amount: amountInKobo,
       ref: referenceNumber,
       currency: options.currency || "NGN",
+      bearer: "account", // Explicitly force Paystack to deduct transaction fee strictly from main account's share
       onSuccess: handleSuccess,
       onCancel: handleCancel,
       onError: handleError,
       metadata: {
         ...(options.metadata || {}),
         subaccount_code: targetSubaccount,
-        mode: isLiveMode ? "live" : "test",
-        is_live: isLiveMode,
+        bearer: "account",
+        mode: "test",
       },
     };
 
     if (targetSubaccount) {
       txConfig.subaccount = targetSubaccount;
       txConfig.subaccount_code = targetSubaccount;
+      txConfig.transaction_charge = transactionChargeInKobo;
+      txConfig.bearer = "account";
     }
     if (options.split_code) {
       txConfig.split_code = options.split_code;

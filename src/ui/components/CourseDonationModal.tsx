@@ -140,8 +140,7 @@ export const CourseDonationModal: React.FC<CourseDonationModalProps> = ({
       currency,
       subaccount: org?.paystackSubaccount?.subaccount_code,
       subaccount_code: org?.paystackSubaccount?.subaccount_code,
-      is_live: org?.paystackSubaccount?.is_live,
-      mode: org?.paystackSubaccount?.mode,
+      mode: org?.paystackSubaccount?.mode || "test",
       reference: generatedRef,
       studentDetails: {
         firstName: isAnonymous ? "Generous" : (donorName.trim().split(" ")[0] || "Generous"),
@@ -156,7 +155,7 @@ export const CourseDonationModal: React.FC<CourseDonationModalProps> = ({
         donationType,
         numberOfStudents: donationType === "sponsorship" ? studentCount : undefined,
         subaccount_code: org?.paystackSubaccount?.subaccount_code,
-        mode: org?.paystackSubaccount?.mode || (org?.paystackSubaccount?.is_live ? "live" : "test"),
+        mode: org?.paystackSubaccount?.mode || "test",
       },
       onSuccess: async (res) => {
         const finalRef = res?.reference || generatedRef;

@@ -8,7 +8,7 @@ interface PaystackProps {
   currency: string;
   subaccountCode?: string;
   splitCode?: string;
-  isLive?: boolean;
+  // isLive?: boolean; // Commented out per user instruction
   mode?: "test" | "live";
   providerName?: string;
   providerSharePercent?: number;
@@ -29,7 +29,6 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
   currency,
   subaccountCode,
   splitCode,
-  isLive,
   mode,
   providerName,
   courseId,
@@ -65,8 +64,7 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
       subaccount: subaccountCode,
       subaccount_code: subaccountCode,
       split_code: splitCode,
-      is_live: isLive,
-      mode: mode,
+      mode: mode || "test",
       reference: generatedRef,
       studentDetails: {
         firstName: studentName ? studentName.split(" ")[0] : email.split("@")[0],
@@ -80,7 +78,7 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         providerName,
         subaccount_code: subaccountCode,
         subaccountCode,
-        mode: mode || (isLive ? "live" : "test"),
+        mode: mode || "test",
       },
       onSuccess: (res) => {
         setLoading(false);
