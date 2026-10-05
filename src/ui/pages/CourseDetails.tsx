@@ -58,7 +58,8 @@ import { SpecialNeedsAccommodations, ScheduleEvent } from "../../types";
 import { 
   getLiveClassRoomName, 
   createLiveKitMeetingUrl, 
-  getLiveKitDirectUrl 
+  getLiveKitDirectUrl,
+  endLiveClassSessionApi,
 } from "../../lib/liveClass";
 
 const CourseDetails = () => {
@@ -346,12 +347,13 @@ const CourseDetails = () => {
   const handleStartCall = async () => {
     if (!courseId || !course) return;
 
-    // If there is already an active live session for this course, join it
+    // 1. If there is already an active live session for this course, join it without creating duplicate events
     if (liveCallActiveEvent) {
       setIsCallActiveInApp(true);
       return;
     }
 
+    // 2. If a target event was specified via URL or click, activate that existing event
     if (targetEventId) {
       const match = scheduleEvents.find(
         (e) => e.id === targetEventId && e.courseId === courseId,
@@ -375,11 +377,33 @@ const CourseDetails = () => {
       }
     }
 
-    // Generate a fresh unique session identifier for every newly started live class
-    const newEventId = generateId("ev");
+    // 3. If there is already an event scheduled for today for this course, activate that scheduled event!
+    const todayStr = new Date().toISOString().split("T")[0];
+    const todayScheduled = scheduleEvents.find(
+      (e) => e.courseId === courseId && e.date === todayStr && !e.isActive,
+    );
+    if (todayScheduled) {
+      const roomName = getLiveClassRoomName(todayScheduled, courseId);
+      const livekitRes = await createLiveKitMeetingUrl({
+        roomName,
+        participantName: currentUser?.name || "Participant",
+        courseId,
+        role: currentUser?.role || "student",
+        forceSync: true,
+      });
+      const meetingUrl = todayScheduled.meetingUrl || livekitRes.url || getLiveKitDirectUrl(roomName);
+      await updateScheduleEvent(todayScheduled.id, {
+        isActive: true,
+        meetingUrl,
+      });
+      setIsCallActiveInApp(true);
+      return;
+    }
+
+    // 4. Otherwise, generate a single new session for on-demand live class
+    const newEventId = `live_${courseId}_${Date.now()}`;
     const roomName = getLiveClassRoomName({ id: newEventId, courseId }, courseId);
     
-    // Actively invoke backend /api/livekit/create-url which calls KeySafe Render URL:
     const livekitRes = await createLiveKitMeetingUrl({
       roomName,
       participantName: currentUser?.name || "Participant",
@@ -393,7 +417,7 @@ const CourseDetails = () => {
       id: newEventId,
       courseId,
       title: `${course.title} - Live Class`,
-      date: new Date().toISOString().split("T")[0],
+      date: todayStr,
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -411,9 +435,13 @@ const CourseDetails = () => {
       (e) => e.courseId === courseId && e.isActive,
     );
     for (const evt of activeEvts) {
+      const room = getLiveClassRoomName(evt, courseId);
+      await endLiveClassSessionApi(room, courseId);
       await updateScheduleEvent(evt.id, { isActive: false });
     }
     if (activeCall?.isActive) {
+      const room = getLiveClassRoomName(activeCall, courseId);
+      await endLiveClassSessionApi(room, courseId);
       await updateScheduleEvent(activeCall.id, { isActive: false });
     }
     setIsCallActiveInApp(false);
@@ -1004,23 +1032,7 @@ const CourseDetails = () => {
 
           {/* Live class controls for students and instructors */}
           {liveCallActiveEvent ? (
-            isCallActiveInApp ? (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center px-3.5 py-2 bg-emerald-500/10 text-emerald-400 font-bold rounded-xl border border-emerald-500/20 text-xs sm:text-sm whitespace-nowrap">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse mr-2" />
-                  Live Call In Progress
-                </div>
-                {canStartVideoCall && (
-                  <button
-                    onClick={handleEndCall}
-                    className="flex items-center px-3 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition text-xs shadow-sm"
-                    title="End live session for all participants"
-                  >
-                    End Call
-                  </button>
-                )}
-              </div>
-            ) : (
+            !isCallActiveInApp && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsCallActiveInApp(true)}
@@ -1028,19 +1040,10 @@ const CourseDetails = () => {
                 >
                   <Video className="w-4 h-4 mr-2" /> Join Live Class
                 </button>
-                {canStartVideoCall && (
-                  <button
-                    onClick={handleEndCall}
-                    className="flex items-center px-2.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition text-xs"
-                    title="End live session"
-                  >
-                    End
-                  </button>
-                )}
               </div>
             )
           ) : (
-            (canStartVideoCall || !currentUser || isStudent) && (
+            canStartVideoCall && (
               <button
                 onClick={handleStartCall}
                 className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm"
@@ -1102,7 +1105,9 @@ const CourseDetails = () => {
             participantName={participantDisplayName}
             userRole={currentUser?.role}
             courseId={course.id}
-            onClose={() => setIsCallActiveInApp(false)}
+            onClose={() => {
+              handleEndCall().catch(console.error);
+            }}
           />
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
@@ -62,44 +62,55 @@ export const Navbar = () => {
   const moreRef = useRef<HTMLDivElement>(null);
 
   // Determine authorized / enrolled course IDs for the current user
-  const userEnrolledCourseIds = currentUser
-    ? currentUser.role === "student"
-      ? [
-          ...enrollmentRequests
-            .filter((req) => req.userId === currentUser.id && req.status === "approved")
-            .map((req) => req.courseId),
-          ...orgMembers
-            .filter(
-              (m) =>
-                (m.id === currentUser.id ||
-                  m.email?.toLowerCase() === currentUser.email?.toLowerCase()) &&
-                m.status === "active",
-            )
-            .flatMap((m) => m.courseIds || []),
-        ]
-      : [
-          ...courses
-            .filter(
-              (c) =>
-                c.createdBy === currentUser.id ||
-                c.orgId === currentUser.id ||
-                (currentUser.orgId && c.orgId === currentUser.orgId),
-            )
-            .map((c) => c.id),
-          ...orgMembers
-            .filter(
-              (m) =>
-                m.id === currentUser.id ||
-                m.email?.toLowerCase() === currentUser.email?.toLowerCase(),
-            )
-            .flatMap((m) => m.courseIds || []),
-        ]
-    : [];
+  const userEnrolledCourseIds = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === "student") {
+      return [
+        ...enrollmentRequests
+          .filter((req) => req.userId === currentUser.id && req.status === "approved")
+          .map((req) => req.courseId),
+        ...orgMembers
+          .filter(
+            (m) =>
+              (m.id === currentUser.id ||
+                m.email?.toLowerCase() === currentUser.email?.toLowerCase()) &&
+              m.status === "active",
+          )
+          .flatMap((m) => m.courseIds || []),
+      ];
+    }
+    return [
+      ...courses
+        .filter(
+          (c) =>
+            c.createdBy === currentUser.id ||
+            c.orgId === currentUser.id ||
+            (currentUser.orgId && c.orgId === currentUser.orgId),
+        )
+        .map((c) => c.id),
+      ...orgMembers
+        .filter(
+          (m) =>
+            m.id === currentUser.id ||
+            m.email?.toLowerCase() === currentUser.email?.toLowerCase(),
+        )
+        .flatMap((m) => m.courseIds || []),
+    ];
+  }, [currentUser, enrollmentRequests, orgMembers, courses]);
 
   // Strictly only show live class alerts for classrooms the user is actually enrolled in or instructing
-  const activeLiveCalls = scheduleEvents.filter(
-    (e) => e.isActive && e.courseId && userEnrolledCourseIds.includes(e.courseId),
-  );
+  const activeLiveCalls = useMemo(() => {
+    const active = scheduleEvents.filter(
+      (e) => e.isActive && e.courseId && userEnrolledCourseIds.includes(e.courseId),
+    );
+    const seen = new Set<string>();
+    return active.filter((e) => {
+      const key = e.courseId || e.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [scheduleEvents, userEnrolledCourseIds]);
 
   const studentInvites =
     currentUser?.role === "student"

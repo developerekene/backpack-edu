@@ -90,6 +90,35 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     details?: any;
   } | null>(null);
 
+  // Secret Key Config state
+  const [secretKeyInput, setSecretKeyInput] = useState("");
+  const [keyConfigStatus, setKeyConfigStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [showKeyConfig, setShowKeyConfig] = useState(false);
+
+  const handleConfigureKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!secretKeyInput.trim().startsWith("sk_")) {
+      setKeyConfigStatus({ success: false, message: "Key must start with 'sk_live_' or 'sk_test_'." });
+      return;
+    }
+    try {
+      const res = await fetch("/api/paystack/configure-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secretKey: secretKeyInput.trim() }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setKeyConfigStatus({ success: true, message: `Secret key configured successfully (${json.maskedKey})!` });
+        setSecretKeyInput("");
+      } else {
+        setKeyConfigStatus({ success: false, message: json.message || "Failed to configure key." });
+      }
+    } catch {
+      setKeyConfigStatus({ success: false, message: "Network error configuring key." });
+    }
+  };
+
   // Verify Live Status of Subaccount directly with Paystack API
   const handleVerifyLiveStatus = async (codeToVerify?: string) => {
     const targetCode = codeToVerify || currentSubaccount?.subaccount_code;
@@ -151,6 +180,9 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
       let bName = businessName.trim();
       let accName = resolvedAccountName || bName;
 
+      let isLiveVerified = cleanCode.startsWith("ACCT_live_");
+      let modeVerified: "test" | "live" = isLiveVerified ? "live" : "test";
+
       try {
         const verifyRes = await fetch(`/api/paystack/subaccount/${encodeURIComponent(cleanCode)}`);
         const verifyJson = await verifyRes.json();
@@ -163,6 +195,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
           if (pSub.account_number) accNum = pSub.account_number;
           if (pSub.account_name) accName = pSub.account_name;
           if (pSub.business_name) bName = pSub.business_name;
+          if (pSub.is_live !== undefined) isLiveVerified = Boolean(pSub.is_live);
+          if (pSub.mode) modeVerified = pSub.mode;
         }
       } catch (checkErr) {
         console.warn("Direct Paystack lookup notice:", checkErr);
@@ -177,6 +211,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         account_name: accName,
         percentage_charge: platformFeePercent,
         is_verified: true,
+        is_live: isLiveVerified,
+        mode: modeVerified,
         updatedAt: new Date().toISOString(),
       };
 
@@ -268,23 +304,33 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
       const res = await fetch(
         `/api/paystack/resolve-account?account_number=${accountNumber}&bank_code=${selectedBankCode}`,
       );
-      const json = await res.json();
+      const text = await res.text();
+      let json: Record<string, unknown> = {};
+      try {
+        json = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        json = {
+          success: false,
+          message: "Account resolution service returned a non-JSON error. You can enter your account name directly.",
+          requiresManualName: true,
+        };
+      }
+
       if (json.success && json.account_name) {
-        setResolvedAccountName(json.account_name);
+        setResolvedAccountName(String(json.account_name));
         setResolutionError("");
         setShowManualNameInput(false);
       } else {
         setResolutionError(
-          json.message ||
-            "Unable to verify bank account. Please check details.",
+          String(json.message || "Unable to verify bank account. Please check details."),
         );
         if (json.requiresManualName) {
           setShowManualNameInput(true);
         }
       }
-    } catch (err) {
-      console.error("Resolve account error:", err);
+    } catch {
       setResolutionError("Failed to connect to account verification service.");
+      setShowManualNameInput(true);
     } finally {
       setResolvingAccount(false);
     }
@@ -325,11 +371,20 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
+      const text = await res.text();
+      let json: Record<string, unknown> = {};
+      try {
+        json = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        json = { success: false, message: "Subaccount creation service returned invalid response format." };
+      }
 
       if (json.success && json.subaccount_code) {
+        const subCode = String(json.subaccount_code);
+        const isLiveCreated = json.is_live !== undefined ? Boolean(json.is_live) : subCode.startsWith("ACCT_live_");
+        const modeCreated: "test" | "live" = (json.mode as "test" | "live") || (isLiveCreated ? "live" : "test");
         const newSubaccountData: PaystackSubaccount = {
-          subaccount_code: json.subaccount_code,
+          subaccount_code: subCode,
           business_name: businessName.trim(),
           bank_code: selectedBankCode,
           bank_name:
@@ -340,6 +395,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
           account_name: resolvedAccountName || businessName.trim(),
           percentage_charge: platformFeePercent,
           is_verified: true,
+          is_live: isLiveCreated,
+          mode: modeCreated,
           updatedAt: new Date().toISOString(),
         };
 
@@ -458,7 +515,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 self-start md:self-auto">
+              <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
                 <button
                   type="button"
                   onClick={() => handleVerifyLiveStatus()}
@@ -475,10 +532,22 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
 
                 <button
                   type="button"
+                  onClick={() => {
+                    setIsEditing(true);
+                    setConnectionMode("create");
+                  }}
+                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-bold rounded-xl transition shadow-xs flex items-center space-x-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Fix / Re-create Subaccount</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setIsEditing(true)}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow-sm"
                 >
-                  Edit Subaccount
+                  Edit Bank Details
                 </button>
               </div>
             </div>
@@ -514,6 +583,50 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
       ) : (
         /* Setup / Registration Form */
         <div className="space-y-6">
+          {/* Secret Key Configuration Toggle / Panel */}
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 rounded-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                <Lock className="w-4 h-4 text-amber-600" />
+                <span>Paystack Secret Key Configuration</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKeyConfig(!showKeyConfig)}
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {showKeyConfig ? "Hide Config" : "Configure Secret Key ⚙️"}
+              </button>
+            </div>
+            {showKeyConfig && (
+              <form onSubmit={handleConfigureKey} className="mt-3 space-y-3 pt-3 border-t border-amber-200 dark:border-amber-900/40">
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  Paste your valid Paystack secret key (<code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded">sk_test_...</code> or <code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded">sk_live_...</code>) to instantly resolve NUBAN account names and register subaccounts.
+                </p>
+                <div className="flex space-x-2">
+                  <input
+                    type="password"
+                    placeholder="sk_test_... or sk_live_..."
+                    value={secretKeyInput}
+                    onChange={(e) => setSecretKeyInput(e.target.value)}
+                    className="flex-1 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition"
+                  >
+                    Save Key
+                  </button>
+                </div>
+                {keyConfigStatus && (
+                  <div className={`p-2 rounded-xl text-xs font-semibold ${keyConfigStatus.success ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                    {keyConfigStatus.message}
+                  </div>
+                )}
+              </form>
+            )}
+          </div>
+
           {/* Mode Switcher Tabs */}
           <div className="flex border-b border-slate-200 dark:border-slate-700 space-x-1">
             <button

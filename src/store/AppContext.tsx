@@ -605,9 +605,48 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         dedupeById(allSubmissions),
         setSubmissions,
       );
+
+      // Intelligent deduplication of schedule events to prevent duplicate live class items
+      const dedupeScheduleEvents = (events: ScheduleEvent[]): ScheduleEvent[] => {
+        const byId = dedupeById(events);
+        const result: ScheduleEvent[] = [];
+        const activeCourseMap = new Set<string>();
+        const seenEventSignature = new Set<string>();
+
+        // Sort so active events or more recently dated events take precedence
+        const sorted = [...byId].sort((a, b) => {
+          if (a.isActive && !b.isActive) return -1;
+          if (!a.isActive && b.isActive) return 1;
+          return (b.date || "").localeCompare(a.date || "");
+        });
+
+        for (const evt of sorted) {
+          if (!evt.id || !evt.courseId) continue;
+
+          // Ensure only ONE active live session per course at any given time
+          if (evt.isActive) {
+            if (activeCourseMap.has(evt.courseId)) {
+              result.push({ ...evt, isActive: false });
+              continue;
+            }
+            activeCourseMap.add(evt.courseId);
+          }
+
+          // Deduplicate events that share identical courseId, date, time, and title
+          const sig = `${evt.courseId}_${evt.date}_${evt.time}_${(evt.title || "").trim().toLowerCase()}`;
+          if (seenEventSignature.has(sig)) {
+            continue;
+          }
+          seenEventSignature.add(sig);
+          result.push(evt);
+        }
+
+        return result;
+      };
+
       updateAndCache(
         "course.scheduleEvents",
-        dedupeById(allEvents),
+        dedupeScheduleEvents(allEvents),
         setScheduleEvents,
       );
       updateAndCache(
@@ -1462,11 +1501,35 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     const targetUid = currentUser?.id || "";
 
+    // 1. Check if an identical event or already active event exists for this course to prevent duplicates
+    let eventIdToUse = event.id;
+    const existingMatch = scheduleEvents.find((e) => {
+      if (e.id === event.id) return true;
+      if (event.isActive && e.courseId === event.courseId && e.isActive) return true;
+      if (
+        e.courseId === event.courseId &&
+        e.date === event.date &&
+        e.time === event.time &&
+        (e.title || "").trim().toLowerCase() === (event.title || "").trim().toLowerCase()
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingMatch) {
+      eventIdToUse = existingMatch.id;
+      cleaned.id = existingMatch.id;
+    }
+
     if (targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
         "course.scheduleEvents",
-        (list) => [...list.filter((e) => e.id !== event.id), cleaned],
+        (list) => [
+          ...list.filter((e) => e.id !== eventIdToUse && (!event.isActive || e.courseId !== event.courseId || !e.isActive)),
+          cleaned,
+        ],
       );
     }
     const course = courses.find((c) => c.id === event.courseId);
@@ -1474,15 +1537,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       await updateBackpackUserField<ScheduleEvent>(
         course.orgId,
         "course.scheduleEvents",
-        (list) => [...list.filter((e) => e.id !== event.id), cleaned],
+        (list) => [
+          ...list.filter((e) => e.id !== eventIdToUse && (!event.isActive || e.courseId !== event.courseId || !e.isActive)),
+          cleaned,
+        ],
       );
     }
 
     setScheduleEvents((prev) => [
-      ...prev.filter((e) => e.id !== event.id),
+      ...prev.filter((e) => e.id !== eventIdToUse && (!event.isActive || e.courseId !== event.courseId || !e.isActive)),
       cleaned,
     ]);
 
+    // 2. Dispatch notifications ONLY to ENROLLED STUDENTS and CO-STAFF, EXCLUDING THE CALL INITIATOR!
     if (event.isActive && event.courseId) {
       const courseTitle = course?.title || "Course";
       const enrolledStudentIds = enrollmentRequests
@@ -1497,9 +1564,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const courseStaffIds = [course?.createdBy, course?.orgId].filter(Boolean) as string[];
 
+      // CRITICAL: Filter out the call initiator (currentUser.id) so the person who started the class is not notified
       const targetRecipientIds = Array.from(
         new Set([...enrolledStudentIds, ...assignedInstructorIds, ...courseStaffIds]),
-      );
+      ).filter((uid): uid is string => Boolean(uid && uid !== currentUser?.id));
 
       for (const recipientId of targetRecipientIds) {
         addNotification({
@@ -1508,14 +1576,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           title: `📹 Live Class Started: ${event.title}`,
           message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
           type: "live_class",
-          linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
-        });
-      }
-
-      if (currentUser?.id && targetRecipientIds.includes(currentUser.id)) {
-        sendPushNotification(`Live Class Started: ${event.title}`, {
-          body: `The live stream for "${courseTitle}" has started. Click to join!`,
-          linkUrl: `/course/${event.courseId}?live=true&eventId=${event.id}`,
+          linkUrl: `/course/${event.courseId}?live=true&eventId=${cleaned.id}`,
         });
       }
     }
@@ -1543,21 +1604,44 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       await updateBackpackUserField<ScheduleEvent>(
         targetUid,
         "course.scheduleEvents",
-        (list) => list.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+        (list) =>
+          list.map((e) =>
+            e.id === id
+              ? { ...e, ...updates }
+              : updates.isActive && e.courseId === effectiveCourseId
+                ? { ...e, isActive: false }
+                : e,
+          ),
       );
     }
     if (course?.orgId && course.orgId !== targetUid) {
       await updateBackpackUserField<ScheduleEvent>(
         course.orgId,
         "course.scheduleEvents",
-        (list) => list.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+        (list) =>
+          list.map((e) =>
+            e.id === id
+              ? { ...e, ...updates }
+              : updates.isActive && e.courseId === effectiveCourseId
+                ? { ...e, isActive: false }
+                : e,
+          ),
       );
     }
 
     setScheduleEvents((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+      prev.map((e) =>
+        e.id === id
+          ? { ...e, ...updates }
+          : updates.isActive && e.courseId === effectiveCourseId
+            ? { ...e, isActive: false }
+            : e,
+      ),
     );
-    if (updates.isActive && effectiveCourseId) {
+
+    // Notify only if transition from inactive -> active
+    const wasAlreadyActive = existingEvt?.isActive === true;
+    if (updates.isActive && !wasAlreadyActive && effectiveCourseId) {
       const evt = existingEvt || scheduleEvents.find((e) => e.id === id);
       const courseTitle = course?.title || "Course";
       const eventTitle = updates.title || evt?.title || "Class Session";
@@ -1574,9 +1658,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const courseStaffIds = [course?.createdBy, course?.orgId].filter(Boolean) as string[];
 
+      // CRITICAL: Filter out the call initiator (currentUser.id) so the person who started the class is not notified
       const targetRecipientIds = Array.from(
         new Set([...enrolledStudentIds, ...assignedInstructorIds, ...courseStaffIds]),
-      );
+      ).filter((uid): uid is string => Boolean(uid && uid !== currentUser?.id));
 
       for (const recipientId of targetRecipientIds) {
         addNotification({
@@ -1585,13 +1670,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           title: `📹 Live Class Started: ${eventTitle}`,
           message: `The live stream for "${courseTitle}" is officially active. Click to join now!`,
           type: "live_class",
-          linkUrl: `/course/${effectiveCourseId}?live=true&eventId=${id}`,
-        });
-      }
-
-      if (currentUser?.id && targetRecipientIds.includes(currentUser.id)) {
-        sendPushNotification(`Live Class Started: ${eventTitle}`, {
-          body: `The live stream for "${courseTitle}" has started. Click to join!`,
           linkUrl: `/course/${effectiveCourseId}?live=true&eventId=${id}`,
         });
       }

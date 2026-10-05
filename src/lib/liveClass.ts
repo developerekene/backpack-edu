@@ -9,10 +9,18 @@ export const sanitizeRoomName = (name: string): string => {
 };
 
 /**
- * Returns a deterministic, consistent unique room name for a live class session across all participants.
- * 1. If event has meetingUrl, extract custom room name if present.
- * 2. If event has an id or session identifier, create a dedicated room identifier: `backpack-live-${courseId}-${eventId}`.
- * 3. Fallback to `backpack-live-${courseId}` if no eventId is provided.
+ * Generates a unique, non-guessable, single-use UUID session ID for a specific lecture instance.
+ */
+export const generateUniqueSessionId = (): string => {
+  const randomUuid = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
+  return randomUuid;
+};
+
+/**
+ * Returns a unique, non-guessable room name for a live class session across all participants.
+ * Format: `course-backpack-${courseId}-session-${uuid}`
  */
 export const getLiveClassRoomName = (
   event?: Partial<ScheduleEvent> | null,
@@ -30,14 +38,36 @@ export const getLiveClassRoomName = (
     }
   }
 
-  const effectiveCourseId = event?.courseId || courseId || 'classroom';
-  const effectiveEventId = event?.id;
+  const cleanCourseId = sanitizeRoomName(event?.courseId || courseId || 'classroom');
+  const sessionUuid = event?.id
+    ? sanitizeRoomName(event.id)
+    : generateUniqueSessionId(cleanCourseId);
 
-  if (effectiveEventId) {
-    return sanitizeRoomName(`backpack-live-${effectiveCourseId}-${effectiveEventId}`);
+  return sanitizeRoomName(`course-backpack-${cleanCourseId}-session-${sessionUuid}`);
+};
+
+/**
+ * Destroys a LiveKit room permanently on the server and kicks out lingering connections.
+ */
+export const endLiveClassSessionApi = async (roomName: string, courseId?: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+  try {
+    const res = await fetch('/api/livekit/end-room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomName,
+        courseId,
+      }),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    const errText = await res.text();
+    return { success: false, error: errText };
+  } catch (err) {
+    console.warn('[LiveKit API] end-room network notice:', err);
+    return { success: false, error: String(err) };
   }
-
-  return sanitizeRoomName(`backpack-live-${effectiveCourseId}`);
 };
 
 /**

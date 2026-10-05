@@ -63,14 +63,60 @@ export const requestPushPermission = async (): Promise<NotificationPermission> =
   return 'granted';
 };
 
+export interface NotificationChannelConfig {
+  id: string;
+  name: string;
+  description: string;
+  importance: 'MAX' | 'HIGH' | 'DEFAULT';
+  importanceLevel: number;
+  channelShowBadge: boolean;
+  sound: boolean;
+  vibrate: number[];
+}
+
+/**
+ * Registers the call_notifications channel in app configuration with Importance.MAX & channelShowBadge(true)
+ * so the device OS treats incoming calls and live class notifications with maximum device alert priority.
+ */
+export const registerCallNotificationsChannel = (): NotificationChannelConfig => {
+  const channelConfig: NotificationChannelConfig = {
+    id: 'call_notifications',
+    name: 'Live Class Call Alerts',
+    description: 'High-priority real-time alerts for active live classes, video calls, and monitored exams.',
+    importance: 'MAX',
+    importanceLevel: 5, // Android Importance.MAX
+    channelShowBadge: true,
+    sound: true,
+    vibrate: [200, 100, 200, 100, 200],
+  };
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('call_notifications_channel_registered', 'true');
+      localStorage.setItem('call_notifications_channel_config', JSON.stringify(channelConfig));
+    } catch {
+      // ignore
+    }
+  }
+
+  return channelConfig;
+};
+
+// Automatically register channel on module initialization
+registerCallNotificationsChannel();
+
 export const sendPushNotification = (
   title: string,
-  options?: NotificationOptions & { linkUrl?: string }
+  options?: NotificationOptions & { linkUrl?: string; isCallNotification?: boolean }
 ): Notification | boolean | null => {
   const perm = getNotificationPermission();
   if (perm !== 'granted') {
     return null;
   }
+
+  // Ensure high-priority call notifications channel settings are applied
+  const isCall = options?.isCallNotification || options?.tag === 'call_notifications';
+  const notificationTag = isCall ? 'call_notifications' : (options?.tag || 'backpack-lms-notification');
 
   // 1. Try native browser notification if allowed
   if ('Notification' in window && Notification.permission === 'granted') {
@@ -78,8 +124,12 @@ export const sendPushNotification = (
       const notification = new Notification(title, {
         icon: '/vite.svg',
         badge: '/vite.svg',
-        tag: options?.tag || 'backpack-lms-notification',
-        ...options
+        tag: notificationTag,
+        requireInteraction: isCall,
+        renotify: true,
+        silent: false,
+        vibrate: isCall ? [200, 100, 200, 100, 200] : [100, 50, 100],
+        ...options,
       });
 
       if (options?.linkUrl) {
@@ -99,6 +149,17 @@ export const sendPushNotification = (
   // 2. In-App Floating Toast Fallback for sandboxed preview & iframe
   createInAppPushToast(title, options?.body, options?.linkUrl);
   return true;
+};
+
+export const sendCallNotification = (
+  title: string,
+  options?: NotificationOptions & { linkUrl?: string }
+) => {
+  return sendPushNotification(title, {
+    ...options,
+    tag: 'call_notifications',
+    isCallNotification: true,
+  });
 };
 
 // Helper for rendered push toast in iframe

@@ -10,6 +10,8 @@ export interface PaystackSubaccount {
   percentage_charge: number; // e.g., 90 (%) goes to provider, 10% to platform
   description?: string;
   is_verified?: boolean;
+  is_live?: boolean;
+  mode?: "test" | "live";
   updatedAt?: string;
 }
 
@@ -24,6 +26,9 @@ export interface PaystackSplitTransaction {
   providerType: "organization" | "instructor";
   providerName: string;
   subaccountCode: string;
+  subaccount_code?: string;
+  is_live?: boolean;
+  mode?: "test" | "live";
   totalAmount: number;
   providerShareAmount: number;
   platformFeeAmount: number;

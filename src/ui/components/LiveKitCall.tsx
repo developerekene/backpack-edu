@@ -19,13 +19,15 @@ import {
   Send,
   Sparkles,
   Check,
-  Edit3,
   Copy,
   Volume2,
   AlertTriangle,
   RefreshCw,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { LiveClassRecorder } from './LiveClassRecorder';
+import { endLiveClassSessionApi } from '../../lib/liveClass';
 
 interface LiveKitCallProps {
   roomName: string;
@@ -53,6 +55,26 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [isConnecting, setIsConnecting] = useState<boolean>(true);
   const [resolvedWsUrl, setResolvedWsUrl] = useState<string | null>(null);
   const [useLiveKitRoom, setUseLiveKitRoom] = useState<boolean>(true);
+  const [sessionAccessError, setSessionAccessError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   // In-Call Controls State
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -61,10 +83,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [handRaised, setHandRaised] = useState<boolean>(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<'chat' | 'participants' | 'settings' | null>(null);
 
-  // Participant Name Editor
-  const [displayName, setDisplayName] = useState<string>(participantName);
-  const [isEditingName, setIsEditingName] = useState<boolean>(false);
-  const [tempName, setTempName] = useState<string>(participantName);
+  // Participant Name
+  const [displayName] = useState<string>(participantName);
 
   // Classroom Features
   const [captionsLanguage, setCaptionsLanguage] = useState<string>('en-US');
@@ -119,6 +139,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     let isMounted = true;
 
     async function loadToken() {
+      setSessionAccessError(null);
       try {
         const res = await fetch('/api/livekit/token', {
           method: 'POST',
@@ -127,15 +148,24 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             roomName: cleanRoomName,
             participantName: displayName,
             role: effectiveRole,
+            courseId,
           }),
         });
 
-        if (!res.ok) {
-          throw new Error(`Server returned HTTP ${res.status}`);
-        }
-
         const data = await res.json();
         if (!isMounted) return;
+
+        if (!res.ok || !data.token) {
+          if (data.status === 'INACTIVE_STUDENT_REJECTED' || data.error?.includes('Students cannot start')) {
+            setSessionAccessError('Students are not permitted to start live classes. Please wait until your instructor activates the session.');
+          } else if (data.status === 'ENDED' || data.error?.includes('ended')) {
+            setSessionAccessError('This live class session has been ended by the instructor.');
+          } else {
+            setSessionAccessError(data.error || 'Unable to connect to live class session.');
+          }
+          setUseLiveKitRoom(false);
+          return;
+        }
 
         if (data.token) {
           setToken(data.token);
@@ -146,8 +176,6 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           } else {
             setUseLiveKitRoom(false);
           }
-        } else {
-          throw new Error(data.error || 'No token returned from server');
         }
       } catch (err: unknown) {
         if (!isMounted) return;
@@ -166,7 +194,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [cleanRoomName, displayName, effectiveRole, wsUrlFromEnv]);
+  }, [cleanRoomName, displayName, effectiveRole, wsUrlFromEnv, courseId]);
 
   const handleRegenerateToken = async () => {
     setIsConnecting(true);
@@ -304,63 +332,121 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     }
   };
 
-  const handleSaveName = () => {
-    if (tempName.trim()) {
-      setDisplayName(tempName.trim());
-      setIsEditingName(false);
+  const handleEndClass = async () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+    await endLiveClassSessionApi(cleanRoomName, courseId);
+    if (onClose) {
+      onClose();
     }
   };
+
+  // 0. Session Access Error View (Student restriction / Ended room)
+  if (sessionAccessError) {
+    return (
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8 text-center max-w-lg mx-auto shadow-2xl space-y-5 my-6">
+        <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-lg font-bold text-white">Class Session Status</h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            {sessionAccessError}
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={() => handleRegenerateToken()}
+            disabled={isConnecting}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isConnecting ? 'animate-spin' : ''}`} />
+            <span>Check Status</span>
+          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
+            >
+              Return to Course
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // 1. Official LiveKit Cloud Room View
   if (useLiveKitRoom && resolvedWsUrl && token) {
     return (
-      <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col" style={{ height: '78vh' }}>
-        {/* Top Header Bar */}
-        <div className="bg-slate-900/90 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between z-20">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg">
+      <div
+        ref={containerRef}
+        className={`bg-slate-950 overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col transition-all duration-300 ${
+          isFullscreen ? 'fixed inset-0 z-[9999] w-screen h-screen rounded-none border-none' : 'rounded-2xl'
+        }`}
+        style={{ height: isFullscreen ? '100vh' : '78vh' }}
+      >
+        {/* Streamlined Compact Top Bar */}
+        <div className="bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex items-center justify-between z-20 shrink-0 gap-2">
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="p-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg shrink-0">
               <Video className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-white text-sm">
-                  {cleanRoomName}
-                </h3>
-                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 flex items-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
-                  LiveKit Cloud
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5">
-                <span>Participant: <strong className="text-white">{displayName}</strong></span>
-                <span className="px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded uppercase">
-                  {roleLabel}
-                </span>
-              </div>
+            <div className="flex items-center space-x-2 min-w-0">
+              <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={cleanRoomName}>
+                {cleanRoomName}
+              </h3>
+              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 shrink-0 flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
+                LIVE
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <button
+              onClick={toggleFullscreen}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Fullscreen"}</span>
+            </button>
+
             <button
               onClick={handleCopyDirectJoinUrl}
-              className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1 transition"
+              className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
               title="Copy Direct Meeting URL"
             >
               {copiedJoinUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{copiedJoinUrl ? "Copied Link!" : "Copy Link"}</span>
+              <span className="hidden sm:inline">{copiedJoinUrl ? "Copied" : "Copy"}</span>
             </button>
+
             <LiveClassRecorder
               roomName={cleanRoomName}
               courseId={courseId}
               isInstructor={effectiveRole === 'instructor' || effectiveRole === 'organization'}
             />
+
             {onClose && (
-              <button
-                onClick={handleLeave}
-                className="px-3 py-1.5 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white text-xs font-bold rounded-lg transition border border-red-500/30 flex items-center"
-              >
-                <PhoneOff className="w-4 h-4 mr-1.5" /> Leave
-              </button>
+              effectiveRole === 'instructor' ? (
+                <button
+                  onClick={handleEndClass}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center shrink-0 border border-red-500"
+                  title="End class session permanently for all participants"
+                >
+                  <PhoneOff className="w-3.5 h-3.5 mr-1" /> End Class
+                </button>
+              ) : (
+                <button
+                  onClick={handleLeave}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-lg transition flex items-center shrink-0 border border-slate-700"
+                  title="Leave meeting"
+                >
+                  <PhoneOff className="w-3.5 h-3.5 mr-1" /> Leave
+                </button>
+              )
             )}
           </div>
         </div>
@@ -390,76 +476,48 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
   // 2. Native Embedded Conference Stage
   return (
-    <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col" style={{ height: '75vh' }}>
-      {/* Top Header */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20 flex-wrap gap-2">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg">
-            <Video className="w-5 h-5" />
+    <div
+      ref={containerRef}
+      className={`bg-slate-950 overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col transition-all duration-300 ${
+        isFullscreen ? 'fixed inset-0 z-[9999] w-screen h-screen rounded-none border-none' : 'rounded-2xl'
+      }`}
+      style={{ height: isFullscreen ? '100vh' : '75vh' }}
+    >
+      {/* Streamlined Compact Top Header */}
+      <div className="bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex items-center justify-between z-20 shrink-0 gap-2">
+        <div className="flex items-center space-x-2 min-w-0">
+          <div className="p-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg shrink-0">
+            <Video className="w-4 h-4" />
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h3 className="font-bold text-white text-sm">
-                Live Classroom: {cleanRoomName}
-              </h3>
-              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 flex items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
-                LiveKit Ready
-              </span>
-            </div>
-
-            {/* Display Name & Guest Inline Editor */}
-            <div className="flex items-center space-x-2 text-xs text-slate-300 mt-0.5">
-              <span>Connected as:</span>
-              {isEditingName ? (
-                <div className="flex items-center space-x-1">
-                  <input
-                    type="text"
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    className="bg-slate-950 text-white text-xs px-2 py-0.5 rounded border border-indigo-500 outline-none w-36"
-                    placeholder="Enter your name"
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleSaveName}
-                    className="p-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition"
-                    title="Save name"
-                  >
-                    <Check className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-1.5">
-                  <strong className="text-white">{displayName}</strong>
-                  <button
-                    onClick={() => {
-                      setTempName(displayName);
-                      setIsEditingName(true);
-                    }}
-                    className="text-slate-400 hover:text-white transition"
-                    title="Edit display name"
-                  >
-                    <Edit3 className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-              <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-md border border-indigo-500/30 uppercase tracking-wide">
-                {roleLabel}
-              </span>
-            </div>
+          <div className="flex items-center space-x-2 min-w-0">
+            <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={cleanRoomName}>
+              {cleanRoomName}
+            </h3>
+            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 shrink-0 flex items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
+              LIVE
+            </span>
           </div>
         </div>
 
         {/* Action Toolbar */}
-        <div className="flex items-center space-x-2 flex-wrap">
+        <div className="flex items-center space-x-1.5 shrink-0">
+          <button
+            onClick={toggleFullscreen}
+            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Fullscreen"}</span>
+          </button>
+
           <button
             onClick={handleCopyDirectJoinUrl}
-            className="p-2 rounded-lg text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition flex items-center space-x-1"
+            className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
             title="Copy Direct Shareable Meeting URL"
           >
             {copiedJoinUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{copiedJoinUrl ? "Copied Link!" : "Copy Link"}</span>
+            <span className="hidden sm:inline">{copiedJoinUrl ? "Copied" : "Copy"}</span>
           </button>
 
           <LiveClassRecorder

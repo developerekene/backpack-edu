@@ -8,6 +8,8 @@ interface PaystackProps {
   currency: string;
   subaccountCode?: string;
   splitCode?: string;
+  isLive?: boolean;
+  mode?: "test" | "live";
   providerName?: string;
   providerSharePercent?: number;
   courseId?: string;
@@ -27,6 +29,8 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
   currency,
   subaccountCode,
   splitCode,
+  isLive,
+  mode,
   providerName,
   courseId,
   courseTitle,
@@ -59,7 +63,10 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
       amount,
       currency: currency || "NGN",
       subaccount: subaccountCode,
+      subaccount_code: subaccountCode,
       split_code: splitCode,
+      is_live: isLive,
+      mode: mode,
       reference: generatedRef,
       studentDetails: {
         firstName: studentName ? studentName.split(" ")[0] : email.split("@")[0],
@@ -71,7 +78,9 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         courseId,
         courseTitle,
         providerName,
+        subaccount_code: subaccountCode,
         subaccountCode,
+        mode: mode || (isLive ? "live" : "test"),
       },
       onSuccess: (res) => {
         setLoading(false);
@@ -90,7 +99,17 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         console.log("Payment error:", error);
         setLoading(false);
         setStatusMessage(null);
-        setErrorMessage(error?.message || "Payment could not be completed.");
+        let msg = "Payment could not be completed.";
+        if (error) {
+          if (typeof error === "string") {
+            msg = error;
+          } else if (error.message && typeof error.message === "string") {
+            msg = error.message;
+          } else if (error.type === "setup" && error.message) {
+            msg = String(error.message);
+          }
+        }
+        setErrorMessage(msg);
       },
     });
   };
