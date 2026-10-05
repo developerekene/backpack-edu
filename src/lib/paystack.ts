@@ -8,8 +8,16 @@ export const TEMPLATE_ID = "template_p8h58ur";
 export const PUBLIC_KEY = "hcj3DsJ8MfNfUrE8J";
 
 // Live key and Test key:
-// export const PAYSTACK_KEY = "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
-export const PAYSTACK_KEY = "pk_test_db0145199289f83c428d57cf70755142bb0b8b28"; // replace with your own key
+export const PAYSTACK_TEST_PUBLIC_KEY =
+  import.meta.env.VITE_PAYSTACK_TEST_PUBLIC_KEY ||
+  import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
+  "pk_test_db0145199289f83c428d57cf70755142bb0b8b28";
+
+export const PAYSTACK_LIVE_PUBLIC_KEY =
+  import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY ||
+  "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
+
+export const PAYSTACK_KEY = PAYSTACK_TEST_PUBLIC_KEY;
 
 export const generateReferenceNumber = (): string => {
   const prefix = "DT";
@@ -23,7 +31,10 @@ export interface PaystackTransactionOptions {
   amount: number; // In main currency unit (e.g., NGN), will be converted to Kobo (* 100)
   currency?: string;
   subaccount?: string;
+  subaccount_code?: string;
   split_code?: string;
+  is_live?: boolean;
+  mode?: "test" | "live";
   reference?: string;
   metadata?: Record<string, unknown>;
   studentDetails?: {
@@ -44,7 +55,7 @@ export interface PaystackTransactionOptions {
 
 /**
  * Global Paystack payment trigger with automatic Reference Number generation,
- * PayStackPop inline checkout modal, and automated EmailJS notification.
+ * PayStackPop inline checkout modal, subaccount mode verification, and automated EmailJS notification.
  */
 export const triggerPaystackPayment = (options: PaystackTransactionOptions) => {
   const referenceNumber = options.reference || generateReferenceNumber();
@@ -57,6 +68,27 @@ export const triggerPaystackPayment = (options: PaystackTransactionOptions) => {
   }
 
   const amountInKobo = Math.round(options.amount * 100);
+  const targetSubaccount = options.subaccount_code || options.subaccount;
+
+  // Verify subaccount environment mode (test vs live)
+  let isLiveMode = false;
+  if (options.is_live !== undefined) {
+    isLiveMode = Boolean(options.is_live);
+  } else if (options.mode === "live") {
+    isLiveMode = true;
+  } else if (options.mode === "test") {
+    isLiveMode = false;
+  } else if (targetSubaccount) {
+    if (targetSubaccount.includes("_test_") || targetSubaccount.startsWith("ACCT_test_")) {
+      isLiveMode = false;
+    } else if (targetSubaccount.includes("_live_") || targetSubaccount.startsWith("ACCT_live_")) {
+      isLiveMode = true;
+    } else {
+      isLiveMode = false; // Default to sandbox test mode
+    }
+  }
+
+  const activePublicKey = isLiveMode ? PAYSTACK_LIVE_PUBLIC_KEY : PAYSTACK_TEST_PUBLIC_KEY;
 
   const handleSuccess = async (res: { reference?: string; trxref?: string; status?: string }) => {
     const finalRef = res?.reference || res?.trxref || referenceNumber;
@@ -112,9 +144,92 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
     }
   };
 
+  let subaccountRetried = false;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isInvalidSubaccountError = (err: any): boolean => {
+    if (!err) return false;
+    const msg = typeof err === "string" ? err : err.message || "";
+    const type = typeof err === "object" ? err.type : "";
+    const str = typeof err === "object" ? JSON.stringify(err) : String(err);
+    return (
+      msg.toLowerCase().includes("subaccount") ||
+      (type === "setup" && str.toLowerCase().includes("subaccount")) ||
+      str.toLowerCase().includes("invalid subaccount")
+    );
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let txConfig: any;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleError = (error: any) => {
     console.error("Paystack Payment error:", error);
+
+    // If error is caused by an unlinked / mode-mismatched subaccount:
+    if (!subaccountRetried && targetSubaccount && isInvalidSubaccountError(error)) {
+      subaccountRetried = true;
+      const alternateKey = activePublicKey === PAYSTACK_LIVE_PUBLIC_KEY ? PAYSTACK_TEST_PUBLIC_KEY : PAYSTACK_LIVE_PUBLIC_KEY;
+      console.warn(
+        `[Paystack Mode Guard] Subaccount "${targetSubaccount}" was rejected with key ${activePublicKey.slice(0, 8)}... Retrying with alternate mode key (${alternateKey.slice(0, 8)}...)...`
+      );
+
+      txConfig.key = alternateKey;
+      txConfig.metadata = {
+        ...(txConfig.metadata || {}),
+        mode_switched: true,
+        subaccount_code: targetSubaccount,
+      };
+
+      try {
+        const fallbackPaystack = new PaystackPop();
+        fallbackPaystack.newTransaction(txConfig);
+        return;
+      } catch {
+        // Fallback retry attempt
+      }
+
+      // If mode switch also rejects, fall back to direct payment with original key
+      delete txConfig.subaccount;
+      delete txConfig.subaccount_code;
+      delete txConfig.split_code;
+      txConfig.key = activePublicKey;
+      txConfig.metadata = {
+        ...(txConfig.metadata || {}),
+        requested_subaccount: targetSubaccount,
+        subaccount_fallback: true,
+      };
+
+      try {
+        const directPaystack = new PaystackPop();
+        directPaystack.newTransaction(txConfig);
+        return;
+      } catch (retryErr) {
+        console.warn("Paystack direct fallback notice:", retryErr);
+      }
+
+      // Try window.PaystackPop if available
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const win = window as any;
+      if (win.PaystackPop && typeof win.PaystackPop.setup === "function") {
+        try {
+          const handler = win.PaystackPop.setup({
+            ...txConfig,
+            callback: (res: { reference?: string; trxref?: string; status?: string }) => {
+              handleSuccess(res);
+            },
+            onClose: () => {
+              handleCancel();
+            },
+          });
+          handler.openIframe();
+          return;
+        } catch (winRetryErr) {
+          console.error("window.PaystackPop retry failed:", winRetryErr);
+        }
+      }
+    }
+
     if (options.onError) {
       options.onError(error);
     }
@@ -123,10 +238,8 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
   try {
     // 1. Try PaystackPop instance from @paystack/inline-js
     const payStack = new PaystackPop();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const txConfig: any = {
-      // key: "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4",
-      key: PAYSTACK_KEY, // replace with your own key
+    txConfig = {
+      key: activePublicKey,
       email: options.email,
       amount: amountInKobo,
       ref: referenceNumber,
@@ -134,34 +247,43 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
       onSuccess: handleSuccess,
       onCancel: handleCancel,
       onError: handleError,
+      metadata: {
+        ...(options.metadata || {}),
+        subaccount_code: targetSubaccount,
+        mode: isLiveMode ? "live" : "test",
+        is_live: isLiveMode,
+      },
     };
 
-    if (options.subaccount) {
-      txConfig.subaccount = options.subaccount;
+    if (targetSubaccount) {
+      txConfig.subaccount = targetSubaccount;
+      txConfig.subaccount_code = targetSubaccount;
     }
     if (options.split_code) {
       txConfig.split_code = options.split_code;
-    }
-    if (options.metadata) {
-      txConfig.metadata = options.metadata;
     }
 
     payStack.newTransaction(txConfig);
   } catch (inlineErr) {
     console.warn("Falling back to window.PaystackPop / setup:", inlineErr);
+    // If the error was subaccount-related, strip subaccount
+    if (targetSubaccount && isInvalidSubaccountError(inlineErr)) {
+      delete txConfig.subaccount;
+      delete txConfig.subaccount_code;
+      delete txConfig.split_code;
+    }
+
     // Fallback if window.PaystackPop is available
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const win = window as any;
     if (win.PaystackPop && typeof win.PaystackPop.setup === "function") {
       const handler = win.PaystackPop.setup({
-        key: PAYSTACK_KEY,
+        ...txConfig,
+        key: activePublicKey,
         email: options.email,
         amount: amountInKobo,
         ref: referenceNumber,
         currency: options.currency || "NGN",
-        subaccount: options.subaccount,
-        split_code: options.split_code,
-        metadata: options.metadata,
         callback: (res: { reference?: string; trxref?: string; status?: string }) => {
           handleSuccess(res);
         },

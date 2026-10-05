@@ -101,13 +101,13 @@ const sections: PolicySection[] = [
           "We only collect what we need to make the Platform work well for you.",
           "We protect learners, especially minors, with extra care.",
           "We use trusted, vetted service providers to keep your data safe.",
-          "We are always reachable \u2014 just email support@backpack.africa.",
+          "We are always reachable \u2014 just email support@backpack-edu.com.",
         ],
       },
       {
         type: "note",
         noteType: "info",
-        text: "If you have questions at any point, you can reach our team at support@backpack.africa with the subject line \u201cPrivacy\u201d. We are here to help you understand your rights.",
+        text: "If you have questions at any point, you can reach our team at support@backpack-edu.com with the subject line \u201cPrivacy\u201d. We are here to help you understand your rights.",
       },
     ],
   },
@@ -446,7 +446,7 @@ const sections: PolicySection[] = [
       },
       {
         type: "paragraph",
-        text: "To exercise any of these rights, email support@backpack.africa with the subject line \u201cPrivacy Request\u201d, or use the account settings where available. We will respond within the time required by law, and we may need to verify your identity before processing your request.",
+        text: "To exercise any of these rights, email support@backpack-edu.com with the subject line \u201cPrivacy Request\u201d, or use the account settings where available. We will respond within the time required by law, and we may need to verify your identity before processing your request.",
       },
     ],
   },
@@ -476,7 +476,7 @@ const sections: PolicySection[] = [
       },
       {
         type: "paragraph",
-        text: "Where a child under the minimum age is enrolled, we collect only the information needed to deliver the learning program. Parents and guardians have the right to review their child\u2019s information, ask us to correct it, or request its deletion at any time by contacting us at support@backpack.africa.",
+        text: "Where a child under the minimum age is enrolled, we collect only the information needed to deliver the learning program. Parents and guardians have the right to review their child\u2019s information, ask us to correct it, or request its deletion at any time by contacting us at support@backpack-edu.com.",
       },
       {
         type: "note",
@@ -590,7 +590,7 @@ const sections: PolicySection[] = [
       },
       {
         type: "paragraph",
-        text: "No method of transmission or storage is 100% secure. If you become aware of a security issue or vulnerability, please report it to support@backpack.africa so we can investigate quickly.",
+        text: "No method of transmission or storage is 100% secure. If you become aware of a security issue or vulnerability, please report it to support@backpack-edu.com so we can investigate quickly.",
       },
     ],
   },
@@ -698,9 +698,9 @@ const sections: PolicySection[] = [
         type: "list",
         heading: "How to reach us",
         items: [
-          "Email: support@backpack.africa",
-          "Privacy requests: support@backpack.africa (subject: \u201cPrivacy Request\u201d)",
-          "Security reports: support@backpack.africa (subject: \u201cSecurity\u201d)",
+          "Email: support@backpack-edu.com",
+          "Privacy requests: support@backpack-edu.com (subject: \u201cPrivacy Request\u201d)",
+          "Security reports: support@backpack-edu.com (subject: \u201cSecurity\u201d)",
           "Response time: we aim to respond within 7 business days",
         ],
       },
@@ -801,7 +801,7 @@ const sections: PolicySection[] = [
       {
         type: "subsection",
         heading: "Dispute Resolution, Cancellation & Refunds (FCCPA Section 120 & 129)",
-        text: "Learners and donors have the right to fair, expeditious dispute handling. If a course is canceled, fails to launch, or deviates substantially from published curricula, affected users are entitled to full remedies, credit, or refunds in compliance with applicable law. For any billing questions or dispute submissions, contact support@backpack.africa with a guaranteed 48-hour response acknowledgment.",
+        text: "Learners and donors have the right to fair, expeditious dispute handling. If a course is canceled, fails to launch, or deviates substantially from published curricula, affected users are entitled to full remedies, credit, or refunds in compliance with applicable law. For any billing questions or dispute submissions, contact support@backpack-edu.com with a guaranteed 48-hour response acknowledgment.",
       },
       {
         type: "subsection",
@@ -1431,11 +1431,11 @@ const Policy: React.FC = () => {
                 </p>
               </div>
               <a
-                href="mailto:support@backpack.africa?subject=Privacy"
+                href="mailto:support@backpack-edu.com?subject=Privacy"
                 className="shrink-0 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white text-indigo-700 text-sm font-bold hover:bg-indigo-50 transition"
               >
                 <Mail className="w-4 h-4" />
-                support@backpack.africa
+                support@backpack-edu.com
                 <ArrowRight className="w-4 h-4" />
               </a>
             </div>

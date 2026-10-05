@@ -140,10 +140,10 @@ export const CheckoutDisclosure: React.FC<CheckoutDisclosureProps> = ({
           <span>
             <strong>Right to Refund & Resolution:</strong> In line with national and international consumer protection standards, buyers are guaranteed full transparency and prompt dispute resolution. Contact{" "}
             <a
-              href="mailto:support@backpack.africa?subject=Consumer%20Checkout%20Dispute"
+              href="mailto:support@backpack-edu.com?subject=Consumer%20Checkout%20Dispute"
               className="text-indigo-600 dark:text-indigo-400 underline font-medium hover:text-indigo-700"
             >
-              support@backpack.africa
+              support@backpack-edu.com
             </a>{" "}
             for support within 14 business days.
           </span>

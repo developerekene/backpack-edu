@@ -5,7 +5,7 @@ import { ScheduleEvent } from '../../types';
 import { Calendar, Video, Plus, Trash2, PhoneOff } from 'lucide-react';
 import { ProctoringSession } from './ProctoringSession';
 import { LiveKitCall } from './LiveKitCall';
-import { getLiveClassRoomName, getJitsiMeetingUrl } from '../../lib/liveClass';
+import { getLiveClassRoomName, getJitsiMeetingUrl, createLiveKitMeetingUrl, getLiveKitDirectUrl, endLiveClassSessionApi } from '../../lib/liveClass';
 
 export const CourseSchedule = ({
     courseId,
@@ -38,6 +38,7 @@ export const CourseSchedule = ({
     const [durationMins, setDurationMins] = useState(60);
     const [type, setType] = useState<'lecture' | 'meeting' | 'exam'>('lecture');
     const [meetingUrl, setMeetingUrl] = useState("");
+    const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
     
     // Stabilize Date.now() for render
     const [currentTime] = useState(() => Date.now());
@@ -48,27 +49,66 @@ export const CourseSchedule = ({
     // Track active embedded video call room
     const [activeLiveKitRoom, setActiveLiveKitRoom] = useState<string | null>(null);
 
+    const checkIsPast = (dateStr: string, timeStr: string, nowMs: number): boolean => {
+        if (!dateStr) return false;
+        try {
+            const todayStr = new Date(nowMs).toISOString().split('T')[0];
+            if (dateStr > todayStr) return false; // Future date is active/upcoming!
+            if (dateStr < todayStr) return true;  // Past date
+
+            const cleanTime = (timeStr || '').trim().toUpperCase();
+            let hours = 0;
+            let minutes = 0;
+
+            if (cleanTime.includes('AM') || cleanTime.includes('PM')) {
+                const [timePart, modifier] = cleanTime.split(' ');
+                const [h, m] = (timePart || '').split(':').map(Number);
+                hours = h || 0;
+                minutes = m || 0;
+                if (modifier === 'PM' && hours < 12) hours += 12;
+                if (modifier === 'AM' && hours === 12) hours = 0;
+            } else {
+                const [h, m] = cleanTime.split(':').map(Number);
+                hours = h || 0;
+                minutes = m || 0;
+            }
+
+            const eventDate = new Date(`${dateStr}T00:00:00`);
+            eventDate.setHours(hours, minutes, 0, 0);
+            return eventDate.getTime() < nowMs;
+        } catch {
+            return false;
+        }
+    };
+
     const handleCreateEvent = async (e: React.FormEvent) => {
         e.preventDefault();
-        const roomName = getLiveClassRoomName({ courseId }, courseId);
-        const defaultMeetingUrl = getJitsiMeetingUrl(roomName);
-        const newEvent: ScheduleEvent = {
-            id: `evt_${Math.random().toString(36).substring(2, 15)}`,
-            courseId,
-            title,
-            date,
-            time,
-            durationMins: Number(durationMins),
-            type,
-            meetingUrl: meetingUrl.trim() || defaultMeetingUrl,
-            isActive: false
-        };
-        await addScheduleEvent(newEvent);
-        setTitle("");
-        setDate("");
-        setTime("");
-        setDurationMins(60);
-        setMeetingUrl("");
+        if (isSubmittingSchedule) return;
+        setIsSubmittingSchedule(true);
+        try {
+            const newEventId = `evt_${Math.random().toString(36).substring(2, 11)}_${Date.now().toString(36)}`;
+            const roomName = getLiveClassRoomName({ id: newEventId, courseId }, courseId);
+            const defaultMeetingUrl = getJitsiMeetingUrl(roomName);
+            const newEvent: ScheduleEvent = {
+                id: newEventId,
+                courseId,
+                title: title.trim(),
+                date,
+                time,
+                durationMins: Number(durationMins) || 60,
+                type,
+                meetingUrl: meetingUrl.trim() || defaultMeetingUrl,
+                isActive: false,
+            };
+            await addScheduleEvent(newEvent);
+            setTitle("");
+            setDate("");
+            setTime("");
+            setDurationMins(60);
+            setMeetingUrl("");
+        } finally {
+            setIsSubmittingSchedule(false);
+        }
     };
 
     return (
@@ -106,8 +146,13 @@ export const CourseSchedule = ({
                             <input type="url" value={meetingUrl} onChange={e => setMeetingUrl(e.target.value)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 outline-none" placeholder="https://meet.google.com/..." />
                         </div>
                     </div>
-                    <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white rounded-lg font-bold transition w-full sm:w-auto flex items-center justify-center">
-                        <Plus className="w-4 h-4 mr-2" /> Add to Timetable
+                    <button
+                        type="submit"
+                        disabled={isSubmittingSchedule}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-bold transition w-full sm:w-auto flex items-center justify-center shadow-sm"
+                    >
+                        <Plus className="w-4 h-4 mr-2" />
+                        <span>{isSubmittingSchedule ? "Scheduling..." : "Add to Timetable"}</span>
                     </button>
                 </form>
             )}
@@ -119,7 +164,7 @@ export const CourseSchedule = ({
                 ) : (
                     <div className="space-y-4">
                         {courseEvents.map(evt => {
-                            const isPast = new Date(`${evt.date}T${evt.time}`).getTime() < currentTime;
+                            const isPast = checkIsPast(evt.date, evt.time, currentTime);
                             return (
                                 <div key={evt.id} className={`flex flex-col sm:flex-row p-5 rounded-xl border ${isPast ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-800 opacity-60' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}>
                                     <div className="flex-shrink-0 w-24 mb-3 sm:mb-0 text-center sm:text-left">
@@ -161,7 +206,13 @@ export const CourseSchedule = ({
                                                             <button 
                                                                 onClick={async () => {
                                                                     const room = getEventRoomName(evt);
-                                                                    const meetingUrl = evt.meetingUrl || getJitsiMeetingUrl(room);
+                                                                    const livekitRes = await createLiveKitMeetingUrl({
+                                                                        roomName: room,
+                                                                        courseId,
+                                                                        role: 'instructor',
+                                                                        forceSync: true,
+                                                                    });
+                                                                    const meetingUrl = evt.meetingUrl || livekitRes.url || getLiveKitDirectUrl(room);
                                                                     await updateScheduleEvent(evt.id, { isActive: true, meetingUrl });
                                                                     setActiveLiveKitRoom(room);
                                                                     if (onStartLiveCall) onStartLiveCall(room);
@@ -195,6 +246,8 @@ export const CourseSchedule = ({
                                                             {!isStudent && (
                                                                 <button 
                                                                     onClick={async () => {
+                                                                        const room = getEventRoomName(evt);
+                                                                        await endLiveClassSessionApi(room, courseId);
                                                                         await updateScheduleEvent(evt.id, { isActive: false });
                                                                         setActiveLiveKitRoom(null);
                                                                     }}

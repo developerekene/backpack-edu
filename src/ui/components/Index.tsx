@@ -25,6 +25,7 @@ import { TTSFloatingController } from "./accessibility/TTSFloatingController";
 import { UniversalAccessibilityModal } from "./accessibility/UniversalAccessibilityModal";
 import AboutUs from "../pages/AboutUs";
 import Policy from "../pages/Policy";
+import { LiveRoomPage } from "../pages/LiveRoomPage";
 import { GlobalLoader } from "./GlobalLoader";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -69,6 +70,8 @@ const Index: React.FC = () => {
                       <Route path="/donate/:courseId" element={<Navigate to="/explore" replace />} />
 
                       <Route path="/privacy" element={<Policy />} />
+                      <Route path="/live" element={<LiveRoomPage />} />
+                      <Route path="/live/:roomName" element={<LiveRoomPage />} />
                       <Route path="/explore" element={<ExploreOrgs />} />
                       <Route path="/org/:orgId" element={<OrgProfile />} />
                       <Route

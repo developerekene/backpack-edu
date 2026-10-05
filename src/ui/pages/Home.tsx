@@ -15,6 +15,13 @@ import {
   Award,
   CheckCircle2,
   Users,
+  Search,
+  CreditCard,
+  Video,
+  Building2,
+  Layers,
+  Banknote,
+  ChevronRight,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { Course } from "../../types";
@@ -48,6 +55,97 @@ const Home = () => {
       : courses.slice(0, 3);
   const displayNonProfit =
     nonProfitCourses.length > 0 ? nonProfitCourses.slice(0, 3) : [];
+
+  // Step-by-Step Workflow state & data
+  const [activeStepTab, setActiveStepTab] = useState<"students" | "creators">("students");
+
+  const studentSteps = [
+    {
+      step: "01",
+      title: "Discover Accredited Courses",
+      description:
+        "Browse verified courses across STEM, software engineering, business, and vocational trades. Filter by schedule, syllabus, and partner academy.",
+      feature: "Search & Institution Filters",
+      icon: Search,
+      to: "/courses",
+      actionText: "Browse catalog",
+    },
+    {
+      step: "02",
+      title: "Enroll with Flexible Payments",
+      description:
+        "Access free sponsored courses instantly, or pay tuition securely via Paystack with one-time or 3-installment options in NGN, GHS, or KES.",
+      feature: "Paystack Split Checkout",
+      icon: CreditCard,
+      to: "/courses",
+      actionText: "Payment options",
+    },
+    {
+      step: "03",
+      title: "Attend Live Virtual Classes",
+      description:
+        "Join interactive video lecture rooms powered by LiveKit. Collaborate in real-time, ask questions, share screens, and review recorded lessons.",
+      feature: "LiveKit HD Classrooms",
+      icon: Video,
+      to: "/courses",
+      actionText: "Virtual rooms",
+    },
+    {
+      step: "04",
+      title: "Complete Milestones & Graduate",
+      description:
+        "Submit assignments, track your progress on the student dashboard, and earn verifiable digital certificates upon course completion.",
+      feature: "Verifiable Certificates",
+      icon: Award,
+      to: "/dashboard",
+      actionText: "Track progress",
+    },
+  ];
+
+  const creatorSteps = [
+    {
+      step: "01",
+      title: "Register Your Academy",
+      description:
+        "Establish an institutional workspace or verified instructor profile. Upload accreditation, KYC verification, faculty bios, and custom branding.",
+      feature: "Verified Academy Portal",
+      icon: Building2,
+      to: "/onboarding",
+      actionText: "Start onboarding",
+    },
+    {
+      step: "02",
+      title: "Publish Structured Curriculums",
+      description:
+        "Build rich multi-week syllabuses with modular lessons, downloadable resources, assignments, and custom tuition or donation-sponsored models.",
+      feature: "Course & Cohort Builder",
+      icon: Layers,
+      to: "/create-course",
+      actionText: "Create a course",
+    },
+    {
+      step: "03",
+      title: "Connect Settlement Bank",
+      description:
+        "Link your bank account or Paystack subaccount. Backpack automates split payouts so 100% of your tuition lands directly in your bank account.",
+      feature: "Automated Direct Payouts",
+      icon: Banknote,
+      to: "/onboarding",
+      actionText: "Set up Paystack",
+    },
+    {
+      step: "04",
+      title: "Host Live Classes & Scale",
+      description:
+        "Stream interactive lectures to your cohorts, review student submissions, track attendance, and monitor tuition revenue with live telemetry.",
+      feature: "Telemetry & Live Teaching",
+      icon: BarChart3,
+      to: "/dashboard",
+      actionText: "Instructor console",
+    },
+  ];
+
+  const currentSteps = activeStepTab === "students" ? studentSteps : creatorSteps;
 
   return (
     <div className="py-8 sm:py-12 md:py-16 space-y-16 animate-in fade-in duration-700">
@@ -261,6 +359,136 @@ const Home = () => {
           </div>
         </div>
       </div>
+
+      {/* ========================================== */}
+      {/* HOW TO USE BACKPACK (STEP-BY-STEP WORKFLOW)*/}
+      {/* ========================================== */}
+      <section className="py-16 sm:py-24 bg-slate-50/70 dark:bg-slate-900/40 border-y border-slate-200/80 dark:border-slate-800 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto space-y-12">
+          {/* Section Header */}
+          <div className="text-center max-w-2xl mx-auto space-y-4">
+            <span className="text-xs font-mono font-bold tracking-widest uppercase text-indigo-600 dark:text-indigo-400 block">
+              Streamlined Experience
+            </span>
+
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              How to Use Backpack in 4 Simple Steps
+            </h2>
+
+            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+              Whether you are a student leveling up your career or an organization building a regional academy, here is how Backpack guides you from onboarding to graduation.
+            </p>
+
+            {/* Interactive Role Switcher Tabs */}
+            <div className="pt-2 flex justify-center">
+              <div className="inline-flex p-1 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setActiveStepTab("students")}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    activeStepTab === "students"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <GraduationCap className="w-4 h-4" />
+                  <span>For Students & Learners</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveStepTab("creators")}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    activeStepTab === "creators"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  <span>For Instructors & Academies</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4-Step Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {currentSteps.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <div
+                  key={item.step}
+                  className="relative bg-white dark:bg-slate-800/90 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/70 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all duration-300 flex flex-col justify-between group shadow-xs hover:shadow-md"
+                >
+                  <div>
+                    {/* Top Row: Icon + Step Counter */}
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-transform group-hover:scale-105">
+                        <IconComponent className="w-6 h-6" />
+                      </div>
+                      <span className="font-mono text-sm font-black text-slate-400 dark:text-slate-500">
+                        {item.step}
+                      </span>
+                    </div>
+
+                    {/* Step Title */}
+                    <h3 className="mt-5 text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      {item.title}
+                    </h3>
+
+                    {/* Step Description */}
+                    <p className="mt-2.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+
+                  {/* Footer Meta + Quick Action */}
+                  <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      {item.feature}
+                    </span>
+                    <Link
+                      to={item.to}
+                      className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 inline-flex items-center gap-1 transition"
+                    >
+                      <span>{item.actionText}</span>
+                      <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Interactive Flow Banner / CTA */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-indigo-900/40 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-lg">
+            <div className="space-y-1 text-center sm:text-left">
+              <span className="text-[11px] font-mono uppercase tracking-widest text-indigo-400 font-bold">
+                {activeStepTab === "students" ? "Student Path" : "Educator Portal"}
+              </span>
+              <h3 className="text-lg sm:text-xl font-bold">
+                {activeStepTab === "students"
+                  ? "Ready to begin learning on Backpack?"
+                  : "Ready to launch and monetize your academy?"}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
+                {activeStepTab === "students"
+                  ? "Explore accredited programs from verified African universities, tech academies, and vocational leaders."
+                  : "Set up your institution workspace, publish courses, and receive automated settlement directly to your bank account."}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <Link
+                to={activeStepTab === "students" ? "/courses" : "/onboarding"}
+                className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-md inline-flex items-center gap-2"
+              >
+                <span>{activeStepTab === "students" ? "Explore All Courses" : "Register Academy Now"}</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ========================================== */}
       {/* TESTIMONIALS                               */}
@@ -718,10 +946,10 @@ const Home = () => {
                 Email
               </p>
               <a
-                href="mailto:support@backpack.africa"
+                href="mailto:support@backpack-edu.com"
                 className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline"
               >
-                support@backpack.africa
+                support@backpack-edu.com
               </a>
 
               <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">

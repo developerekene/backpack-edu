@@ -1,6 +1,7 @@
 import React from 'react';
 import { Course, UserProgress, EnrollmentRequest, OrgMember } from '../../types';
 import { TrendingUp, Users, BookOpen, Banknote } from 'lucide-react';
+import { ProviderRevenueBreakdownVisualizer } from './ProviderRevenueBreakdownVisualizer';
 
 export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = [], orgMembers = [] }: { courses: Course[], progressData: UserProgress[], enrollmentRequests?: EnrollmentRequest[], orgMembers?: OrgMember[] }) => {
 
@@ -37,6 +38,10 @@ export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = 
         ? Math.round((retainedStudentsCount / activeStudentIds.length) * 100)
         : 0;
 
+    const avgTuition = courses.length > 0 && courses[0]?.price
+        ? courses[0].price
+        : 100000;
+
     return (
         <div className="space-y-6 animate-in fade-in">
             {/* KPI Cards */}
@@ -49,7 +54,7 @@ export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = 
                         <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Revenue</h3>
                     </div>
                     <div className="text-2xl font-bold text-slate-900 dark:text-white">₦ {totalRevenue.toLocaleString()}</div>
-                    <div className="text-xs text-slate-500 mt-1">From approved enrollments</div>
+                    <div className="text-xs text-slate-500 mt-1">Direct to bank (100% tuition payout)</div>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700">
@@ -79,6 +84,11 @@ export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = 
                     <div className="text-xs text-slate-500 mt-1">Active course participation</div>
                 </div>
             </div>
+
+            {/* Provider Revenue Share & Split Visualization */}
+            <ProviderRevenueBreakdownVisualizer
+                initialTuition={avgTuition}
+            />
         </div>
     );
 };

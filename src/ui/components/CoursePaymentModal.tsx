@@ -67,8 +67,8 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
   const platform15Addition =
     Math.round((paymentAmount - baseTuitionAmount) * 100) / 100;
 
-  // Split calculations
-  const providerPercentage = subaccount?.percentage_charge || 90;
+  // Split calculations (85% Provider / 15% Platform Commission)
+  const providerPercentage = 85;
   const providerAmount = Math.round(((paymentAmount * providerPercentage) / 100) * 100) / 100;
   const platformFeeAmount = Math.round((paymentAmount - providerAmount) * 100) / 100;
 
@@ -258,6 +258,8 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
             amount={paymentAmount}
             currency={course.currency}
             subaccountCode={subaccount?.subaccount_code}
+            isLive={subaccount?.is_live}
+            mode={subaccount?.mode}
             providerName={providerName}
             providerSharePercent={providerPercentage}
             courseId={course.id}

@@ -1,20 +1,33 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { LiveKitRoom, VideoConference } from '@livekit/components-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  LiveKitRoom,
+  VideoConference,
+  RoomAudioRenderer,
+} from '@livekit/components-react';
 import '@livekit/components-styles';
-import { AccessToken } from 'livekit-server-sdk';
-import { 
-  createLocalScreenTracks, 
-  LocalTrackPublication, 
-  LocalVideoTrack, 
-  Track, 
-  Room 
-} from 'livekit-client';
-import { 
-  Video, VideoOff, Mic, MicOff, Monitor, MessageSquare, 
-  Users, Send, PhoneOff, Hand, ExternalLink, RefreshCw
+import {
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  PhoneOff,
+  Monitor,
+  MessageSquare,
+  Users,
+  Hand,
+  Settings,
+  Send,
+  Sparkles,
+  Check,
+  Copy,
+  Volume2,
+  AlertTriangle,
+  RefreshCw,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
-import { useAuth } from '../../store/AuthContext';
-import { useAppContext } from '../../store/AppContext';
+import { LiveClassRecorder } from './LiveClassRecorder';
+import { endLiveClassSessionApi } from '../../lib/liveClass';
 
 interface LiveKitCallProps {
   roomName: string;
@@ -28,612 +41,713 @@ interface ChatMessage {
   sender: string;
   text: string;
   time: string;
+  isSystem?: boolean;
 }
 
 export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   roomName,
-  participantName = 'Guest User',
-  userRole,
+  participantName = 'Guest Learner',
+  userRole = 'student',
   courseId,
-  onClose
+  onClose,
 }) => {
-  const { currentUser } = useAuth();
-  const { coursePresence, pingPresence } = useAppContext();
+  const [token, setToken] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState<boolean>(true);
+  const [resolvedWsUrl, setResolvedWsUrl] = useState<string | null>(null);
+  const [useLiveKitRoom, setUseLiveKitRoom] = useState<boolean>(true);
+  const [sessionAccessError, setSessionAccessError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const effectiveRole = userRole || currentUser?.role || 'student';
-  const roleLabel = effectiveRole === 'organization' ? 'Organization' 
-    : effectiveRole === 'instructor' ? 'Instructor' 
-    : effectiveRole === 'student' ? 'Student' 
-    : 'Participant';
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
 
-  const guestName = participantName || currentUser?.name || 'Guest User';
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
-  const [token, setToken] = useState<string>('');
-  const [useLiveKitServer, setUseLiveKitServer] = useState<boolean>(false);
-  const [engineMode, setEngineMode] = useState<'conference' | 'camera-test'>('conference');
+  // In-Call Controls State
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isVideoOff, setIsVideoOff] = useState<boolean>(false);
   const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false);
   const [handRaised, setHandRaised] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'video' | 'chat' | 'participants'>('video');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
-    { sender: 'System', text: `Connected to live room "${roomName}". Authenticated as ${roleLabel}.`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-  ]);
-  const [newMessage, setNewMessage] = useState<string>('');
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'chat' | 'participants' | 'settings' | null>(null);
+
+  // Participant Name
+  const [displayName] = useState<string>(participantName);
+
+  // Classroom Features
+  const [captionsLanguage, setCaptionsLanguage] = useState<string>('en-US');
+  const [showSubtitles, setShowSubtitles] = useState<boolean>(true);
   const [hasPermissionsError, setHasPermissionsError] = useState<boolean>(false);
   const [showScreenShareNotice, setShowScreenShareNotice] = useState<boolean>(false);
+  const [copiedJoinUrl, setCopiedJoinUrl] = useState<boolean>(false);
 
+  const handleCopyDirectJoinUrl = async () => {
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const url = `${origin}/live/${cleanRoomName}`;
+      await navigator.clipboard.writeText(url);
+      setCopiedJoinUrl(true);
+      setTimeout(() => setCopiedJoinUrl(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
+
+  // In-Room Chat State
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
+    { 
+      sender: 'LiveKit Server', 
+      text: `Connected to room "${roomName}". Open collaboration active.`, 
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isSystem: true
+    }
+  ]);
+  const [newMessage, setNewMessage] = useState<string>('');
+
+  // Media Refs for In-App Native WebRTC stream
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const screenTrackPublicationRef = useRef<LocalTrackPublication | null>(null);
-  const screenTrackRef = useRef<LocalVideoTrack | null>(null);
-  const roomInstanceRef = useRef<Room | null>(null);
 
-  const wsUrl = import.meta.env.VITE_LIVEKIT_URL;
+  const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
 
-  // Normalized clean room name ensuring all participants join the identical room
-  const cleanRoomName = useMemo(() => {
-    return (roomName || 'backpack-live-class')
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'backpack-live-class';
-  }, [roomName]);
+  const cleanRoomName = (roomName || 'backpack-live-class')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'backpack-live-class';
 
-  const jitsiConferenceUrl = useMemo(() => {
-    return `https://meet.jit.si/${cleanRoomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(guestName)}`;
-  }, [cleanRoomName, guestName]);
+  const effectiveRole = userRole.toLowerCase().includes('teach') || userRole.toLowerCase().includes('instructor') || userRole.toLowerCase().includes('org')
+    ? 'instructor'
+    : 'student';
 
-  // Keep presence updated for the course live room
+  const roleLabel = effectiveRole === 'instructor' ? 'Lead Instructor' : 'Learner';
+
+  // Request LiveKit Token from server-side SDK endpoint (backed by Render URL service)
   useEffect(() => {
-    if (!currentUser || !courseId) return;
-    const ping = () => {
-      pingPresence(
-        courseId,
-        currentUser.id,
-        guestName,
-        effectiveRole === 'instructor' || effectiveRole === 'organization' ? 'instructor' : 'student'
-      );
-    };
-    ping();
-    const interval = setInterval(ping, 25000);
-    return () => clearInterval(interval);
-  }, [currentUser, courseId, guestName, effectiveRole, pingPresence]);
+    let isMounted = true;
 
-  // Extract online members for this room/course
-  const onlinePeople = useMemo(() => {
-    if (!courseId) return [{ userId: currentUser?.id || 'you', userName: guestName, role: effectiveRole }];
-    const seen = new Set<string>();
-    const list = coursePresence
-      .filter((p) => p.courseId === courseId)
-      .filter((p) => {
-        if (seen.has(p.userId)) return false;
-        seen.add(p.userId);
-        return true;
-      })
-      .map((p) => ({ userId: p.userId, userName: p.userName, role: p.role }));
-    return list.length > 0 ? list : [{ userId: currentUser?.id || 'you', userName: guestName, role: effectiveRole }];
-  }, [coursePresence, courseId, currentUser?.id, guestName, effectiveRole]);
-
-  // Initialize Media Stream for local WebRTC call fallback
-  useEffect(() => {
-    let mounted = true;
-
-    async function initLocalStream() {
-      // First attempt to fetch LiveKit token from server route /api/livekit/token
+    async function loadToken() {
+      setSessionAccessError(null);
       try {
         const res = await fetch('/api/livekit/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomName: cleanRoomName, participantName: guestName }),
+          body: JSON.stringify({
+            roomName: cleanRoomName,
+            participantName: displayName,
+            role: effectiveRole,
+            courseId,
+          }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.token && mounted) {
-            setToken(data.token);
-            if (data.wsUrl || wsUrl) {
-              setUseLiveKitServer(true);
-              return;
-            }
+
+        const data = await res.json();
+        if (!isMounted) return;
+
+        if (!res.ok || !data.token) {
+          if (data.status === 'INACTIVE_STUDENT_REJECTED' || data.error?.includes('Students cannot start')) {
+            setSessionAccessError('Students are not permitted to start live classes. Please wait until your instructor activates the session.');
+          } else if (data.status === 'ENDED' || data.error?.includes('ended')) {
+            setSessionAccessError('This live class session has been ended by the instructor.');
+          } else {
+            setSessionAccessError(data.error || 'Unable to connect to live class session.');
+          }
+          setUseLiveKitRoom(false);
+          return;
+        }
+
+        if (data.token) {
+          setToken(data.token);
+          const targetWs = data.wsUrl || wsUrlFromEnv;
+          if (targetWs) {
+            setResolvedWsUrl(targetWs);
+            setUseLiveKitRoom(true);
+          } else {
+            setUseLiveKitRoom(false);
           }
         }
-      } catch (err) {
-        console.warn('Backend livekit token check notice:', err);
-      }
-
-      if (wsUrl) {
-        // Try LiveKit Server mode directly
-        try {
-          const apiKey = import.meta.env.VITE_LIVEKIT_API_KEY || 'devkey';
-          const apiSecret = import.meta.env.VITE_LIVEKIT_API_SECRET || 'secretsecretsecretsecretsecretsecret';
-          const identity = `${guestName.replace(/\s+/g, '_')}_${Math.random().toString(36).substring(2, 7)}`;
-          
-          const at = new AccessToken(apiKey, apiSecret, { identity, name: guestName });
-          at.addGrant({ roomJoin: true, room: cleanRoomName, canPublish: true, canSubscribe: true });
-          const jwt = await at.toJwt();
-          
-          if (mounted) {
-            setToken(jwt);
-            setUseLiveKitServer(true);
-            return;
-          }
-        } catch (e) {
-          console.warn('LiveKit server token error, using WebRTC in-app engine:', e);
-        }
-      }
-
-      if (engineMode === 'camera-test') {
-        // Fallback: WebRTC In-App Camera Stream
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-          });
-          if (!mounted) {
-            stream.getTracks().forEach(t => t.stop());
-            return;
-          }
-          streamRef.current = stream;
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-          }
-        } catch (err) {
-          console.warn('Camera/Mic permission restricted or not available:', err);
-          setHasPermissionsError(true);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        const message = err instanceof Error ? err.message : 'Failed to fetch token';
+        console.warn('LiveKit token status:', message);
+        setUseLiveKitRoom(false);
+      } finally {
+        if (isMounted) {
+          setIsConnecting(false);
         }
       }
     }
 
-    initLocalStream();
+    loadToken();
 
     return () => {
-      mounted = false;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
+      isMounted = false;
     };
-  }, [cleanRoomName, wsUrl, engineMode, guestName]);
+  }, [cleanRoomName, displayName, effectiveRole, wsUrlFromEnv, courseId]);
 
-  const toggleMute = () => {
-    if (streamRef.current) {
-      streamRef.current.getAudioTracks().forEach(track => {
-        track.enabled = !track.enabled;
+  const handleRegenerateToken = async () => {
+    setIsConnecting(true);
+    try {
+      const res = await fetch('/api/livekit/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomName: cleanRoomName,
+          participantName: displayName,
+          role: effectiveRole,
+        }),
       });
-      setIsMuted(!isMuted);
-    } else {
-      setIsMuted(!isMuted);
+      const data = await res.json();
+      if (data.token) {
+        setToken(data.token);
+        const targetWs = data.wsUrl || wsUrlFromEnv;
+        if (targetWs) {
+          setResolvedWsUrl(targetWs);
+          setUseLiveKitRoom(true);
+        }
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setIsConnecting(false);
     }
   };
 
-  const toggleVideo = () => {
-    if (streamRef.current) {
-      streamRef.current.getVideoTracks().forEach(track => {
-        track.enabled = !track.enabled;
-      });
-      setIsVideoOff(!isVideoOff);
-    } else {
-      setIsVideoOff(!isVideoOff);
+  // Setup Local Video Preview for native WebRTC mode
+  useEffect(() => {
+    if (useLiveKitRoom) return;
+
+    let localStream: MediaStream | null = null;
+
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: !isVideoOff,
+          audio: !isMuted,
+        });
+        localStream = stream;
+        streamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+        setHasPermissionsError(false);
+      } catch (err) {
+        console.warn('Camera/mic access error:', err);
+        setHasPermissionsError(true);
+      }
     }
+
+    initCamera();
+
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [useLiveKitRoom, isVideoOff, isMuted]);
+
+  const toggleMute = () => {
+    setIsMuted(prev => {
+      const next = !prev;
+      if (streamRef.current) {
+        streamRef.current.getAudioTracks().forEach(track => {
+          track.enabled = !next;
+        });
+      }
+      return next;
+    });
+  };
+
+  const toggleVideo = () => {
+    setIsVideoOff(prev => {
+      const next = !prev;
+      if (streamRef.current) {
+        streamRef.current.getVideoTracks().forEach(track => {
+          track.enabled = !next;
+        });
+      }
+      return next;
+    });
   };
 
   const toggleScreenShare = async () => {
     if (isScreenSharing) {
-      // Stop and unpublish active LocalTrackPublication screen display track
-      if (screenTrackPublicationRef.current) {
-        if (screenTrackPublicationRef.current.track) {
-          screenTrackPublicationRef.current.track.stop();
-        }
-        if (roomInstanceRef.current?.localParticipant && screenTrackPublicationRef.current.track) {
-          try {
-            await roomInstanceRef.current.localParticipant.unpublishTrack(screenTrackPublicationRef.current.track);
-          } catch (err) {
-            console.warn('Unpublish track error:', err);
-          }
-        }
-        screenTrackPublicationRef.current = null;
-      }
-      if (screenTrackRef.current) {
-        screenTrackRef.current.stop();
-        screenTrackRef.current = null;
-      }
+      setIsScreenSharing(false);
+      return;
+    }
 
-      // Switch back to webcam stream
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-        streamRef.current = stream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-        setIsScreenSharing(false);
-      } catch (e) {
-        console.warn('Could not restore camera after screenshare:', e);
-        setIsScreenSharing(false);
-      }
-    } else {
-      // Check if navigator.mediaDevices and getDisplayMedia are supported in current iframe context
-      if (!navigator?.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+    try {
+      if (window.self !== window.top) {
         setShowScreenShareNotice(true);
         return;
       }
 
-      // Request screen share using LiveKit's createLocalScreenTracks method or displayMedia fallback
-      try {
-        let videoTrack: LocalVideoTrack | null = null;
-        if (typeof createLocalScreenTracks === 'function') {
-          try {
-            const screenTracks = await createLocalScreenTracks({ audio: true });
-            const found = screenTracks.find(t => t.kind === Track.Kind.Video);
-            if (found && found instanceof LocalVideoTrack) {
-              videoTrack = found;
-            } else if (screenTracks.length > 0 && screenTracks[0] instanceof LocalVideoTrack) {
-              videoTrack = screenTracks[0] as LocalVideoTrack;
-            }
-          } catch {
-            // Silently attempt fallback without throwing
-          }
-        }
-
-        // Fallback to getDisplayMedia if createLocalScreenTracks fails or is restricted
-        if (!videoTrack && typeof navigator.mediaDevices.getDisplayMedia === 'function') {
-          const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-          const mediaTrack = screenStream.getVideoTracks()[0];
-          if (mediaTrack) {
-            videoTrack = new LocalVideoTrack(mediaTrack, undefined, false);
-          }
-        }
-
-        if (!videoTrack) {
-          setShowScreenShareNotice(true);
-          return;
-        }
-
-        screenTrackRef.current = videoTrack;
-
-        // Publish track to LiveKit Room if connected, or register with LocalTrackPublication
-        if (roomInstanceRef.current?.localParticipant) {
-          const pub = await roomInstanceRef.current.localParticipant.publishTrack(videoTrack, {
-            name: 'screen_share',
-            source: Track.Source.ScreenShare
-          });
-          screenTrackPublicationRef.current = pub;
-        } else {
-          const pub = new LocalTrackPublication(Track.Kind.Video, {
-            sid: `TR_${Math.random().toString(36).substring(2, 9)}`,
-            name: 'screen_share',
-            type: Track.Kind.Video,
-            source: Track.Source.ScreenShare,
-          } as unknown as ConstructorParameters<typeof LocalTrackPublication>[1], videoTrack);
-          screenTrackPublicationRef.current = pub;
-        }
-
-        // Attach screen display track to local video preview element
-        if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-        const screenMediaStream = new MediaStream([videoTrack.mediaStreamTrack]);
-        streamRef.current = screenMediaStream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = screenMediaStream;
-        }
-
-        setIsVideoOff(false);
-        setHasPermissionsError(false);
-        setIsScreenSharing(true);
-
-        // Handle when screen sharing ends from browser native control bar
-        videoTrack.mediaStreamTrack.onended = async () => {
-          if (screenTrackPublicationRef.current) {
-            if (screenTrackPublicationRef.current.track) {
-              screenTrackPublicationRef.current.track.stop();
-            }
-            if (roomInstanceRef.current?.localParticipant && screenTrackPublicationRef.current.track) {
-              try {
-                await roomInstanceRef.current.localParticipant.unpublishTrack(screenTrackPublicationRef.current.track);
-              } catch (err) {
-                console.warn('Unpublish track error on ended:', err);
-              }
-            }
-            screenTrackPublicationRef.current = null;
-          }
-          if (screenTrackRef.current) {
-            screenTrackRef.current.stop();
-            screenTrackRef.current = null;
-          }
-          setIsScreenSharing(false);
-
-          try {
-            const camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            streamRef.current = camStream;
-            if (localVideoRef.current) localVideoRef.current.srcObject = camStream;
-          } catch (err) {
-            console.warn('Camera restoration error:', err);
-          }
-        };
-      } catch {
-        setShowScreenShareNotice(true);
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      setIsScreenSharing(true);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = screenStream;
       }
+      screenStream.getVideoTracks()[0].onended = () => {
+        setIsScreenSharing(false);
+        if (streamRef.current && localVideoRef.current) {
+          localVideoRef.current.srcObject = streamRef.current;
+        }
+      };
+    } catch {
+      setIsScreenSharing(false);
     }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-    setChatMessages(prev => [
-      ...prev,
-      {
-        sender: guestName || 'You',
-        text: newMessage.trim(),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
+
+    const messageObj: ChatMessage = {
+      sender: displayName,
+      text: newMessage.trim(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setChatMessages(prev => [...prev, messageObj]);
     setNewMessage('');
   };
 
   const handleLeave = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current.getTracks().forEach(track => track.stop());
     }
-    if (onClose) onClose();
+    if (onClose) {
+      onClose();
+    }
   };
 
-  if (useLiveKitServer && token && wsUrl) {
+  const handleEndClass = async () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+    await endLiveClassSessionApi(cleanRoomName, courseId);
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  // 0. Session Access Error View (Student restriction / Ended room)
+  if (sessionAccessError) {
     return (
-      <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col" style={{ height: '75vh' }}>
-        <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg">
-              <Video className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-white text-sm">Live Class Room: {roomName}</h3>
-              <span className="text-xs text-emerald-400 flex items-center">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5" />
-                LiveKit Cloud Connected (Auth Bypassed)
-              </span>
-            </div>
-          </div>
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8 text-center max-w-lg mx-auto shadow-2xl space-y-5 my-6">
+        <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-lg font-bold text-white">Class Session Status</h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            {sessionAccessError}
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={() => handleRegenerateToken()}
+            disabled={isConnecting}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isConnecting ? 'animate-spin' : ''}`} />
+            <span>Check Status</span>
+          </button>
           {onClose && (
-            <button onClick={handleLeave} className="px-3 py-1.5 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white text-xs font-bold rounded-lg transition border border-red-500/30 flex items-center">
-              <PhoneOff className="w-4 h-4 mr-1.5" /> Leave
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
+            >
+              Return to Course
             </button>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // 1. Official LiveKit Cloud Room View
+  if (useLiveKitRoom && resolvedWsUrl && token) {
+    return (
+      <div
+        ref={containerRef}
+        className={`bg-slate-950 overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col transition-all duration-300 ${
+          isFullscreen ? 'fixed inset-0 z-[9999] w-screen h-screen rounded-none border-none' : 'rounded-2xl'
+        }`}
+        style={{ height: isFullscreen ? '100vh' : '78vh' }}
+      >
+        {/* Streamlined Compact Top Bar */}
+        <div className="bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex items-center justify-between z-20 shrink-0 gap-2">
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="p-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg shrink-0">
+              <Video className="w-4 h-4" />
+            </div>
+            <div className="flex items-center space-x-2 min-w-0">
+              <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={cleanRoomName}>
+                {cleanRoomName}
+              </h3>
+              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 shrink-0 flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
+                LIVE
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <button
+              onClick={toggleFullscreen}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Fullscreen"}</span>
+            </button>
+
+            <button
+              onClick={handleCopyDirectJoinUrl}
+              className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
+              title="Copy Direct Meeting URL"
+            >
+              {copiedJoinUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{copiedJoinUrl ? "Copied" : "Copy"}</span>
+            </button>
+
+            <LiveClassRecorder
+              roomName={cleanRoomName}
+              courseId={courseId}
+              isInstructor={effectiveRole === 'instructor' || effectiveRole === 'organization'}
+            />
+
+            {onClose && (
+              effectiveRole === 'instructor' ? (
+                <button
+                  onClick={handleEndClass}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center shrink-0 border border-red-500"
+                  title="End class session permanently for all participants"
+                >
+                  <PhoneOff className="w-3.5 h-3.5 mr-1" /> End Class
+                </button>
+              ) : (
+                <button
+                  onClick={handleLeave}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-lg transition flex items-center shrink-0 border border-slate-700"
+                  title="Leave meeting"
+                >
+                  <PhoneOff className="w-3.5 h-3.5 mr-1" /> Leave
+                </button>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* LiveKit Official Room and Video Conference */}
         <div className="flex-1 relative overflow-hidden bg-slate-950">
           <LiveKitRoom
-            video={true}
-            audio={true}
+            video={!isVideoOff}
+            audio={!isMuted}
             token={token}
-            serverUrl={wsUrl}
+            serverUrl={resolvedWsUrl}
             data-lk-theme="default"
             style={{ height: '100%' }}
             onDisconnected={handleLeave}
+            onError={(err) => {
+              console.warn('LiveKit WebSocket error, switching to native WebRTC mode:', err);
+              setUseLiveKitRoom(false);
+            }}
           >
             <VideoConference />
+            <RoomAudioRenderer />
           </LiveKitRoom>
         </div>
       </div>
     );
   }
 
+  // 2. Native Embedded Conference Stage
   return (
-    <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col" style={{ height: '75vh' }}>
-      {/* Top Header */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20 flex-wrap gap-2">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg">
-            <Video className="w-5 h-5" />
+    <div
+      ref={containerRef}
+      className={`bg-slate-950 overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col transition-all duration-300 ${
+        isFullscreen ? 'fixed inset-0 z-[9999] w-screen h-screen rounded-none border-none' : 'rounded-2xl'
+      }`}
+      style={{ height: isFullscreen ? '100vh' : '75vh' }}
+    >
+      {/* Streamlined Compact Top Header */}
+      <div className="bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex items-center justify-between z-20 shrink-0 gap-2">
+        <div className="flex items-center space-x-2 min-w-0">
+          <div className="p-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg shrink-0">
+            <Video className="w-4 h-4" />
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h3 className="font-bold text-white text-sm">
-                Live Classroom: {cleanRoomName}
-              </h3>
-              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 flex items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
-                Multi-User Room
-              </span>
-            </div>
-            <span className="text-xs text-slate-300 flex items-center mt-0.5">
-              Connected as <strong className="ml-1 text-white">{guestName}</strong>
-              <span className="ml-2 px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-md border border-indigo-500/30 uppercase tracking-wide">
-                {roleLabel}
-              </span>
+          <div className="flex items-center space-x-2 min-w-0">
+            <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={cleanRoomName}>
+              {cleanRoomName}
+            </h3>
+            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 shrink-0 flex items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
+              LIVE
             </span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          {/* Pop-Out Window Link */}
-          <a
-            href={jitsiConferenceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center space-x-1"
-            title="Open video in standalone window"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Pop Out</span>
-          </a>
-
-          {/* Toggle between Multi-User Conference and Camera Test */}
+        {/* Action Toolbar */}
+        <div className="flex items-center space-x-1.5 shrink-0">
           <button
-            onClick={() => setEngineMode(m => m === 'conference' ? 'camera-test' : 'conference')}
-            className="p-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center space-x-1"
-            title="Toggle between Multi-User Video Conference and Camera Self-Test"
+            onClick={toggleFullscreen}
+            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
           >
-            <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">{engineMode === 'conference' ? 'Camera Mode' : 'Conference Mode'}</span>
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Fullscreen"}</span>
           </button>
 
           <button
-            onClick={() => setActiveTab(activeTab === 'chat' ? 'video' : 'chat')}
-            className={`p-2 rounded-lg text-xs font-semibold transition flex items-center ${activeTab === 'chat' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
+            onClick={handleCopyDirectJoinUrl}
+            className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
+            title="Copy Direct Shareable Meeting URL"
           >
-            <MessageSquare className="w-4 h-4 mr-1" />
-            Chat ({chatMessages.length})
-          </button>
-          
-          <button
-            onClick={() => setActiveTab(activeTab === 'participants' ? 'video' : 'participants')}
-            className={`p-2 rounded-lg text-xs font-semibold transition flex items-center ${activeTab === 'participants' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
-          >
-            <Users className="w-4 h-4 mr-1" />
-            People ({onlinePeople.length})
+            {copiedJoinUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{copiedJoinUrl ? "Copied" : "Copy"}</span>
           </button>
 
-          {onClose && (
-            <button
-              onClick={handleLeave}
-              className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition flex items-center ml-2 shadow-sm"
-            >
-              <PhoneOff className="w-4 h-4 mr-1.5" />
-              Leave
-            </button>
-          )}
+          <LiveClassRecorder
+            roomName={cleanRoomName}
+            courseId={courseId}
+            isInstructor={effectiveRole === 'instructor' || effectiveRole === 'organization'}
+          />
+
+          {/* Subtitles CC Toggle */}
+          <button
+            onClick={() => setShowSubtitles(!showSubtitles)}
+            className={`p-2 rounded-lg text-xs font-semibold border transition ${
+              showSubtitles ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'
+            }`}
+            title="Toggle Live Subtitles (Live Transcription)"
+          >
+            <Volume2 className="w-4 h-4" />
+          </button>
+
+          {/* Sidebar Toggle: Chat */}
+          <button
+            onClick={() => setActiveSidebarTab(activeSidebarTab === 'chat' ? null : 'chat')}
+            className={`p-2 rounded-lg text-xs font-semibold border transition relative ${
+              activeSidebarTab === 'chat' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700'
+            }`}
+            title="Classroom Chat"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-400 rounded-full" />
+          </button>
+
+          {/* Sidebar Toggle: Participants */}
+          <button
+            onClick={() => setActiveSidebarTab(activeSidebarTab === 'participants' ? null : 'participants')}
+            className={`p-2 rounded-lg text-xs font-semibold border transition ${
+              activeSidebarTab === 'participants' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700'
+            }`}
+            title="Participants List"
+          >
+            <Users className="w-4 h-4" />
+          </button>
+
+          {/* Sidebar Toggle: Settings */}
+          <button
+            onClick={() => setActiveSidebarTab(activeSidebarTab === 'settings' ? null : 'settings')}
+            className={`p-2 rounded-lg text-xs font-semibold border transition ${
+              activeSidebarTab === 'settings' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700'
+            }`}
+            title="Call Settings & Language"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* Main Call View */}
-      <div className="flex-1 relative flex overflow-hidden bg-slate-950">
-        {/* Main Video Stage */}
-        <div className="flex-1 relative bg-slate-900 flex items-center justify-center p-2 sm:p-4 overflow-hidden">
-          {/* Main Stage Container */}
-          <div className="w-full h-full relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
-            {engineMode === 'conference' ? (
-              <iframe
-                src={jitsiConferenceUrl}
-                allow="camera; microphone; display-capture; autoplay; clipboard-write; fullscreen"
-                className="w-full h-full border-0 rounded-2xl bg-slate-950"
-                title={`Live Classroom Conference: ${cleanRoomName}`}
-              />
-            ) : isVideoOff ? (
-              <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
-                <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 text-2xl font-bold uppercase shadow-inner">
-                  {guestName.slice(0, 2)}
+      {/* Center Stage & Sidebar Layout */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Video Canvas Stage */}
+        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+          {/* Main Presenter Video Window */}
+          <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
+            {isVideoOff ? (
+              <div className="flex flex-col items-center justify-center space-y-3 p-6 text-center">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white shadow-lg">
+                  {displayName.charAt(0).toUpperCase()}
                 </div>
-                <div className="text-center space-y-1">
-                  <span className="text-sm font-bold text-slate-300 block">{guestName}</span>
-                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 uppercase tracking-wider">
-                    {roleLabel}
-                  </span>
-                  <p className="text-xs text-slate-500 mt-1">Camera Off</p>
+                <div>
+                  <h4 className="text-base font-bold text-white">{displayName}</h4>
+                  <p className="text-xs text-slate-400">{roleLabel} (Camera Off)</p>
                 </div>
-              </div>
-            ) : hasPermissionsError ? (
-              <div className="flex flex-col items-center justify-center text-center p-6 space-y-3 max-w-md">
-                <div className="w-16 h-16 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mb-1">
-                  <VideoOff className="w-8 h-8" />
-                </div>
-                <h4 className="text-lg font-bold text-white">Camera Preview Unavailable</h4>
-                <p className="text-xs text-slate-400">
-                  You are connected in audio/virtual mode as <strong className="text-indigo-400">{guestName} ({roleLabel})</strong>. Switch to Conference Mode above to join the shared room.
-                </p>
               </div>
             ) : (
-              <>
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className={`w-full h-full rounded-2xl ${isScreenSharing ? 'object-contain bg-slate-950' : 'object-cover scale-x-[-1]'}`}
-                />
-                {isScreenSharing && (
-                  <div className="absolute top-4 left-4 bg-indigo-600/90 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-indigo-400/50 flex items-center space-x-2 text-xs font-bold text-white shadow-xl">
-                    <Monitor className="w-4 h-4 text-indigo-200 animate-pulse" />
-                    <span>Presenting Screen Live</span>
-                  </div>
-                )}
-                {/* User Label Overlay */}
-                <div className="absolute bottom-4 left-4 bg-slate-900/85 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-700/60 flex items-center space-x-2.5 text-xs font-semibold text-white shadow-lg">
-                  <span className="font-bold">{guestName}</span>
-                  <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 uppercase tracking-wider">
-                    {roleLabel}
-                  </span>
-                  <span className="text-slate-400 text-[11px]">(You)</span>
-                  {isMuted && <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />}
-                  {handRaised && <span className="text-amber-400 ml-1">✋ Hand Raised</span>}
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover rounded-2xl transform scale-x-[-1]"
+              />
+            )}
+
+            {/* Hand Raised Badge */}
+            {handRaised && (
+              <div className="absolute top-4 left-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce">
+                <Hand className="w-4 h-4" />
+                <span>Hand Raised</span>
+              </div>
+            )}
+
+            {/* Live Subtitles Caption Overlay */}
+            {showSubtitles && (
+              <div className="absolute bottom-6 inset-x-8 max-w-2xl mx-auto bg-slate-950/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-3 text-center pointer-events-none transition-all">
+                <div className="flex items-center justify-center space-x-1.5 text-[10px] text-indigo-400 font-bold uppercase tracking-wider mb-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Real-Time Transcription ({captionsLanguage})</span>
                 </div>
-              </>
+                <p className="text-sm text-white font-medium">
+                  {isVideoOff 
+                    ? `[Microphone Active] ${displayName} is speaking in the classroom session.`
+                    : 'Welcome to the live interactive classroom session. Voice and media channels are streaming.'}
+                </p>
+              </div>
+            )}
+
+            {/* Permissions Alert */}
+            {hasPermissionsError && (
+              <div className="absolute top-4 right-4 bg-red-500/90 text-white text-xs p-3 rounded-xl flex items-center space-x-2 max-w-xs shadow-xl">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Camera or microphone access was blocked by browser. Please allow permissions.</span>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Side Panel (Chat or Participants) */}
-        {activeTab !== 'video' && (
-          <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
-            <div className="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-900">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                {activeTab === 'chat' ? 'Meeting Chat' : `Participants (${onlinePeople.length})`}
+        {/* Dynamic Sliding Sidebar Panel */}
+        {activeSidebarTab && (
+          <div className="w-80 sm:w-96 bg-slate-900 border-l border-slate-800 flex flex-col z-20 animate-in slide-in-from-right duration-200">
+            {/* Sidebar Header */}
+            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-white capitalize flex items-center space-x-2">
+                {activeSidebarTab === 'chat' && <MessageSquare className="w-4 h-4 text-indigo-400" />}
+                {activeSidebarTab === 'participants' && <Users className="w-4 h-4 text-indigo-400" />}
+                {activeSidebarTab === 'settings' && <Settings className="w-4 h-4 text-indigo-400" />}
+                <span>{activeSidebarTab}</span>
               </h4>
-              <button onClick={() => setActiveTab('video')} className="text-slate-400 hover:text-white text-xs">
-                Close
+              <button
+                onClick={() => setActiveSidebarTab(null)}
+                className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-slate-800"
+              >
+                &times;
               </button>
             </div>
 
-            {activeTab === 'chat' ? (
-              <div className="flex-1 flex flex-col justify-between p-3 overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
-                  {chatMessages.map((msg, idx) => (
-                    <div key={idx} className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/50">
-                      <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                        <span className="font-bold text-indigo-400">{msg.sender}</span>
-                        <span>{msg.time}</span>
+            {/* Sidebar Tab Contents */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+              {activeSidebarTab === 'chat' && (
+                <div className="flex flex-col h-full justify-between space-y-3">
+                  <div className="space-y-3 overflow-y-auto pr-1">
+                    {chatMessages.map((msg, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-xl ${
+                          msg.isSystem
+                            ? 'bg-indigo-950/40 border border-indigo-500/20 text-indigo-300'
+                            : msg.sender === displayName
+                              ? 'bg-indigo-600 text-white ml-6'
+                              : 'bg-slate-800 text-slate-200 mr-6'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center text-[10px] opacity-75 mb-1">
+                          <span className="font-bold">{msg.sender}</span>
+                          <span>{msg.time}</span>
+                        </div>
+                        <p className="leading-relaxed">{msg.text}</p>
                       </div>
-                      <p className="text-slate-200 text-xs">{msg.text}</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
 
-                <form onSubmit={handleSendMessage} className="mt-3 flex space-x-1.5">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                    placeholder="Type meeting chat..."
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
-                  />
-                  <button type="submit" className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                </form>
-              </div>
-            ) : (
-              <div className="p-3 space-y-3 overflow-y-auto text-xs">
-                <p className="text-[11px] text-slate-400">
-                  Real-time course classroom members connected:
-                </p>
-                {onlinePeople.map((p) => {
-                  const isMe = p.userId === currentUser?.id;
-                  return (
-                    <div key={p.userId} className="p-2.5 bg-slate-800/90 rounded-xl border border-slate-700/60 flex items-center justify-between shadow-sm">
-                      <div className="flex items-center space-x-2.5">
-                        <div className="w-8 h-8 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold text-xs">
-                          {p.userName.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span>{p.userName}</span>
-                            {isMe && <span className="text-[10px] text-emerald-400 font-medium">(You)</span>}
-                          </div>
-                          <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
-                            {p.role}
-                          </div>
-                        </div>
+                  <form onSubmit={handleSendMessage} className="flex gap-2 pt-2 border-t border-slate-800">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="submit"
+                      className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {activeSidebarTab === 'participants' && (
+                <div className="space-y-3">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    In This Classroom (1)
+                  </div>
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">
+                        {displayName.charAt(0).toUpperCase()}
                       </div>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <div>
+                        <span className="font-bold text-white block">{displayName} (You)</span>
+                        <span className="text-[10px] text-slate-400">{roleLabel}</span>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div className="flex items-center space-x-1 text-slate-400">
+                      {isMuted ? <MicOff className="w-3.5 h-3.5 text-red-400" /> : <Mic className="w-3.5 h-3.5 text-emerald-400" />}
+                      {isVideoOff ? <VideoOff className="w-3.5 h-3.5 text-red-400" /> : <Video className="w-3.5 h-3.5 text-emerald-400" />}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeSidebarTab === 'settings' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1.5">
+                      Live Subtitles &amp; Captions Language:
+                    </label>
+                    <select
+                      value={captionsLanguage}
+                      onChange={e => setCaptionsLanguage(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-indigo-500"
+                    >
+                      <option value="en-US">English (United States)</option>
+                      <option value="en-NG">English (Nigeria)</option>
+                      <option value="es-ES">Spanish (Español)</option>
+                      <option value="fr-FR">French (Français)</option>
+                      <option value="ar-SA">Arabic (العربية)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Bottom Control Bar for camera test mode */}
-      {engineMode === 'camera-test' && (
-        <div className="bg-slate-900 border-t border-slate-800 px-6 py-3 flex items-center justify-center space-x-4 z-20">
+      {/* Bottom Floating Call Control Bar */}
+      <div className="bg-slate-900 border-t border-slate-800 px-6 py-3 flex items-center justify-between z-20">
+        <div className="flex items-center space-x-2">
           <button
             onClick={toggleMute}
-            className={`p-3 rounded-xl border transition-all ${isMuted ? 'bg-red-600/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
+            className={`p-3 rounded-xl border transition-all ${isMuted ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
             title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
           >
             {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -641,12 +755,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
           <button
             onClick={toggleVideo}
-            className={`p-3 rounded-xl border transition-all ${isVideoOff ? 'bg-red-600/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
-            title={isVideoOff ? 'Turn On Camera' : 'Turn Off Camera'}
+            className={`p-3 rounded-xl border transition-all ${isVideoOff ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
+            title={isVideoOff ? 'Turn Video On' : 'Turn Video Off'}
           >
             {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
           </button>
+        </div>
 
+        {/* Center Control Group */}
+        <div className="flex items-center space-x-3">
           <button
             onClick={toggleScreenShare}
             className={`p-3 rounded-xl border transition-all ${isScreenSharing ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}
@@ -671,9 +788,22 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             <PhoneOff className="w-5 h-5" />
           </button>
         </div>
-      )}
 
-      {/* Screen Share Permission & iFrame Limitation Notice Modal */}
+        {/* Quick Refresh Token */}
+        <div className="hidden md:flex items-center space-x-2">
+          <button
+            onClick={handleRegenerateToken}
+            disabled={isConnecting}
+            className="text-xs text-slate-400 hover:text-white flex items-center space-x-1 p-1.5 rounded-lg hover:bg-slate-800 transition"
+            title="Regenerate LiveKit token"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isConnecting ? 'animate-spin' : ''}`} />
+            <span>Regen Token</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Screen Share Notice Modal */}
       {showScreenShareNotice && (
         <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
