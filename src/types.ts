@@ -66,6 +66,7 @@ export interface User {
   name: string;
   role: Role;
   email: string;
+  orgId?: string;
   bio?: string;
   headline?: string;
   cvUrl?: string;
@@ -161,6 +162,7 @@ export interface CourseFAQ {
 export interface Course {
   id: string;
   orgId: string;
+  createdBy?: string;
   title: string;
   subtitle?: string;
   description: string;
@@ -353,8 +355,10 @@ export interface Material {
   id?: string;
   courseId: string;
   title: string;
-  url: string;
-  type: "pdf" | "doc" | "video" | "link";
+  url?: string;
+  type: "pdf" | "doc" | "video" | "link" | "notes";
+  content?: string;
+  createdAt?: string;
 }
 
 export interface OrgMember {

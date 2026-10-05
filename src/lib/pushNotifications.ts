@@ -130,7 +130,7 @@ export const sendPushNotification = (
         silent: false,
         vibrate: isCall ? [200, 100, 200, 100, 200] : [100, 50, 100],
         ...options,
-      });
+      } as NotificationOptions);
 
       if (options?.linkUrl) {
         notification.onclick = (e) => {
