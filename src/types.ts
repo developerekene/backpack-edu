@@ -90,7 +90,10 @@ export interface User {
   themeColor?: string;
   academicHighlights?: string[];
   isDeleted?: boolean;
+  plan?: OrgPlanTier;
 }
+
+export type OrgPlanTier = "free" | "paid";
 
 export interface Organization {
   id: string;
@@ -116,6 +119,7 @@ export interface Organization {
   academicHighlights?: string[];
   isDeleted?: boolean;
   paystackSubaccount?: PaystackSubaccount;
+  plan?: OrgPlanTier;
 }
 
 export interface AdmissionSession {

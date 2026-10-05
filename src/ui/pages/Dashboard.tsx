@@ -23,6 +23,8 @@ import {
   Trash2,
   Building2,
   Accessibility,
+  Lock,
+  Sparkles,
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
@@ -30,6 +32,7 @@ import { CoursePaymentModal } from "../components/CoursePaymentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
 import { EnrollmentModal } from "../components/EnrollmentModal";
+import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
@@ -66,6 +69,7 @@ const Dashboard = () => {
     useState<Course | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [showOrgUpgradeModal, setShowOrgUpgradeModal] = useState(false);
 
   if (!currentUser)
     return <div className="p-8 text-center text-slate-500">Please login.</div>;
@@ -707,6 +711,16 @@ const Dashboard = () => {
         )
       : courses.filter((c) => assignedCourseIds.includes(c.id));
 
+  const myOrg = organizations.find(
+    (o) =>
+      o.id === currentUser.id ||
+      o.ownerId === currentUser.id ||
+      o.id === `org_${currentUser.id}`,
+  );
+  const isPaidOrg = myOrg?.plan === "paid" || currentUser.plan === "paid";
+  const orgCourseLimitReached =
+    currentUser.role === "organization" && !isPaidOrg && myCourses.length >= 3;
+
   const orgRequests =
     currentUser.role === "organization"
       ? enrollmentRequests.filter(
@@ -886,22 +900,64 @@ const Dashboard = () => {
 
       {/* Courses Overview & Admission Session Controls */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-              Active Courses & Admission Sessions
-            </h2>
+            <div className="flex items-center space-x-2.5">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Active Courses & Admission Sessions
+              </h2>
+              {currentUser.role === "organization" && (
+                <span
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    isPaidOrg
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      : orgCourseLimitReached
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                        : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20"
+                  }`}
+                >
+                  {isPaidOrg
+                    ? "Pro Plan • Unlimited Courses"
+                    : orgCourseLimitReached
+                      ? `Free Plan • 3/3 Courses (Limit Reached)`
+                      : `Free Plan • ${myCourses.length}/3 Courses`}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Control intake sessions, open/close admissions, and configure
               deadlines.
             </p>
           </div>
-          <Link
-            to="/upload-course"
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm"
-          >
-            + Add Course
-          </Link>
+          <div className="flex items-center space-x-2">
+            {orgCourseLimitReached && (
+              <button
+                type="button"
+                onClick={() => setShowOrgUpgradeModal(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                <span>Upgrade Plan</span>
+              </button>
+            )}
+            {orgCourseLimitReached ? (
+              <button
+                type="button"
+                onClick={() => setShowOrgUpgradeModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>+ Add Course</span>
+              </button>
+            ) : (
+              <Link
+                to="/upload-course"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm"
+              >
+                + Add Course
+              </Link>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {myCourses.map((course) => {
@@ -1066,6 +1122,17 @@ const Dashboard = () => {
           }}
         />
       )}
+
+      {/* Organization Plan Upgrade Modal */}
+      <OrgPlanUpgradeModal
+        isOpen={showOrgUpgradeModal}
+        onClose={() => setShowOrgUpgradeModal(false)}
+        organization={myOrg}
+        currentCourseCount={myCourses.length}
+        onUpgradeSuccess={() => {
+          setShowOrgUpgradeModal(false);
+        }}
+      />
     </div>
   );
 };

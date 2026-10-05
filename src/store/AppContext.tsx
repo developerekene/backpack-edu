@@ -38,6 +38,7 @@ import {
   CoursePresence,
   DiscussionResource,
   CourseDonation,
+  OrgPlanTier,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
@@ -83,6 +84,7 @@ interface AppState {
     id: string,
     updates: Partial<Organization>,
   ) => Promise<void>;
+  upgradeOrganizationPlan: (orgId: string) => void;
   deleteOrganization: (id: string) => Promise<void>;
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
@@ -492,6 +494,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             isDeleted: (personalInfo.isDeleted as boolean) ?? false,
             paystackSubaccount:
               personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
+            plan: (personalInfo.plan as OrgPlanTier) || "free",
           });
         }
 
@@ -736,6 +739,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ...prev.filter((o) => o.id !== org.id && o.ownerId !== targetUid),
       { ...cleaned, id: org.id || targetUid, ownerId: targetUid },
     ]);
+  };
+
+  const upgradeOrganizationPlan = (orgId: string) => {
+    setOrganizations((prev) =>
+      prev.map((o) =>
+        o.id === orgId ||
+        o.ownerId === orgId ||
+        o.id === `org_${orgId}` ||
+        `org_${o.id}` === orgId
+          ? { ...o, plan: "paid" }
+          : o,
+      ),
+    );
   };
 
   // Course Operations (stored in backpack/{orgId}.user.courses)
@@ -1842,6 +1858,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         notifications,
         addOrganization,
         updateOrganization,
+        upgradeOrganizationPlan,
         deleteOrganization,
         addCourse,
         updateCourse,

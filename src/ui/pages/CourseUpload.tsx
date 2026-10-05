@@ -26,12 +26,15 @@ import {
   Award,
   HelpCircle,
   User,
+  Lock,
 } from "lucide-react";
+import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 
 const CourseUpload = () => {
   const navigate = useNavigate();
-  const { addCourse, orgMembers, organizations } = useAppContext();
+  const { addCourse, orgMembers, organizations, courses } = useAppContext();
   const { currentUser } = useAuth();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -164,6 +167,20 @@ const CourseUpload = () => {
   );
   const isHigherEduOrg = activeOrg?.orgType === "higher";
   const isVocationalOrg = activeOrg?.orgType === "vocational";
+
+  // Organization existing courses and tier check (free accounts limited to 3 courses)
+  const orgExistingCourses = courses.filter((c) => {
+    return (
+      c.orgId === currentOrgIdToUse ||
+      c.orgId === `org_${currentOrgIdToUse}` ||
+      c.orgId === activeOrg?.id ||
+      c.orgId === activeOrg?.ownerId
+    );
+  });
+  const isPaidOrg =
+    activeOrg?.plan === "paid" ||
+    (currentUser.role === "organization" && currentUser.plan === "paid");
+  const orgCourseLimitReached = !isPaidOrg && orgExistingCourses.length >= 3;
 
   // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
   if (currentUser.role === "instructor" && approvedOrgs.length === 0) {
@@ -345,6 +362,25 @@ const CourseUpload = () => {
       return;
     }
 
+    // Check Organization Course Limit (Free plan permits maximum 3 courses; prompt payment on 4th)
+    const existingOrgCourses = courses.filter((c) => {
+      return (
+        c.orgId === orgIdToUse ||
+        c.orgId === `org_${orgIdToUse}` ||
+        c.orgId === targetOrg?.id ||
+        c.orgId === targetOrg?.ownerId
+      );
+    });
+
+    const isTargetOrgPaid =
+      targetOrg?.plan === "paid" ||
+      (currentUser.role === "organization" && currentUser.plan === "paid");
+
+    if (!isTargetOrgPaid && existingOrgCourses.length >= 3) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const effectiveTuitionCost =
       isVocationalOrg && fundingModel === "donations_sponsorships"
         ? Number(tuitionCostPerStudent) || Number(price) || 0
@@ -440,6 +476,38 @@ const CourseUpload = () => {
       {/* Knowledge City notice for freelance creators (instructor only) */}
       {currentUser?.role === "instructor" && (
         <KnowledgeCityBanner variant="instructor" />
+      )}
+
+      {/* 3-Course Free Plan Limit Banner */}
+      {orgCourseLimitReached && (
+        <div className="p-5 bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-amber-500/30 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+          <div className="flex items-start space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                  Course Limit Reached ({orgExistingCourses.length}/3 Courses on Free Plan)
+                </h3>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 uppercase">
+                  Upgrade Required
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                Free organizations are allowed to publish a maximum of 3 courses. To publish this 4th course and unlock unlimited courses, please upgrade your organization account to Organization Pro.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowUpgradeModal(true)}
+            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
+            <span>Upgrade Account</span>
+          </button>
+        </div>
       )}
 
       <div className="flex items-center justify-between">
@@ -1729,6 +1797,16 @@ const CourseUpload = () => {
           </button>
         </div>
       </form>
+
+      <OrgPlanUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        organization={activeOrg}
+        currentCourseCount={orgExistingCourses.length}
+        onUpgradeSuccess={() => {
+          setShowUpgradeModal(false);
+        }}
+      />
     </div>
   );
 };
