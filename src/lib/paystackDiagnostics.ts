@@ -154,15 +154,14 @@ export function analyzePaystackError(
     message.includes("api key") ||
     message.includes("forbidden")
   ) {
-    const isLiveEndpoint = endpoint === "/subaccount" || endpoint === "/bank/resolve";
     return {
       code: "PAYSTACK_AUTH_INVALID_KEY",
       category: "AUTHENTICATION_ERROR",
       severity: "CRITICAL",
       detailedReason: `Paystack rejected the Authorization secret key on ${endpoint}. HTTP ${httpStatus} returned with message: "${responseBody.message || "Invalid Key"}".`,
       actionableSteps: [
-        `Ensure ${isLiveEndpoint ? "PAYSTACK_LIVE_SECRET_KEY" : "PAYSTACK_TEST_SECRET_KEY"} is defined in your environment (.env).`,
-        `Verify you are passing the Secret Key ('sk_live_...' or 'sk_test_...'), NOT the Public Key ('pk_...').`,
+        `Ensure PAYSTACK_TEST_SECRET_KEY is defined in your environment (.env).`,
+        `Verify you are passing the Secret Key ('sk_test_...'), NOT the Public Key ('pk_...').`,
         `Confirm that your Paystack merchant account is activated and has API access enabled on dashboard.paystack.com -> Settings -> API Keys & Webhooks.`,
         `If using test mode, ensure the test secret key matches your test public key on the Paystack dashboard.`,
       ],

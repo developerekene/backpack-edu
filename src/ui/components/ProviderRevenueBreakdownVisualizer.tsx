@@ -50,9 +50,12 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
   const platformFee = Math.round(baseTuition * 0.15 * 100) / 100;
   const totalStudentPayment =
     Math.round((baseTuition + platformFee) * 100) / 100;
+  const totalChargedPayer = totalStudentPayment;
 
-  const providerSharePercent = 85;
-  const platformSharePercent = 15;
+  // Organization receives 100% of their base tuition fee
+  const subaccountPayout = baseTuition;
+  // Platform receives the 15% platform fee added to the transaction
+  const platformShareGross = platformFee;
 
   // Donut chart data
   const pieData = [
@@ -75,9 +78,9 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
   const barData = tiers.map((count) => ({
     name: `${count} ${count === 1 ? "std" : "stds"}`,
     students: count,
-    providerPayout: Math.round(baseTuition * count),
-    platformFee: Math.round(platformFee * count),
-    totalCollected: Math.round(totalStudentPayment * count),
+    providerPayout: Math.round(subaccountPayout * count),
+    platformFee: Math.round(platformShareGross * count),
+    totalCollected: Math.round(totalChargedPayer * count),
   }));
 
   const quickAmounts = [25000, 50000, 100000, 250000, 500000];
@@ -90,7 +93,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
         <div>
           <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-            Revenue & Split Calculator
+            Revenue Split & Payout Breakdown
           </h4>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             You receive 100% of your listed tuition. A 15% platform fee is added
@@ -135,7 +138,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
         <div className="flex items-center space-x-2">
           <label className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
-            Tuition Amount:
+            Course Tuition:
           </label>
           <div className="flex items-center space-x-1">
             <span className="text-[11px] font-medium text-slate-400">₦</span>
@@ -215,7 +218,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
                   Total
                 </span>
                 <span className="text-[11px] font-bold text-slate-900 dark:text-white">
-                  ₦{formatPriceWithDecimals(totalStudentPayment)}
+                  ₦{formatPriceWithDecimals(totalChargedPayer)}
                 </span>
               </div>
             </div>
@@ -224,11 +227,11 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
             <div className="flex items-center justify-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
               <span className="flex items-center space-x-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                <span>You ({providerSharePercent}%)</span>
+                <span>Subaccount (100% Base)</span>
               </span>
               <span className="flex items-center space-x-1">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                <span>Platform ({platformSharePercent}%)</span>
+                <span>Main Account (+15% Fee)</span>
               </span>
             </div>
           </div>
@@ -251,7 +254,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
                 {subaccountCode ? `(${subaccountCode})` : ""}.
               </p>
               {bankName && accountNumber && (
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium mt-1 flex items-center space-x-1">
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium pt-1 flex items-center space-x-1">
                   <Check className="w-3 h-3" />
                   <span>
                     {bankName} (•••• {accountNumber.slice(-4)})
@@ -325,13 +328,13 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
                 />
                 <Bar
                   dataKey="providerPayout"
-                  name="Your Payout"
+                  name="Your Payout (100% Base)"
                   fill="#10b981"
                   radius={[3, 3, 0, 0]}
                 />
                 <Bar
                   dataKey="platformFee"
-                  name="Platform Fee"
+                  name="Platform Fee (+15%)"
                   fill="#6366f1"
                   radius={[3, 3, 0, 0]}
                 />

@@ -5,12 +5,14 @@ export interface PaystackSubaccount {
   business_name: string;
   bank_code: string;
   bank_name?: string;
+  country?: string;
+  currency?: string;
   account_number: string;
   account_name?: string;
-  percentage_charge: number; // e.g., 90 (%) goes to provider, 10% to platform
+  percentage_charge: number; // e.g., 85 (%) goes to provider, 15% to platform
   description?: string;
   is_verified?: boolean;
-  is_live?: boolean;
+  // is_live?: boolean; // Commented out per user instruction
   mode?: "test" | "live";
   updatedAt?: string;
 }
@@ -27,7 +29,7 @@ export interface PaystackSplitTransaction {
   providerName: string;
   subaccountCode: string;
   subaccount_code?: string;
-  is_live?: boolean;
+  // is_live?: boolean; // Commented out per user instruction
   mode?: "test" | "live";
   totalAmount: number;
   providerShareAmount: number;

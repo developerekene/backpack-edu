@@ -21,6 +21,8 @@ interface BankOption {
   name: string;
   code: string;
   country?: string;
+  country_code?: string;
+  currency?: string;
 }
 
 export const PaystackSubaccountOnboarding: React.FC = () => {
@@ -45,6 +47,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   const [banks, setBanks] = useState<BankOption[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [bankSearch, setBankSearch] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState<string>("all");
   const [selectedBankCode, setSelectedBankCode] = useState(
     currentSubaccount?.bank_code || "058",
   );
@@ -61,8 +64,10 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         : currentUser?.name || ""),
   );
 
-  // Standard 15% platform fee
-  const platformFeePercent = 15;
+  // Paystack Subaccount Split Allocation:
+  // Paystack percentage_charge defines the percentage allocated to the SUBACCOUNT.
+  // 85% goes directly to the subaccount, 15% goes to our main account (which absorbs all Paystack fees).
+  const subaccountSharePercent = 85;
 
   // Account Resolution state
   const [resolvingAccount, setResolvingAccount] = useState(false);
@@ -70,7 +75,6 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     currentSubaccount?.account_name || "",
   );
   const [resolutionError, setResolutionError] = useState("");
-  const [showManualNameInput, setShowManualNameInput] = useState(false);
 
   // Subaccount Creation state
   const [submitting, setSubmitting] = useState(false);
@@ -180,8 +184,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
       let bName = businessName.trim();
       let accName = resolvedAccountName || bName;
 
-      let isLiveVerified = cleanCode.startsWith("ACCT_live_");
-      let modeVerified: "test" | "live" = isLiveVerified ? "live" : "test";
+      let modeVerified: "test" | "live" = "test";
 
       try {
         const verifyRes = await fetch(`/api/paystack/subaccount/${encodeURIComponent(cleanCode)}`);
@@ -195,7 +198,6 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
           if (pSub.account_number) accNum = pSub.account_number;
           if (pSub.account_name) accName = pSub.account_name;
           if (pSub.business_name) bName = pSub.business_name;
-          if (pSub.is_live !== undefined) isLiveVerified = Boolean(pSub.is_live);
           if (pSub.mode) modeVerified = pSub.mode;
         }
       } catch (checkErr) {
@@ -209,9 +211,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         bank_name: bankName || selectedBankName,
         account_number: accNum || accountNumber.trim() || "0000000000",
         account_name: accName,
-        percentage_charge: platformFeePercent,
+        percentage_charge: subaccountSharePercent, // 85% to subaccount, 15% to main account
         is_verified: true,
-        is_live: isLiveVerified,
         mode: modeVerified,
         updatedAt: new Date().toISOString(),
       };
@@ -239,12 +240,12 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     }
   };
 
-  // Fetch Banks
+  // Fetch All Banks available on Paystack
   useEffect(() => {
     const fetchBanks = async () => {
       setLoadingBanks(true);
       try {
-        const res = await fetch("/api/paystack/banks?country=nigeria");
+        const res = await fetch("/api/paystack/banks?country=all");
         if (res.ok) {
           const json = await res.json();
           if (json.banks && json.banks.length > 0) {
@@ -252,8 +253,9 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             const uniqueBanksMap = new Map<string, BankOption>();
             for (const b of rawBanks) {
               const code = String(b.code || "").trim();
-              if (code && !uniqueBanksMap.has(code)) {
-                uniqueBanksMap.set(code, b);
+              const key = `${b.country_code || b.country || "all"}-${code}`;
+              if (code && !uniqueBanksMap.has(key)) {
+                uniqueBanksMap.set(key, b);
               }
             }
             const dedupedBanks = Array.from(uniqueBanksMap.values());
@@ -319,18 +321,13 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
       if (json.success && json.account_name) {
         setResolvedAccountName(String(json.account_name));
         setResolutionError("");
-        setShowManualNameInput(false);
       } else {
         setResolutionError(
-          String(json.message || "Unable to verify bank account. Please check details."),
+          String(json.message || "Unable to verify bank account on Paystack. Please check your bank code and account number."),
         );
-        if (json.requiresManualName) {
-          setShowManualNameInput(true);
-        }
       }
     } catch {
       setResolutionError("Failed to connect to account verification service.");
-      setShowManualNameInput(true);
     } finally {
       setResolvingAccount(false);
     }
@@ -355,11 +352,12 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     }
 
     try {
+      const selectedBankObj = banks.find((b) => b.code === selectedBankCode);
       const payload = {
         business_name: businessName.trim(),
         settlement_bank: selectedBankCode,
         account_number: accountNumber.trim(),
-        percentage_charge: platformFeePercent, // 15% platform commission
+        percentage_charge: subaccountSharePercent, // 85% to subaccount, 15% to main account
         description: `Backpack Vendor Subaccount for ${businessName}`,
         primary_contact_email: currentUser?.email,
         primary_contact_name: currentUser?.name,
@@ -381,21 +379,21 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
 
       if (json.success && json.subaccount_code) {
         const subCode = String(json.subaccount_code);
-        const isLiveCreated = json.is_live !== undefined ? Boolean(json.is_live) : subCode.startsWith("ACCT_live_");
-        const modeCreated: "test" | "live" = (json.mode as "test" | "live") || (isLiveCreated ? "live" : "test");
+        const modeCreated: "test" | "live" = (json.mode as "test" | "live") || "test";
         const newSubaccountData: PaystackSubaccount = {
           subaccount_code: subCode,
           business_name: businessName.trim(),
           bank_code: selectedBankCode,
           bank_name:
             selectedBankName ||
-            banks.find((b) => b.code === selectedBankCode)?.name ||
+            selectedBankObj?.name ||
             "Settlement Bank",
+          country: selectedBankObj?.country || "Nigeria",
+          currency: selectedBankObj?.currency || "NGN",
           account_number: accountNumber.trim(),
           account_name: resolvedAccountName || businessName.trim(),
-          percentage_charge: platformFeePercent,
+          percentage_charge: subaccountSharePercent,
           is_verified: true,
-          is_live: isLiveCreated,
           mode: modeCreated,
           updatedAt: new Date().toISOString(),
         };
@@ -432,11 +430,17 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     }
   };
 
-  const filteredBanks = banks.filter(
-    (b) =>
+  const filteredBanks = banks.filter((b) => {
+    const matchesSearch =
       b.name.toLowerCase().includes(bankSearch.toLowerCase()) ||
-      b.code.includes(bankSearch),
-  );
+      b.code.includes(bankSearch) ||
+      (b.country && b.country.toLowerCase().includes(bankSearch.toLowerCase()));
+    const matchesCountry =
+      selectedCountry === "all" ||
+      (b.country && b.country.toLowerCase() === selectedCountry.toLowerCase()) ||
+      (b.country_code && b.country_code.toLowerCase() === selectedCountry.toLowerCase());
+    return matchesSearch && matchesCountry;
+  });
 
   return (
     <div className="space-y-6">
@@ -533,18 +537,6 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsEditing(true);
-                    setConnectionMode("create");
-                  }}
-                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-bold rounded-xl transition shadow-xs flex items-center space-x-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Fix / Re-create Subaccount</span>
-                </button>
-
-                <button
-                  type="button"
                   onClick={() => setIsEditing(true)}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow-sm"
                 >
@@ -574,7 +566,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                 <div className="flex items-center space-x-2 text-xs text-emerald-800 dark:text-emerald-300">
                   <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>
-                    Automated Split Payouts Active: 100% of your course tuition is routed directly into your bank on Paystack&apos;s schedule.
+                    Automated Split Payouts Active: 85% of each payment settles directly into your bank account. Our main account (15%) absorbs all Paystack fees so you get 100% of your money.
                   </span>
                 </div>
               )}
@@ -698,13 +690,44 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
 
                 {/* Settlement Bank */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Settlement Bank <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Settlement Bank <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                      {filteredBanks.length} banks available
+                    </span>
+                  </div>
                   <div className="space-y-2">
+                    {/* Country Selector Filter */}
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        { id: "all", label: "🌍 All Countries" },
+                        { id: "nigeria", label: "🇳🇬 Nigeria" },
+                        { id: "ghana", label: "🇬🇭 Ghana" },
+                        { id: "kenya", label: "🇰🇪 Kenya" },
+                        { id: "south africa", label: "🇿🇦 South Africa" },
+                        { id: "cote d'ivoire", label: "🇨🇮 Côte d'Ivoire" },
+                        { id: "egypt", label: "🇪🇬 Egypt" },
+                      ].map((c) => (
+                        <button
+                          key={`country-tab-${c.id}`}
+                          type="button"
+                          onClick={() => setSelectedCountry(c.id)}
+                          className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
+                            selectedCountry === c.id
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                          }`}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+
                     <input
                       type="text"
-                      placeholder="Search bank name..."
+                      placeholder="Search bank name or code..."
                       value={bankSearch}
                       onChange={(e) => setBankSearch(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500"
@@ -716,15 +739,15 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                       className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
                     >
                       {loadingBanks ? (
-                        <option>Loading Nigerian banks...</option>
+                        <option>Loading all Paystack banks...</option>
                       ) : filteredBanks.length > 0 ? (
                         filteredBanks.map((b, idx) => (
-                          <option key={`bank-opt-${b.code}-${idx}`} value={b.code}>
-                            {b.name}
+                          <option key={`bank-opt-${b.code}-${b.country_code || idx}`} value={b.code}>
+                            {b.name} {b.country ? `(${b.country}${b.currency ? ` • ${b.currency}` : ""})` : ""}
                           </option>
                         ))
                       ) : (
-                        <option value="">No matching banks found</option>
+                        <option value="">No matching banks found in {selectedCountry}</option>
                       )}
                     </select>
                   </div>
@@ -733,27 +756,26 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                 {/* Account Number */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Account Number (10-digit NUBAN) <span className="text-red-500">*</span>
+                    Account Number <span className="text-red-500">*</span>
                   </label>
                   <div className="flex space-x-2">
                     <input
                       type="text"
                       required
-                      maxLength={10}
+                      maxLength={15}
                       value={accountNumber}
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, "");
                         setAccountNumber(val);
-                        setResolvedAccountName("");
                         setResolutionError("");
                       }}
-                      placeholder="0123456789"
+                      placeholder="e.g. 0123456789"
                       className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-mono tracking-wider focus:ring-2 focus:ring-indigo-500"
                     />
                     <button
                       type="button"
                       onClick={handleResolveAccount}
-                      disabled={resolvingAccount || accountNumber.length < 10}
+                      disabled={resolvingAccount || accountNumber.length < 8}
                       className="px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center space-x-1"
                     >
                       {resolvingAccount ? (
@@ -761,7 +783,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                       ) : (
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                       )}
-                      <span>Verify</span>
+                      <span>{resolvingAccount ? "Verifying..." : "Verify Name"}</span>
                     </button>
                   </div>
 
@@ -773,33 +795,35 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                   )}
 
                   {resolutionError && (
-                    <p className="text-[11px] text-rose-500 dark:text-rose-400 font-medium mt-1.5 flex items-center">
-                      <AlertCircle className="w-3.5 h-3.5 mr-1 shrink-0" />
-                      {resolutionError}
-                    </p>
+                    <div className="text-[11px] text-rose-500 dark:text-rose-400 font-medium mt-1.5 flex items-start space-x-1">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>{resolutionError} (You can enter or verify your account name below)</span>
+                    </div>
                   )}
                 </div>
 
-                {/* Manual Account Name Override */}
-                {showManualNameInput && (
-                  <div className="md:col-span-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 p-4 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                        Confirm Account Holder Legal Name
-                      </label>
-                    </div>
-                    <input
-                      type="text"
-                      value={resolvedAccountName}
-                      onChange={(e) => setResolvedAccountName(e.target.value)}
-                      placeholder="e.g. John Doe / Apex Coding Academy Ltd"
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white uppercase font-bold focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <p className="text-[10px] text-slate-500">
-                      Exact name registered with your settlement bank account.
-                    </p>
+                {/* Account Holder Legal Name */}
+                <div className="md:col-span-2 bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 p-4 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Account Holder Legal Name <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500">
+                      Auto-verified or enter exact name on bank statement
+                    </span>
                   </div>
-                )}
+                  <input
+                    type="text"
+                    required
+                    value={resolvedAccountName}
+                    onChange={(e) => setResolvedAccountName(e.target.value)}
+                    placeholder="e.g. John Doe / Apex Coding Academy Ltd"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white uppercase font-bold focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    This account name is registered with Paystack during subaccount creation for automated split settlement.
+                  </p>
+                </div>
               </div>
 
               {/* Form Actions */}

@@ -34,6 +34,7 @@ import { AdmissionSessionManagerModal } from "../components/AdmissionSessionMana
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
+import { PaystackSubaccountOnboarding } from "../components/PaystackSubaccountOnboarding";
 import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
 import { AssessmentsOverview } from "../components/courseAssesment/AssessmentOverview";
@@ -711,12 +712,15 @@ const Dashboard = () => {
         )
       : courses.filter((c) => assignedCourseIds.includes(c.id));
 
-  const myOrg = organizations.find(
-    (o) =>
-      o.id === currentUser.id ||
-      o.ownerId === currentUser.id ||
-      o.id === `org_${currentUser.id}`,
-  );
+  const myOrg =
+    currentUser.role === "organization"
+      ? organizations.find(
+          (o) =>
+            o.id === currentUser.id ||
+            o.ownerId === currentUser.id ||
+            o.id === `org_${currentUser.id}`,
+        )
+      : null;
   const isPaidOrg = myOrg?.plan === "paid" || currentUser.plan === "paid";
   const orgCourseLimitReached =
     currentUser.role === "organization" && !isPaidOrg && myCourses.length >= 3;
@@ -730,6 +734,13 @@ const Dashboard = () => {
       : enrollmentRequests.filter((r) =>
           assignedCourseIds.includes(r.courseId),
         );
+
+  const mySubaccount =
+    myOrg?.paystackSubaccount || currentUser.paystackSubaccount;
+  const hasSubaccount = Boolean(
+    mySubaccount?.subaccount_code &&
+    mySubaccount.subaccount_code.startsWith("ACCT_"),
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
@@ -822,7 +833,8 @@ const Dashboard = () => {
                       {req.accommodations?.enabled && (
                         <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 rounded-md text-[10px] font-bold border border-purple-200 dark:border-purple-800 flex items-center">
                           <Accessibility className="w-3 h-3 mr-1" />
-                          Accommodation Plan ({req.accommodations.examTimeMultiplier || 1.0}x Time)
+                          Accommodation Plan (
+                          {req.accommodations.examTimeMultiplier || 1.0}x Time)
                         </span>
                       )}
                     </div>
@@ -1099,7 +1111,14 @@ const Dashboard = () => {
           isReapplication={true}
           previousRequest={reapplyReq}
           onClose={() => setReapplyReq(null)}
-          onEnroll={async (paymentMethod, documents, additionalDocs, studentNotes, sessionId, sessionName) => {
+          onEnroll={async (
+            paymentMethod,
+            documents,
+            additionalDocs,
+            studentNotes,
+            sessionId,
+            sessionName,
+          ) => {
             if (!currentUser) return;
             const course = courses.find((c) => c.id === reapplyReq.courseId)!;
             await addEnrollmentRequest({
