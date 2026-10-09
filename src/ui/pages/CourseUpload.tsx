@@ -27,12 +27,15 @@ import {
   Award,
   HelpCircle,
   User,
+  Lock,
 } from "lucide-react";
+import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 
 const CourseUpload = () => {
   const navigate = useNavigate();
-  const { addCourse, orgMembers, organizations } = useAppContext();
+  const { addCourse, orgMembers, organizations, courses } = useAppContext();
   const { currentUser } = useAuth();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -87,13 +90,17 @@ const CourseUpload = () => {
   // Detailed Course Information & Public Showcase
   const [subtitle, setSubtitle] = useState("");
   const [whyItMatters, setWhyItMatters] = useState("");
-  const [pacing, setPacing] = useState<"self-paced" | "live-online" | "blended">("blended");
+  const [pacing, setPacing] = useState<
+    "self-paced" | "live-online" | "blended"
+  >("blended");
   const [durationWeeks, setDurationWeeks] = useState("8 Weeks");
   const [timeCommitment, setTimeCommitment] = useState("6–8 hours / week");
   const [totalHours, setTotalHours] = useState("48 Total Hours");
   const [language, setLanguage] = useState("English");
   const [subtitlesInput, setSubtitlesInput] = useState("English [CC]");
-  const [accessDuration, setAccessDuration] = useState("Lifetime Access upon Enrollment");
+  const [accessDuration, setAccessDuration] = useState(
+    "Lifetime Access upon Enrollment",
+  );
 
   // Learning Objectives
   const [learningObjectives, setLearningObjectives] = useState<string[]>([]);
@@ -101,7 +108,7 @@ const CourseUpload = () => {
 
   // Instructor Information
   const [instructorName, setInstructorName] = useState(
-    currentUser?.role === "instructor" ? currentUser.name : ""
+    currentUser?.role === "instructor" ? currentUser.name : "",
   );
   const [instructorTitle, setInstructorTitle] = useState("");
   const [instructorBio, setInstructorBio] = useState("");
@@ -168,11 +175,26 @@ const CourseUpload = () => {
   const isHigherEduOrg = activeOrg?.orgType === "higher";
   const isVocationalOrg = activeOrg?.orgType === "vocational";
 
-  const activeSubaccount = activeOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
+  const activeSubaccount =
+    activeOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
   const hasSubaccount = Boolean(
     activeSubaccount?.subaccount_code &&
-    activeSubaccount.subaccount_code.startsWith("ACCT_")
+      activeSubaccount.subaccount_code.startsWith("ACCT_"),
   );
+
+  // Organization existing courses and tier check (free accounts limited to 3 courses)
+  const orgExistingCourses = courses.filter((c) => {
+    return (
+      c.orgId === currentOrgIdToUse ||
+      c.orgId === `org_${currentOrgIdToUse}` ||
+      c.orgId === activeOrg?.id ||
+      c.orgId === activeOrg?.ownerId
+    );
+  });
+  const isPaidOrg =
+    activeOrg?.plan === "paid" ||
+    (currentUser.role === "organization" && currentUser.plan === "paid");
+  const orgCourseLimitReached = !isPaidOrg && orgExistingCourses.length >= 3;
 
   // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
   if (currentUser.role === "instructor" && approvedOrgs.length === 0) {
@@ -359,6 +381,25 @@ const CourseUpload = () => {
       return;
     }
 
+    // Check Organization Course Limit (Free plan permits maximum 3 courses; prompt payment on 4th)
+    const existingOrgCourses = courses.filter((c) => {
+      return (
+        c.orgId === orgIdToUse ||
+        c.orgId === `org_${orgIdToUse}` ||
+        c.orgId === targetOrg?.id ||
+        c.orgId === targetOrg?.ownerId
+      );
+    });
+
+    const isTargetOrgPaid =
+      targetOrg?.plan === "paid" ||
+      (currentUser.role === "organization" && currentUser.plan === "paid");
+
+    if (!isTargetOrgPaid && existingOrgCourses.length >= 3) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const effectiveTuitionCost =
       isVocationalOrg && fundingModel === "donations_sponsorships"
         ? Number(tuitionCostPerStudent) || Number(price) || 0
@@ -420,12 +461,17 @@ const CourseUpload = () => {
         timeCommitment: timeCommitment.trim() || undefined,
         totalHours: totalHours.trim() || undefined,
         language: language.trim() || undefined,
-        subtitles: subtitlesInput.split(",").map((s) => s.trim()).filter(Boolean),
+        subtitles: subtitlesInput
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
         accessDuration: accessDuration.trim() || undefined,
         learningObjectives: learningObjectives.filter(Boolean),
         prerequisites: studentReqList.filter(Boolean),
         instructorName:
-          (instructorName.trim() || (currentUser.role === "instructor" ? currentUser.name : "")) || undefined,
+          instructorName.trim() ||
+          (currentUser.role === "instructor" ? currentUser.name : "") ||
+          undefined,
         instructorId:
           currentUser.role === "instructor" ? currentUser.id : undefined,
         instructorTitle: instructorTitle.trim() || undefined,
@@ -454,6 +500,42 @@ const CourseUpload = () => {
       {/* Knowledge City notice for freelance creators (instructor only) */}
       {currentUser?.role === "instructor" && (
         <KnowledgeCityBanner variant="instructor" />
+      )}
+
+      {/* 3-Course Free Plan Limit Banner */}
+      {orgCourseLimitReached && (
+        <div className="p-5 bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-amber-500/30 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+          <div className="flex items-start space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                  Course Limit Reached ({orgExistingCourses.length}/3 Courses on
+                  Free Plan)
+                </h3>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 uppercase">
+                  Upgrade Required
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                Free organizations are allowed to publish a maximum of 3
+                courses. To publish this 4th course and unlock unlimited
+                courses, please upgrade your organization account to
+                Organization Pro.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowUpgradeModal(true)}
+            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
+            <span>Upgrade Account</span>
+          </button>
+        </div>
       )}
 
       {/* Subaccount Prompt Banner */}
@@ -569,7 +651,8 @@ const CourseUpload = () => {
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
             />
             <p className="text-[11px] text-slate-400 mt-1">
-              A one-sentence summary explaining the unique value proposition on the public course page.
+              A one-sentence summary explaining the unique value proposition on
+              the public course page.
             </p>
           </div>
 
@@ -662,7 +745,9 @@ const CourseUpload = () => {
                   </label>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  As a vocational education provider, choose how this course will be funded: direct tuition from students, or community donations and student sponsorships.
+                  As a vocational education provider, choose how this course
+                  will be funded: direct tuition from students, or community
+                  donations and student sponsorships.
                 </p>
               </div>
 
@@ -694,7 +779,8 @@ const CourseUpload = () => {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Students pay their tuition directly upon course enrollment via one-time payment or installments.
+                    Students pay their tuition directly upon course enrollment
+                    via one-time payment or installments.
                   </p>
                 </button>
 
@@ -730,7 +816,9 @@ const CourseUpload = () => {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Accept donations and sponsorships from anyone (even unregistered non-app donors). Only covered students are admitted.
+                    Accept donations and sponsorships from anyone (even
+                    unregistered non-app donors). Only covered students are
+                    admitted.
                   </p>
                 </button>
               </div>
@@ -739,7 +827,8 @@ const CourseUpload = () => {
                 <div className="p-4 bg-white dark:bg-slate-800/90 rounded-xl border border-indigo-100 dark:border-indigo-900/50 space-y-3">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                      Tuition Cost per Student (Calculates Admission Gate) <span className="text-red-500">*</span>
+                      Tuition Cost per Student (Calculates Admission Gate){" "}
+                      <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -760,9 +849,14 @@ const CourseUpload = () => {
                     </div>
                   </div>
                   <div className="text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-50/80 dark:bg-indigo-950/40 p-3 rounded-lg border border-indigo-100 dark:border-indigo-900/60 leading-relaxed">
-                    <strong>Admission Gate Calculation:</strong> Backpack calculates the number of students admitted as:
-                    <span className="font-mono font-bold mx-1">floor(Total Donations ÷ Tuition Cost Per Student)</span>.
-                    Decimal results strictly consider the whole number for student admission capacity. Donors can donate any amount or sponsor specific students before the course closes.
+                    <strong>Admission Gate Calculation:</strong> Backpack
+                    calculates the number of students admitted as:
+                    <span className="font-mono font-bold mx-1">
+                      floor(Total Donations ÷ Tuition Cost Per Student)
+                    </span>
+                    . Decimal results strictly consider the whole number for
+                    student admission capacity. Donors can donate any amount or
+                    sponsor specific students before the course closes.
                   </div>
                 </div>
               )}
@@ -774,7 +868,8 @@ const CourseUpload = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                  Tuition Fee (0 for Free) <span className="text-red-500">*</span>
+                  Tuition Fee (0 for Free){" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -828,154 +923,155 @@ const CourseUpload = () => {
           )}
 
           {/* Payment Terms Tick Boxes & Interactive Buttons */}
-          {(!isVocationalOrg || fundingModel === "direct_tuition") && Number(price) > 0 && (
-            <div className="p-5 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Permitted Payment Terms (Tick One or Both Options)
-                </label>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Organisations can enable Pay in Full, Flexible Installments,
-                  or both options seamlessly for students.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Pay in Full (One-time payment) Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextVal = !allowPayInFull;
-                    if (!nextVal && !allowInstallments) return;
-                    setAllowPayInFull(nextVal);
-                  }}
-                  className={`p-4 rounded-2xl border text-left transition-all flex items-start space-x-3 cursor-pointer ${
-                    allowPayInFull
-                      ? "bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20"
-                      : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                  }`}
-                >
-                  <div
-                    className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
-                      allowPayInFull
-                        ? "bg-indigo-600 border-indigo-600 text-slate-900 dark:text-white"
-                        : "border-slate-300 dark:border-slate-600"
-                    }`}
-                  >
-                    {allowPayInFull && (
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    )}
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-900 dark:text-white text-xs block">
-                      Pay in Full (One-time payment)
-                    </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block leading-relaxed">
-                      Students pay 100% of the tuition upfront upon course
-                      checkout.
-                    </span>
-                  </div>
-                </button>
-
-                {/* Flexible Installments Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextVal = !allowInstallments;
-                    if (!nextVal && !allowPayInFull) return;
-                    setAllowInstallments(nextVal);
-                  }}
-                  className={`p-4 rounded-2xl border text-left transition-all flex items-start space-x-3 cursor-pointer ${
-                    allowInstallments
-                      ? "bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20"
-                      : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                  }`}
-                >
-                  <div
-                    className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
-                      allowInstallments
-                        ? "bg-indigo-600 border-indigo-600 text-slate-900 dark:text-white"
-                        : "border-slate-300 dark:border-slate-600"
-                    }`}
-                  >
-                    {allowInstallments && (
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    )}
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-900 dark:text-white text-xs block">
-                      Flexible Installments
-                    </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block leading-relaxed">
-                      Students pay tuition over periodic intervals or milestone
-                      installments.
-                    </span>
-                  </div>
-                </button>
-              </div>
-
-              {/* Installment Frequency Options */}
-              {allowInstallments && (
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Installment Payment Frequency
+          {(!isVocationalOrg || fundingModel === "direct_tuition") &&
+            Number(price) > 0 && (
+              <div className="p-5 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Permitted Payment Terms (Tick One or Both Options)
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setInstallmentInterval("monthly")}
-                      className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
-                        installmentInterval === "monthly"
-                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
-                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      Monthly (Every 30 Days)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setInstallmentInterval("weekly")}
-                      className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
-                        installmentInterval === "weekly"
-                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
-                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      Weekly (Every 7 Days)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setInstallmentInterval("custom")}
-                      className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
-                        installmentInterval === "custom"
-                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
-                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      Custom Milestones
-                    </button>
-                  </div>
-
-                  {installmentInterval === "custom" && (
-                    <div className="mt-2 space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Describe Custom Milestone Payment Schedule
-                      </label>
-                      <input
-                        type="text"
-                        value={customMilestonesText}
-                        onChange={(e) =>
-                          setCustomMilestonesText(e.target.value)
-                        }
-                        placeholder="e.g. 40% upon admission, 30% mid-semester, 30% before final exams"
-                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  )}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Organisations can enable Pay in Full, Flexible Installments,
+                    or both options seamlessly for students.
+                  </p>
                 </div>
-              )}
-            </div>
-          )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Pay in Full (One-time payment) Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !allowPayInFull;
+                      if (!nextVal && !allowInstallments) return;
+                      setAllowPayInFull(nextVal);
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-start space-x-3 cursor-pointer ${
+                      allowPayInFull
+                        ? "bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20"
+                        : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <div
+                      className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
+                        allowPayInFull
+                          ? "bg-indigo-600 border-indigo-600 text-slate-900 dark:text-white"
+                          : "border-slate-300 dark:border-slate-600"
+                      }`}
+                    >
+                      {allowPayInFull && (
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                        Pay in Full (One-time payment)
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block leading-relaxed">
+                        Students pay 100% of the tuition upfront upon course
+                        checkout.
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Flexible Installments Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !allowInstallments;
+                      if (!nextVal && !allowPayInFull) return;
+                      setAllowInstallments(nextVal);
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-start space-x-3 cursor-pointer ${
+                      allowInstallments
+                        ? "bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20"
+                        : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <div
+                      className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
+                        allowInstallments
+                          ? "bg-indigo-600 border-indigo-600 text-slate-900 dark:text-white"
+                          : "border-slate-300 dark:border-slate-600"
+                      }`}
+                    >
+                      {allowInstallments && (
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                        Flexible Installments
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block leading-relaxed">
+                        Students pay tuition over periodic intervals or
+                        milestone installments.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Installment Frequency Options */}
+                {allowInstallments && (
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Installment Payment Frequency
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setInstallmentInterval("monthly")}
+                        className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                          installmentInterval === "monthly"
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        Monthly (Every 30 Days)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInstallmentInterval("weekly")}
+                        className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                          installmentInterval === "weekly"
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        Weekly (Every 7 Days)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInstallmentInterval("custom")}
+                        className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                          installmentInterval === "custom"
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        Custom Milestones
+                      </button>
+                    </div>
+
+                    {installmentInterval === "custom" && (
+                      <div className="mt-2 space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Describe Custom Milestone Payment Schedule
+                        </label>
+                        <input
+                          type="text"
+                          value={customMilestonesText}
+                          onChange={(e) =>
+                            setCustomMilestonesText(e.target.value)
+                          }
+                          placeholder="e.g. 40% upon admission, 30% mid-semester, 30% before final exams"
+                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
         </div>
 
         {/* Requirements & Required Documents Configuration */}
@@ -1087,7 +1183,8 @@ const CourseUpload = () => {
               Pacing, Time Commitment & Language
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Provide schedule expectations, duration, and translation options for public course visitors.
+              Provide schedule expectations, duration, and translation options
+              for public course visitors.
             </p>
           </div>
 
@@ -1100,7 +1197,7 @@ const CourseUpload = () => {
                 value={pacing}
                 onChange={(e) =>
                   setPacing(
-                    e.target.value as "self-paced" | "live-online" | "blended"
+                    e.target.value as "self-paced" | "live-online" | "blended",
                   )
                 }
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
@@ -1201,7 +1298,8 @@ const CourseUpload = () => {
               Learning Objectives: What Students Will Learn
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Add clear takeaways and skills students will acquire after finishing this course.
+              Add clear takeaways and skills students will acquire after
+              finishing this course.
             </p>
           </div>
 
@@ -1255,7 +1353,8 @@ const CourseUpload = () => {
               Lead Instructor Profile & Credentials
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Highlight the instructor's background, authority, and industry credentials.
+              Highlight the instructor's background, authority, and industry
+              credentials.
             </p>
           </div>
 
@@ -1308,7 +1407,8 @@ const CourseUpload = () => {
               Certification Details & Refund Policy
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Clarify credential issuance criteria and money-back guarantee terms.
+              Clarify credential issuance criteria and money-back guarantee
+              terms.
             </p>
           </div>
 
@@ -1345,7 +1445,8 @@ const CourseUpload = () => {
               Frequently Asked Questions (FAQ)
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Add common questions and answers to clarify pacing, requirements, and assessments.
+              Add common questions and answers to clarify pacing, requirements,
+              and assessments.
             </p>
           </div>
 
@@ -1791,6 +1892,16 @@ const CourseUpload = () => {
           </div>
         </div>
       )}
+
+      <OrgPlanUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        organization={activeOrg}
+        currentCourseCount={orgExistingCourses.length}
+        onUpgradeSuccess={() => {
+          setShowUpgradeModal(false);
+        }}
+      />
     </div>
   );
 };

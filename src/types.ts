@@ -68,6 +68,7 @@ export interface User {
   name: string;
   role: Role;
   email: string;
+  orgId?: string;
   bio?: string;
   headline?: string;
   cvUrl?: string;
@@ -97,7 +98,10 @@ export interface User {
   themeColor?: string;
   academicHighlights?: string[];
   isDeleted?: boolean;
+  plan?: OrgPlanTier;
 }
+
+export type OrgPlanTier = "free" | "paid";
 
 export interface Organization {
   id: string;
@@ -123,6 +127,7 @@ export interface Organization {
   academicHighlights?: string[];
   isDeleted?: boolean;
   paystackSubaccount?: PaystackSubaccount;
+  plan?: OrgPlanTier;
 }
 
 export interface AdmissionSession {
@@ -159,6 +164,7 @@ export interface CourseFAQ {
 export interface Course {
   id: string;
   orgId: string;
+  createdBy?: string;
   title: string;
   subtitle?: string;
   description: string;
@@ -351,8 +357,10 @@ export interface Material {
   id?: string;
   courseId: string;
   title: string;
-  url: string;
-  type: "pdf" | "doc" | "video" | "link";
+  url?: string;
+  type: "pdf" | "doc" | "video" | "link" | "notes";
+  content?: string;
+  createdAt?: string;
 }
 
 export interface OrgMember {

@@ -41,7 +41,7 @@ export const getLiveClassRoomName = (
   const cleanCourseId = sanitizeRoomName(event?.courseId || courseId || 'classroom');
   const sessionUuid = event?.id
     ? sanitizeRoomName(event.id)
-    : generateUniqueSessionId(cleanCourseId);
+    : generateUniqueSessionId();
 
   return sanitizeRoomName(`course-backpack-${cleanCourseId}-session-${sessionUuid}`);
 };

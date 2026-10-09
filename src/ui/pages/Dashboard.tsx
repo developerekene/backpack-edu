@@ -23,6 +23,8 @@ import {
   Trash2,
   Building2,
   Accessibility,
+  Lock,
+  Sparkles,
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
@@ -30,6 +32,7 @@ import { CoursePaymentModal } from "../components/CoursePaymentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
 import { EnrollmentModal } from "../components/EnrollmentModal";
+import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { PaystackSubaccountOnboarding } from "../components/PaystackSubaccountOnboarding";
 import { EnrollmentRequest, Course, OrgMember } from "../../types";
@@ -67,7 +70,7 @@ const Dashboard = () => {
     useState<Course | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [showSubaccountModal, setShowSubaccountModal] = useState(false);
+  const [showOrgUpgradeModal, setShowOrgUpgradeModal] = useState(false);
 
   if (!currentUser)
     return <div className="p-8 text-center text-slate-500">Please login.</div>;
@@ -709,6 +712,19 @@ const Dashboard = () => {
         )
       : courses.filter((c) => assignedCourseIds.includes(c.id));
 
+  const myOrg =
+    currentUser.role === "organization"
+      ? organizations.find(
+          (o) =>
+            o.id === currentUser.id ||
+            o.ownerId === currentUser.id ||
+            o.id === `org_${currentUser.id}`,
+        )
+      : null;
+  const isPaidOrg = myOrg?.plan === "paid" || currentUser.plan === "paid";
+  const orgCourseLimitReached =
+    currentUser.role === "organization" && !isPaidOrg && myCourses.length >= 3;
+
   const orgRequests =
     currentUser.role === "organization"
       ? enrollmentRequests.filter(
@@ -719,11 +735,12 @@ const Dashboard = () => {
           assignedCourseIds.includes(r.courseId),
         );
 
-  const myOrg = currentUser.role === "organization"
-    ? organizations.find((o) => o.id === currentUser.id || o.ownerId === currentUser.id)
-    : null;
-  const mySubaccount = myOrg?.paystackSubaccount || currentUser.paystackSubaccount;
-  const hasSubaccount = Boolean(mySubaccount?.subaccount_code && mySubaccount.subaccount_code.startsWith("ACCT_"));
+  const mySubaccount =
+    myOrg?.paystackSubaccount || currentUser.paystackSubaccount;
+  const hasSubaccount = Boolean(
+    mySubaccount?.subaccount_code &&
+    mySubaccount.subaccount_code.startsWith("ACCT_"),
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
@@ -816,7 +833,8 @@ const Dashboard = () => {
                       {req.accommodations?.enabled && (
                         <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 rounded-md text-[10px] font-bold border border-purple-200 dark:border-purple-800 flex items-center">
                           <Accessibility className="w-3 h-3 mr-1" />
-                          Accommodation Plan ({req.accommodations.examTimeMultiplier || 1.0}x Time)
+                          Accommodation Plan (
+                          {req.accommodations.examTimeMultiplier || 1.0}x Time)
                         </span>
                       )}
                     </div>
@@ -894,42 +912,64 @@ const Dashboard = () => {
 
       {/* Courses Overview & Admission Session Controls */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-4 shadow-sm">
-        {!hasSubaccount && (
-          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs mb-2">
-            <div className="flex items-center space-x-3 text-amber-800 dark:text-amber-300">
-              <ShieldAlert className="w-5 h-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-              <div>
-                <p className="font-bold">Paystack Settlement Subaccount Required</p>
-                <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5">
-                  Your organization must link a Paystack settlement subaccount to receive 85% direct tuition payouts before publishing courses.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowSubaccountModal(true)}
-              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs whitespace-nowrap transition shadow-sm"
-            >
-              Set Up Subaccount
-            </button>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-              Active Courses & Admission Sessions
-            </h2>
+            <div className="flex items-center space-x-2.5">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Active Courses & Admission Sessions
+              </h2>
+              {currentUser.role === "organization" && (
+                <span
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    isPaidOrg
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      : orgCourseLimitReached
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                        : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20"
+                  }`}
+                >
+                  {isPaidOrg
+                    ? "Pro Plan • Unlimited Courses"
+                    : orgCourseLimitReached
+                      ? `Free Plan • 3/3 Courses (Limit Reached)`
+                      : `Free Plan • ${myCourses.length}/3 Courses`}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Control intake sessions, open/close admissions, and configure
               deadlines.
             </p>
           </div>
-          <Link
-            to="/upload-course"
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm"
-          >
-            + Add Course
-          </Link>
+          <div className="flex items-center space-x-2">
+            {orgCourseLimitReached && (
+              <button
+                type="button"
+                onClick={() => setShowOrgUpgradeModal(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                <span>Upgrade Plan</span>
+              </button>
+            )}
+            {orgCourseLimitReached ? (
+              <button
+                type="button"
+                onClick={() => setShowOrgUpgradeModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>+ Add Course</span>
+              </button>
+            ) : (
+              <Link
+                to="/upload-course"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm"
+              >
+                + Add Course
+              </Link>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {myCourses.map((course) => {
@@ -1071,7 +1111,14 @@ const Dashboard = () => {
           isReapplication={true}
           previousRequest={reapplyReq}
           onClose={() => setReapplyReq(null)}
-          onEnroll={async (paymentMethod, documents, additionalDocs, studentNotes, sessionId, sessionName) => {
+          onEnroll={async (
+            paymentMethod,
+            documents,
+            additionalDocs,
+            studentNotes,
+            sessionId,
+            sessionName,
+          ) => {
             if (!currentUser) return;
             const course = courses.find((c) => c.id === reapplyReq.courseId)!;
             await addEnrollmentRequest({
@@ -1095,26 +1142,16 @@ const Dashboard = () => {
         />
       )}
 
-      {/* Settlement Subaccount Setup Modal */}
-      {showSubaccountModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full p-6 space-y-4 shadow-xl border border-slate-200 dark:border-slate-800 relative my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center">
-                <Building2 className="w-5 h-5 mr-2 text-indigo-500" />
-                Paystack Settlement Subaccount Setup
-              </h3>
-              <button
-                onClick={() => setShowSubaccountModal(false)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <PaystackSubaccountOnboarding />
-          </div>
-        </div>
-      )}
+      {/* Organization Plan Upgrade Modal */}
+      <OrgPlanUpgradeModal
+        isOpen={showOrgUpgradeModal}
+        onClose={() => setShowOrgUpgradeModal(false)}
+        organization={myOrg}
+        currentCourseCount={myCourses.length}
+        onUpgradeSuccess={() => {
+          setShowOrgUpgradeModal(false);
+        }}
+      />
     </div>
   );
 };

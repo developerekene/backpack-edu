@@ -415,8 +415,9 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         setIsEditing(false);
       } else {
         setSubaccountError(
-          json.message ||
-            "Unable to generate Paystack subaccount. Please verify your details or use 'Link Official Paystack Subaccount' to paste your ACCT_ code.",
+          typeof json.message === "string"
+            ? json.message
+            : "Unable to generate Paystack subaccount. Please verify your details or use 'Link Official Paystack Subaccount' to paste your ACCT_ code.",
         );
       }
     } catch (err) {

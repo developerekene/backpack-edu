@@ -15,7 +15,7 @@ import {
   doc,
   getDoc,
   query,
-  onSnapshot
+  onSnapshot,
 } from "firebase/firestore";
 import {
   Assessment,
@@ -39,6 +39,7 @@ import {
   CoursePresence,
   DiscussionResource,
   CourseDonation,
+  OrgPlanTier,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
@@ -84,6 +85,7 @@ interface AppState {
     id: string,
     updates: Partial<Organization>,
   ) => Promise<void>;
+  upgradeOrganizationPlan: (orgId: string) => void;
   deleteOrganization: (id: string) => Promise<void>;
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
@@ -493,6 +495,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             isDeleted: (personalInfo.isDeleted as boolean) ?? false,
             paystackSubaccount:
               personalInfo.paystackSubaccount as Organization["paystackSubaccount"],
+            plan: (personalInfo.plan as OrgPlanTier) || "free",
           });
         }
 
@@ -607,7 +610,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       );
 
       // Intelligent deduplication of schedule events to prevent duplicate live class items
-      const dedupeScheduleEvents = (events: ScheduleEvent[]): ScheduleEvent[] => {
+      const dedupeScheduleEvents = (
+        events: ScheduleEvent[],
+      ): ScheduleEvent[] => {
         const byId = dedupeById(events);
         const result: ScheduleEvent[] = [];
         const activeCourseMap = new Set<string>();
@@ -776,6 +781,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ...prev.filter((o) => o.id !== org.id && o.ownerId !== targetUid),
       { ...cleaned, id: org.id || targetUid, ownerId: targetUid },
     ]);
+  };
+
+  const upgradeOrganizationPlan = (orgId: string) => {
+    setOrganizations((prev) =>
+      prev.map((o) =>
+        o.id === orgId ||
+        o.ownerId === orgId ||
+        o.id === `org_${orgId}` ||
+        `org_${o.id}` === orgId
+          ? { ...o, plan: "paid" }
+          : o,
+      ),
+    );
   };
 
   // Course Operations (stored in backpack/{orgId}.user.courses)
@@ -1505,12 +1523,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     let eventIdToUse = event.id;
     const existingMatch = scheduleEvents.find((e) => {
       if (e.id === event.id) return true;
-      if (event.isActive && e.courseId === event.courseId && e.isActive) return true;
+      if (event.isActive && e.courseId === event.courseId && e.isActive)
+        return true;
       if (
         e.courseId === event.courseId &&
         e.date === event.date &&
         e.time === event.time &&
-        (e.title || "").trim().toLowerCase() === (event.title || "").trim().toLowerCase()
+        (e.title || "").trim().toLowerCase() ===
+          (event.title || "").trim().toLowerCase()
       ) {
         return true;
       }
@@ -1527,7 +1547,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         targetUid,
         "course.scheduleEvents",
         (list) => [
-          ...list.filter((e) => e.id !== eventIdToUse && (!event.isActive || e.courseId !== event.courseId || !e.isActive)),
+          ...list.filter(
+            (e) =>
+              e.id !== eventIdToUse &&
+              (!event.isActive || e.courseId !== event.courseId || !e.isActive),
+          ),
           cleaned,
         ],
       );
@@ -1538,14 +1562,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         course.orgId,
         "course.scheduleEvents",
         (list) => [
-          ...list.filter((e) => e.id !== eventIdToUse && (!event.isActive || e.courseId !== event.courseId || !e.isActive)),
+          ...list.filter(
+            (e) =>
+              e.id !== eventIdToUse &&
+              (!event.isActive || e.courseId !== event.courseId || !e.isActive),
+          ),
           cleaned,
         ],
       );
     }
 
     setScheduleEvents((prev) => [
-      ...prev.filter((e) => e.id !== eventIdToUse && (!event.isActive || e.courseId !== event.courseId || !e.isActive)),
+      ...prev.filter(
+        (e) =>
+          e.id !== eventIdToUse &&
+          (!event.isActive || e.courseId !== event.courseId || !e.isActive),
+      ),
       cleaned,
     ]);
 
@@ -1562,11 +1594,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .map((m) => m.id)
         .filter(Boolean) as string[];
 
-      const courseStaffIds = [course?.createdBy, course?.orgId].filter(Boolean) as string[];
+      const courseStaffIds = [course?.createdBy, course?.orgId].filter(
+        Boolean,
+      ) as string[];
 
       // CRITICAL: Filter out the call initiator (currentUser.id) so the person who started the class is not notified
       const targetRecipientIds = Array.from(
-        new Set([...enrolledStudentIds, ...assignedInstructorIds, ...courseStaffIds]),
+        new Set([
+          ...enrolledStudentIds,
+          ...assignedInstructorIds,
+          ...courseStaffIds,
+        ]),
       ).filter((uid): uid is string => Boolean(uid && uid !== currentUser?.id));
 
       for (const recipientId of targetRecipientIds) {
@@ -1647,7 +1685,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const eventTitle = updates.title || evt?.title || "Class Session";
 
       const enrolledStudentIds = enrollmentRequests
-        .filter((r) => r.courseId === effectiveCourseId && r.status === "approved")
+        .filter(
+          (r) => r.courseId === effectiveCourseId && r.status === "approved",
+        )
         .map((r) => r.userId)
         .filter(Boolean) as string[];
 
@@ -1656,11 +1696,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .map((m) => m.id)
         .filter(Boolean) as string[];
 
-      const courseStaffIds = [course?.createdBy, course?.orgId].filter(Boolean) as string[];
+      const courseStaffIds = [course?.createdBy, course?.orgId].filter(
+        Boolean,
+      ) as string[];
 
       // CRITICAL: Filter out the call initiator (currentUser.id) so the person who started the class is not notified
       const targetRecipientIds = Array.from(
-        new Set([...enrolledStudentIds, ...assignedInstructorIds, ...courseStaffIds]),
+        new Set([
+          ...enrolledStudentIds,
+          ...assignedInstructorIds,
+          ...courseStaffIds,
+        ]),
       ).filter((uid): uid is string => Boolean(uid && uid !== currentUser?.id));
 
       for (const recipientId of targetRecipientIds) {
@@ -1966,6 +2012,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         notifications,
         addOrganization,
         updateOrganization,
+        upgradeOrganizationPlan,
         deleteOrganization,
         addCourse,
         updateCourse,

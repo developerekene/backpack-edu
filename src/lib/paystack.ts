@@ -13,10 +13,10 @@ export const PAYSTACK_TEST_PUBLIC_KEY =
   import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
   "pk_test_db0145199289f83c428d57cf70755142bb0b8b28";
 
-// Live key commented out per user instruction (still use test keys even in production):
-// export const PAYSTACK_LIVE_PUBLIC_KEY =
-//   import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY ||
-//   "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
+// Live key definition (default remains TEST key for safety):
+export const PAYSTACK_LIVE_PUBLIC_KEY =
+  import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY ||
+  "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
 
 export const PAYSTACK_KEY = PAYSTACK_TEST_PUBLIC_KEY;
 

@@ -426,7 +426,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             <LiveClassRecorder
               roomName={cleanRoomName}
               courseId={courseId}
-              isInstructor={effectiveRole === 'instructor' || effectiveRole === 'organization'}
+              isInstructor={effectiveRole === 'instructor'}
             />
 
             {onClose && (
@@ -523,7 +523,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           <LiveClassRecorder
             roomName={cleanRoomName}
             courseId={courseId}
-            isInstructor={effectiveRole === 'instructor' || effectiveRole === 'organization'}
+            isInstructor={effectiveRole === 'instructor'}
           />
 
           {/* Subtitles CC Toggle */}
