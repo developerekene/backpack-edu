@@ -23,6 +23,7 @@ import {
   Trash2,
   Building2,
   Accessibility,
+  ShieldAlert,
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
@@ -719,11 +720,18 @@ const Dashboard = () => {
           assignedCourseIds.includes(r.courseId),
         );
 
-  const myOrg = currentUser.role === "organization"
-    ? organizations.find((o) => o.id === currentUser.id || o.ownerId === currentUser.id)
-    : null;
-  const mySubaccount = myOrg?.paystackSubaccount || currentUser.paystackSubaccount;
-  const hasSubaccount = Boolean(mySubaccount?.subaccount_code && mySubaccount.subaccount_code.startsWith("ACCT_"));
+  const myOrg =
+    currentUser.role === "organization"
+      ? organizations.find(
+          (o) => o.id === currentUser.id || o.ownerId === currentUser.id,
+        )
+      : null;
+  const mySubaccount =
+    myOrg?.paystackSubaccount || currentUser.paystackSubaccount;
+  const hasSubaccount = Boolean(
+    mySubaccount?.subaccount_code &&
+    mySubaccount.subaccount_code.startsWith("ACCT_"),
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
@@ -816,7 +824,8 @@ const Dashboard = () => {
                       {req.accommodations?.enabled && (
                         <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 rounded-md text-[10px] font-bold border border-purple-200 dark:border-purple-800 flex items-center">
                           <Accessibility className="w-3 h-3 mr-1" />
-                          Accommodation Plan ({req.accommodations.examTimeMultiplier || 1.0}x Time)
+                          Accommodation Plan (
+                          {req.accommodations.examTimeMultiplier || 1.0}x Time)
                         </span>
                       )}
                     </div>
@@ -899,9 +908,13 @@ const Dashboard = () => {
             <div className="flex items-center space-x-3 text-amber-800 dark:text-amber-300">
               <ShieldAlert className="w-5 h-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
               <div>
-                <p className="font-bold">Paystack Settlement Subaccount Required</p>
+                <p className="font-bold">
+                  Paystack Settlement Subaccount Required
+                </p>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5">
-                  Your organization must link a Paystack settlement subaccount to receive 85% direct tuition payouts before publishing courses.
+                  Your organization must link a Paystack settlement subaccount
+                  to receive 85% direct tuition payouts before publishing
+                  courses.
                 </p>
               </div>
             </div>
@@ -1071,7 +1084,14 @@ const Dashboard = () => {
           isReapplication={true}
           previousRequest={reapplyReq}
           onClose={() => setReapplyReq(null)}
-          onEnroll={async (paymentMethod, documents, additionalDocs, studentNotes, sessionId, sessionName) => {
+          onEnroll={async (
+            paymentMethod,
+            documents,
+            additionalDocs,
+            studentNotes,
+            sessionId,
+            sessionName,
+          ) => {
             if (!currentUser) return;
             const course = courses.find((c) => c.id === reapplyReq.courseId)!;
             await addEnrollmentRequest({
