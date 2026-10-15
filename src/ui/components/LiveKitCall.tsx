@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { LiveClassRecorder } from './LiveClassRecorder';
 import { endLiveClassSessionApi } from '../../lib/liveClass';
+import { apiClient } from '../../lib/apiClient';
 
 interface LiveKitCallProps {
   roomName: string;
@@ -141,7 +142,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     async function loadToken() {
       setSessionAccessError(null);
       try {
-        const res = await fetch('/api/livekit/token', {
+        const res = await apiClient('/api/livekit/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -199,7 +200,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const handleRegenerateToken = async () => {
     setIsConnecting(true);
     try {
-      const res = await fetch('/api/livekit/token', {
+      const res = await apiClient('/api/livekit/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

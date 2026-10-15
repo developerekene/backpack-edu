@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { PaystackSubaccount } from "../../types";
 import { ProviderRevenueBreakdownVisualizer } from "./ProviderRevenueBreakdownVisualizer";
-import { gatewayFetch } from "../../lib/paystackGateway";
+import { apiClient } from "../../lib/apiClient";
 
 interface BankOption {
   name: string;
@@ -110,7 +110,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
       return;
     }
     try {
-      const res = await gatewayFetch("/api/paystack/configure-key", {
+      const res = await apiClient("/api/paystack/configure-key", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secretKey: secretKeyInput.trim() }),
@@ -136,7 +136,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     setLiveVerificationNotice(null);
 
     try {
-      const res = await gatewayFetch(`/api/paystack/subaccount/${encodeURIComponent(targetCode)}`);
+      const res = await apiClient(`/api/paystack/subaccount/${encodeURIComponent(targetCode)}`);
       const json = await res.json();
 
       if (res.ok && json.success && json.subaccount) {
@@ -167,7 +167,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   useEffect(() => {
     const fetchBanks = async () => {
       try {
-        const res = await gatewayFetch("/api/paystack/banks?country=all");
+        const res = await apiClient("/api/paystack/banks?country=all");
         if (res.ok) {
           const json = await res.json();
           if (json.banks && json.banks.length > 0) {
@@ -220,7 +220,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
     setResolvedAccountName("");
 
     try {
-      const res = await gatewayFetch(
+      const res = await apiClient(
         `/api/paystack/resolve-account?account_number=${accountNumber}&bank_code=${selectedBankCode}`,
       );
       const text = await res.text();
@@ -239,13 +239,14 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         setResolvedAccountName(String(json.account_name));
         setResolutionError("");
       } else {
-        setResolvedAccountName(businessName || currentUser?.name || "");
+        // Do not auto-populate name if resolution failed to avoid incorrect bank account matching
+        setResolvedAccountName(""); 
         setResolutionError(
           String(json.message || "Unable to auto-resolve account name. Please verify or type your account holder name below."),
         );
       }
     } catch {
-      setResolvedAccountName(businessName || currentUser?.name || "");
+      setResolvedAccountName(""); 
       setResolutionError("Network error during resolution. You can enter your account holder name directly below.");
     } finally {
       setResolvingAccount(false);
@@ -282,7 +283,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
         primary_contact_name: currentUser?.name,
       };
 
-      const res = await gatewayFetch("/api/paystack/subaccount", {
+      const res = await apiClient("/api/paystack/subaccount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
