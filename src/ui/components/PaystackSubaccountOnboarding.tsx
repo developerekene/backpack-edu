@@ -47,8 +47,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   const isOrg = currentUser?.role === "organization";
   const myOrg = isOrg
     ? organizations.find(
-        (o) => o.ownerId === currentUser.id || o.id === currentUser.id,
-      )
+      (o) => o.ownerId === currentUser.id || o.id === currentUser.id,
+    )
     : null;
 
   const [savedSubaccount, setSavedSubaccount] = useState<PaystackSubaccount | undefined>(undefined);
@@ -70,9 +70,9 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   );
   const [businessName, setBusinessName] = useState(
     currentSubaccount?.business_name ||
-      (isOrg
-        ? myOrg?.name || currentUser?.name || ""
-        : currentUser?.name || ""),
+    (isOrg
+      ? myOrg?.name || currentUser?.name || ""
+      : currentUser?.name || ""),
   );
 
   // Paystack Subaccount Split Allocation (85% to subaccount, 15% to main account)
@@ -456,11 +456,10 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             <div className="mt-4 pt-4 border-t border-emerald-200/60 dark:border-emerald-800/40">
               {liveVerificationNotice ? (
                 <div
-                  className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${
-                    liveVerificationNotice.isVerified
+                  className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${liveVerificationNotice.isVerified
                       ? "bg-emerald-100/80 dark:bg-emerald-900/40 text-emerald-900 dark:text-emerald-200"
                       : "bg-rose-100/80 dark:bg-rose-900/40 text-rose-900 dark:text-rose-200"
-                  }`}
+                    }`}
                 >
                   {liveVerificationNotice.isVerified ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -480,194 +479,7 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : (
-        /* Setup / Registration Form */
-        <div className="space-y-6">
-          {/* Secret Key Configuration Toggle / Panel */}
-          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 rounded-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-xs font-bold text-amber-900 dark:text-amber-200">
-                <Lock className="w-4 h-4 text-amber-600" />
-                <span>Paystack Secret Key Configuration</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowKeyConfig(!showKeyConfig)}
-                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-              >
-                {showKeyConfig ? "Hide Config" : "Configure Secret Key ⚙️"}
-              </button>
-            </div>
-            {showKeyConfig && (
-              <form onSubmit={handleConfigureKey} className="mt-3 space-y-3 pt-3 border-t border-amber-200 dark:border-amber-900/40">
-                <p className="text-xs text-amber-800 dark:text-amber-300">
-                  Paste your valid Paystack secret key (<code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded">sk_test_...</code> or <code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded">sk_live_...</code>) to instantly resolve NUBAN account names and register subaccounts.
-                </p>
-                <div className="flex space-x-2">
-                  <input
-                    type="password"
-                    placeholder="sk_test_... or sk_live_..."
-                    value={secretKeyInput}
-                    onChange={(e) => setSecretKeyInput(e.target.value)}
-                    className="flex-1 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
-                  />
-                  <button
-                    type="submit"
-                    className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                  >
-                    Save Key
-                  </button>
-                </div>
-                {keyConfigStatus && (
-                  <div className={`p-2 rounded-xl text-xs font-semibold ${keyConfigStatus.success ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
-                    {keyConfigStatus.message}
-                  </div>
-                )}
-              </form>
-            )}
-          </div>
-
-          <form onSubmit={handleRegisterSubaccount} className="space-y-6">
-            <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 p-4 rounded-xl text-xs text-indigo-900 dark:text-indigo-200 flex items-start space-x-3">
-              <HelpCircle className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-sm">Automated Paystack Subaccount Creation</p>
-                <p className="mt-0.5 text-slate-600 dark:text-indigo-300 leading-relaxed">
-                  Provide your bank details below. Our server communicates with Paystack to generate and register an official <code>ACCT_...</code> subaccount code directly on Paystack.
-                </p>
-              </div>
-            </div>
-
-            {subaccountError && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 p-3 rounded-xl flex items-center space-x-2 text-xs font-semibold">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{subaccountError}</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Business / Organization Name */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Business / Organization / Provider Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="e.g. Apex Coding Academy"
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {/* Settlement Bank */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Settlement Bank <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={selectedBankCode}
-                  onChange={handleBankChange}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                >
-                  {banks.map((b, idx) => (
-                    <option key={`bank-${b.code}-${idx}`} value={b.code}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Account Number */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  10-Digit Account Number (NUBAN) <span className="text-red-500">*</span>
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    required
-                    maxLength={10}
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
-                    placeholder="e.g. 0123456789"
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleResolveAccount}
-                    disabled={resolvingAccount || accountNumber.length < 10}
-                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition shrink-0 cursor-pointer"
-                  >
-                    {resolvingAccount ? "Verifying..." : "Verify Name"}
-                  </button>
-                </div>
-                {resolutionError && (
-                  <div className="text-amber-600 dark:text-amber-400 text-[11px] mt-1">
-                    {resolutionError}
-                  </div>
-                )}
-              </div>
-
-              {/* Account Holder Legal Name */}
-              <div className="md:col-span-2 bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 p-4 rounded-xl space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    Account Holder Legal Name <span className="text-red-500">*</span>
-                  </label>
-                  <span className="text-[10px] text-slate-500">
-                    Auto-verified or enter exact name on bank statement
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={resolvedAccountName}
-                  onChange={(e) => setResolvedAccountName(e.target.value)}
-                  placeholder="e.g. John Doe / Apex Coding Academy Ltd"
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white uppercase font-bold focus:ring-2 focus:ring-indigo-500"
-                />
-                <p className="text-[10px] text-slate-500">
-                  This account name is registered with Paystack during subaccount creation for automated split settlement.
-                </p>
-              </div>
-            </div>
-
-            {/* Form Actions */}
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-              {currentSubaccount && (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition shadow-md flex items-center space-x-2 cursor-pointer"
-              >
-                {submitting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Calling Paystack API...</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>Create on Paystack</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      ) : null}
 
       {/* Provider Revenue Split Details & Visualizer at the bottom */}
       <ProviderRevenueBreakdownVisualizer
