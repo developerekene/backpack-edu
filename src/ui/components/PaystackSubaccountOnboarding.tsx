@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { PaystackSubaccount } from "../../types";
 import { ProviderRevenueBreakdownVisualizer } from "./ProviderRevenueBreakdownVisualizer";
-import { apiClient } from "../../lib/apiClient";
+import { centralApiClient } from "../../lib/centralApiClient";
 
 interface BankOption {
   name: string;
@@ -114,7 +114,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
       return;
     }
     try {
-      const res = await apiClient("/api/paystack/configure-key", {
+      const res = await centralApiClient("/api/paystack/configure-key", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secretKey: secretKeyInput.trim() }),
@@ -140,7 +140,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     setLiveVerificationNotice(null);
 
     try {
-      const res = await apiClient(`/api/paystack/subaccount/${encodeURIComponent(targetCode)}`);
+      const res = await centralApiClient(`/api/paystack/subaccount/${encodeURIComponent(targetCode)}`);
       const json = await res.json();
 
       if (res.ok && json.success && json.subaccount) {
@@ -171,7 +171,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
   useEffect(() => {
     const fetchBanks = async () => {
       try {
-        const res = await apiClient("/api/paystack/banks?country=all");
+        const res = await centralApiClient("/api/paystack/banks?country=all");
         if (res.ok) {
           const json = await res.json();
           if (json.banks && json.banks.length > 0) {
@@ -224,7 +224,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     setResolvedAccountName("");
 
     try {
-      const res = await apiClient(
+      const res = await centralApiClient(
         `/api/paystack/resolve-account?account_number=${accountNumber}&bank_code=${selectedBankCode}`,
       );
       const text = await res.text();
@@ -287,7 +287,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         primary_contact_name: currentUser?.name,
       };
 
-      const res = await apiClient("/api/paystack/subaccount", {
+      const res = await centralApiClient("/api/paystack/subaccount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

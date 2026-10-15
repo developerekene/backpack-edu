@@ -1,5 +1,5 @@
 import { ScheduleEvent } from '../types';
-import { apiClient } from './apiClient';
+import { centralApiClient } from './centralApiClient';
 
 export const sanitizeRoomName = (name: string): string => {
   return (name || 'backpack-live-class')
@@ -52,7 +52,7 @@ export const getLiveClassRoomName = (
  */
 export const endLiveClassSessionApi = async (roomName: string, courseId?: string): Promise<{ success: boolean; message?: string; error?: string }> => {
   try {
-    const res = await apiClient('/api/livekit/end-room', {
+    const res = await centralApiClient('/api/livekit/end-room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -110,7 +110,7 @@ export const createLiveKitMeetingUrl = async (params: {
   keySafeStatus?: unknown;
 }> => {
   try {
-    const res = await apiClient('/api/livekit/create-url', {
+    const res = await centralApiClient('/api/livekit/create-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
