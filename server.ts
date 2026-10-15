@@ -7,7 +7,11 @@ import { AccessToken } from "livekit-server-sdk";
 const app = express();
 const PORT = 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: ["https://backpack-edu.com", "https://www.backpack-edu.com"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+}));
 app.use(express.json());
 
 // Paystack Secret Keys - Dynamic Vault Sync + Environment initialization
@@ -200,7 +204,19 @@ async function fetchSecretKeys() {
   await Promise.allSettled(tasks);
 }
 
-fetchSecretKeys().catch(() => {});
+// Periodic key refresh
+async function startKeyRefresh() {
+  await fetchSecretKeys().catch(e => console.error("[KeySafe] Initial key fetch failed, will retry:", e));
+  setInterval(async () => {
+    try {
+      await fetchSecretKeys();
+    } catch (e) {
+      console.error("[KeySafe] Periodic key refresh failed:", e);
+    }
+  }, 5 * 60 * 1000); // Refresh every 5 minutes
+}
+
+startKeyRefresh();
 
 // --- Configure Key endpoint for in-app configuration ---
 app.post("/api/paystack/configure-key", (req, res) => {

@@ -13,6 +13,8 @@ import {
   Edit3,
   Lock,
   Building2,
+  Search,
+  ChevronDown,
 } from "lucide-react";
 import { PaystackSubaccount } from "../../types";
 import { ProviderRevenueBreakdownVisualizer } from "./ProviderRevenueBreakdownVisualizer";
@@ -39,7 +41,7 @@ const FALLBACK_BANKS: BankOption[] = [
   { name: "Stanbic IBTC Bank", code: "221", country: "Nigeria", country_code: "NG", currency: "NGN" },
 ];
 
-export const PaystackSubaccountOnboarding: React.FC = () => {
+export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const { currentUser, updateCurrentUser } = useAuth();
   const { organizations, updateOrganization } = useAppContext();
 
@@ -56,6 +58,8 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
   const currentSubaccount = savedSubaccount || myOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
 
   const [isEditing, setIsEditing] = useState(!currentSubaccount);
+  const [bankSearch, setBankSearch] = useState("");
+  const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
 
   // Form State
   const [banks, setBanks] = useState<BankOption[]>(FALLBACK_BANKS);
@@ -515,17 +519,47 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Settlement Bank <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={selectedBankCode}
-                  onChange={handleBankChange}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                >
-                  {banks.map((b, idx) => (
-                    <option key={`bank-${b.code}-${idx}`} value={b.code}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <div
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 flex items-center justify-between cursor-pointer"
+                    onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
+                  >
+                    <span className="truncate">{banks.find((b) => b.code === selectedBankCode)?.name || "Select Settlement Bank"}</span>
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  </div>
+                  {isBankDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2 space-y-2">
+                      <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-700 pb-2">
+                        <Search className="w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search banks..."
+                          value={bankSearch}
+                          onChange={(e) => setBankSearch(e.target.value)}
+                          className="w-full bg-transparent text-xs text-slate-900 dark:text-white outline-none"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {banks
+                          .filter((b) => b.name.toLowerCase().includes(bankSearch.toLowerCase()))
+                          .map((b, idx) => (
+                            <div
+                              key={`bank-${b.code}-${idx}`}
+                              className="px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-lg cursor-pointer"
+                              onClick={() => {
+                                setSelectedBankCode(b.code);
+                                setSelectedBankName(b.name);
+                                setIsBankDropdownOpen(false);
+                                setBankSearch("");
+                              }}
+                            >
+                              {b.name}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Account Number */}
@@ -584,35 +618,47 @@ export const PaystackSubaccountOnboarding: React.FC = () => {
             </div>
 
             {/* Form Actions */}
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-              {currentSubaccount && (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-              )}
-
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700">
               <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition shadow-md flex items-center space-x-2 cursor-pointer"
+                type="button"
+                onClick={() => {
+                   if (onClose) onClose();
+                }}
+                className="px-4 py-2.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-100 text-xs font-bold rounded-xl transition cursor-pointer"
               >
-                {submitting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Calling Paystack API...</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>Create on Paystack</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                Set Up Subaccount Later
               </button>
+
+              <div className="flex items-center space-x-3">
+                {currentSubaccount && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition shadow-md flex items-center space-x-2 cursor-pointer"
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Calling API...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Create on Paystack</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>
