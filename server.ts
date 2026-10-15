@@ -59,7 +59,7 @@ async function fetchSecretKeys() {
         (async () => {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
             const response = await fetch(url, {
               method: "POST",
               signal: controller.signal,
@@ -76,6 +76,9 @@ async function fetchSecretKeys() {
                 percentage_charge: 85,
                 mode,
               })
+            }).catch(e => {
+              console.error(`[KeySafe] Fetch failed for ${url}:`, e);
+              throw e;
             });
             clearTimeout(timeoutId);
 
@@ -128,7 +131,7 @@ async function fetchSecretKeys() {
         (async () => {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
             const response = await fetch(url, {
               method: "POST",
               signal: controller.signal,
@@ -144,6 +147,9 @@ async function fetchSecretKeys() {
                 subaccount_code: "ACCT_vault_sync",
                 mode,
               })
+            }).catch(e => {
+              console.error(`[KeySafe] Split fetch failed for ${url}:`, e);
+              throw e;
             });
             clearTimeout(timeoutId);
 

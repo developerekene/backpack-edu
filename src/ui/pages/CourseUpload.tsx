@@ -547,7 +547,7 @@ const CourseUpload = () => {
               <ShieldAlert className="w-6 h-6 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
               <div>
                 <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                  Settlement Subaccount Required Before Publishing
+                  Paystack Settlement Subaccount Required Before Publishing
                 </h3>
                 <p className="text-slate-600 dark:text-slate-300 text-xs mt-1 leading-relaxed">
                   To receive tuition payouts directly into your bank account (85% subaccount split / 15% platform split), your organization must create or link a Paystack settlement subaccount before publishing courses.
