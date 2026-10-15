@@ -127,6 +127,7 @@ const CourseUpload = () => {
   ]);
 
   const [showSubaccountModal, setShowSubaccountModal] = useState(false);
+  const [bypassSubaccount, setBypassSubaccount] = useState(false);
 
   if (
     !currentUser ||
@@ -360,7 +361,7 @@ const CourseUpload = () => {
       return;
     }
 
-    if (!hasSubaccount) {
+    if (!hasSubaccount && !bypassSubaccount) {
       setShowSubaccountModal(true);
       return;
     }
@@ -539,7 +540,7 @@ const CourseUpload = () => {
       )}
 
       {/* Subaccount Prompt Banner */}
-      {!hasSubaccount && (
+      {!hasSubaccount && !bypassSubaccount && (
         <div className="p-5 bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl space-y-3 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-start space-x-3 text-amber-800 dark:text-amber-300">
@@ -553,14 +554,26 @@ const CourseUpload = () => {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowSubaccountModal(true)}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs whitespace-nowrap transition shadow-sm"
-            >
-              Set Up Subaccount Now
-            </button>
+            <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSubaccountModal(true)}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs whitespace-nowrap transition shadow-sm cursor-pointer"
+              >
+                Set Up Subaccount Now
+              </button>
+              <button
+                type="button"
+                onClick={() => setBypassSubaccount(true)}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs whitespace-nowrap transition shadow-sm cursor-pointer"
+              >
+                Continue Without Subaccount
+              </button>
+            </div>
           </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 italic pt-1 border-t border-amber-500/20">
+            * Note: If you continue without a subaccount, tuition proceeds will be held securely in platform escrow until a verified settlement account is linked.
+          </p>
         </div>
       )}
 
@@ -1873,8 +1886,8 @@ const CourseUpload = () => {
 
       {/* Settlement Subaccount Setup Modal */}
       {showSubaccountModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full p-6 space-y-4 shadow-xl border border-slate-200 dark:border-slate-800 relative my-8">
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full p-6 space-y-4 shadow-xl border border-slate-200 dark:border-slate-800 relative my-auto">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center">
                 <Building2 className="w-5 h-5 mr-2 text-indigo-500" />
@@ -1883,7 +1896,7 @@ const CourseUpload = () => {
               <button
                 type="button"
                 onClick={() => setShowSubaccountModal(false)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

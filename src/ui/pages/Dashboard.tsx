@@ -34,7 +34,6 @@ import { AdmissionSessionManagerModal } from "../components/AdmissionSessionMana
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
-import { PaystackSubaccountOnboarding } from "../components/PaystackSubaccountOnboarding";
 import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
 import { AssessmentsOverview } from "../components/courseAssesment/AssessmentOverview";
@@ -735,12 +734,7 @@ const Dashboard = () => {
           assignedCourseIds.includes(r.courseId),
         );
 
-  const mySubaccount =
-    myOrg?.paystackSubaccount || currentUser.paystackSubaccount;
-  const hasSubaccount = Boolean(
-    mySubaccount?.subaccount_code &&
-    mySubaccount.subaccount_code.startsWith("ACCT_"),
-  );
+
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">

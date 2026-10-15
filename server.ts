@@ -11,18 +11,14 @@ app.use(cors());
 app.use(express.json());
 
 // Paystack Secret Keys - Dynamic Vault Sync + Environment initialization
-let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "";
+let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "sk_test_980c62c900609f0612c62c2f6d53862bb008c2a4";
 // Live key commented out per user instruction (still use test keys even in production):
 // let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";
 
 // Helper for Paystack API headers - Enforces test keys even in production until user decides
 const getPaystackHeaders = () => {
   // Always use test secret key as requested
-  const secretKey = PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || "";
-  
-  if (!secretKey) {
-    return null;
-  }
+  const secretKey = PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || "sk_test_980c62c900609f0612c62c2f6d53862bb008c2a4";
   
   const masked = secretKey.substring(0, 7) + "..." + secretKey.substring(secretKey.length - 4);
   console.log(`[Paystack API] Using test secret key: ${masked} (forced test mode)`);
