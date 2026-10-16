@@ -13,7 +13,7 @@ interface OrgUserOnboardingProps {
 
 export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }) => {
   const { currentUser } = useAuth();
-  const { orgMembers, addOrgMember, deleteOrgMember, updateOrgMember, courses, organizations } = useAppContext();
+  const { orgMembers, addOrgMember, deleteOrgMember, updateOrgMember, courses, organizations, updateCourse } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<'instructors' | 'students'>('instructors');
   const [searchTerm, setSearchTerm] = useState("");
@@ -107,9 +107,12 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       return;
     }
 
+    const resolvedUserId = selectedAppUserId || matchedUser?.id || undefined;
+
     const newMember: OrgMember = {
       id: generateId('member'),
       orgId: currentOrgId,
+      userId: resolvedUserId,
       name: name.trim(),
       email: cleanEmail,
       role: activeTab === 'instructors' ? 'instructor' : 'student',
@@ -125,6 +128,27 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     try {
       await addOrgMember(newMember);
 
+      // If inviting an instructor to a specific course, automatically link the instructor to the course
+      if (activeTab === 'instructors' && targetCourseId && updateCourse) {
+        const targetCourse = courses.find((c) => c.id === targetCourseId);
+        if (targetCourse) {
+          const updates: Partial<typeof targetCourse> = {};
+          if (!targetCourse.instructorName) {
+            updates.instructorName = name.trim();
+          }
+          if (!targetCourse.instructorId && resolvedUserId) {
+            updates.instructorId = resolvedUserId;
+          }
+          const prevInstructors = targetCourse.instructors || [];
+          if (resolvedUserId && !prevInstructors.includes(resolvedUserId)) {
+            updates.instructors = [...prevInstructors, resolvedUserId];
+          }
+          if (Object.keys(updates).length > 0) {
+            await updateCourse(targetCourseId, updates);
+          }
+        }
+      }
+
       setSuccessMsg(
         `Successfully sent course invite to ${name} (${cleanEmail})!`
       );
@@ -132,6 +156,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       setEmail("");
       setDepartment("");
       setInviteNote("");
+      setSelectedAppUserId("");
       if (!courseId) setSelectedCourseId("");
       setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err) {

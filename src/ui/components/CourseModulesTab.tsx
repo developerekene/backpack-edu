@@ -41,17 +41,28 @@ const isYouTubeUrl = (url: string) => {
 interface CourseModulesTabProps {
   course: Course;
   isStudent: boolean;
+  isPreview?: boolean;
+  onTogglePreview?: (preview: boolean) => void;
 }
 
 export const CourseModulesTab = ({
   course,
   isStudent,
+  isPreview,
+  onTogglePreview,
 }: CourseModulesTabProps) => {
   const { currentUser } = useAuth();
   const { userProgress, updateProgress, updateCourse, addMaterial } = useAppContext();
 
   const [draftModules, setDraftModules] = useState<CourseModule[] | null>(null);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [internalPreviewMode, setInternalPreviewMode] = useState(false);
+  const isPreviewMode = isPreview !== undefined ? isPreview : internalPreviewMode;
+  const setPreviewMode = (val: boolean) => {
+    setInternalPreviewMode(val);
+    if (onTogglePreview) {
+      onTogglePreview(val);
+    }
+  };
   const localModules = draftModules ?? (course.modules || []);
   const isDirty = draftModules !== null;
   const [isSaving, setIsSaving] = useState(false);
@@ -72,7 +83,7 @@ export const CourseModulesTab = ({
   );
 
   const handleCompleteModule = (moduleId: string) => {
-    if (!currentUser || !isStudent) return;
+    if (!currentUser || (!isStudent && !isPreviewMode)) return;
     const completed = progress?.completedModuleIds || [];
     if (!completed.includes(moduleId)) {
       updateProgress({
@@ -86,7 +97,7 @@ export const CourseModulesTab = ({
   };
 
   const handleCompleteItem = (itemId: string) => {
-    if (!currentUser || !isStudent) return;
+    if (!currentUser || (!isStudent && !isPreviewMode)) return;
     const completedItems = progress?.completedItemIds || [];
     if (!completedItems.includes(itemId)) {
       updateProgress({
@@ -230,10 +241,10 @@ export const CourseModulesTab = ({
               </div>
             </div>
           </div>
-          {!isStudent && (
+          {(!isStudent || isPreviewMode) && (
             <button
-              onClick={() => setIsPreviewMode(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold transition-colors flex items-center shrink-0 border border-slate-200 dark:border-slate-700"
+              onClick={() => setPreviewMode(false)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold transition-colors flex items-center shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer"
             >
               <EyeOff className="w-4 h-4 mr-2" /> Exit Preview
             </button>
@@ -454,8 +465,8 @@ export const CourseModulesTab = ({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={() => setIsPreviewMode(true)}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold transition-colors flex items-center shrink-0 border border-slate-200 dark:border-slate-700"
+            onClick={() => setPreviewMode(true)}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold transition-colors flex items-center shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer"
           >
             <Eye className="w-4 h-4 mr-2" /> Preview as Student
           </button>

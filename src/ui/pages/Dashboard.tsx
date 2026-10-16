@@ -694,7 +694,10 @@ const Dashboard = () => {
 
   // Organization / Instructor Dashboard Logic
   const myOrgMemberRecords = orgMembers.filter(
-    (m) => m.email?.toLowerCase() === currentUser.email?.toLowerCase(),
+    (m) =>
+      m.email?.toLowerCase().trim() === currentUser.email?.toLowerCase().trim() ||
+      (currentUser.id && m.userId === currentUser.id) ||
+      (currentUser.id && m.id === currentUser.id),
   );
   let assignedCourseIds: string[] = [];
   myOrgMemberRecords.forEach((record) => {
@@ -707,9 +710,21 @@ const Dashboard = () => {
     currentUser.role === "organization"
       ? courses.filter(
           (c) =>
-            c.orgId === currentUser.id || c.orgId === `org_${currentUser.id}`,
+            c.orgId === currentUser.id ||
+            c.orgId === `org_${currentUser.id}` ||
+            (myOrg && (c.orgId === myOrg.id || c.orgId === myOrg.ownerId)),
         )
-      : courses.filter((c) => assignedCourseIds.includes(c.id));
+      : courses.filter(
+          (c) =>
+            assignedCourseIds.includes(c.id) ||
+            c.instructorId === currentUser.id ||
+            c.instructors?.includes(currentUser.id) ||
+            c.createdBy === currentUser.id ||
+            (c.instructorName &&
+              currentUser.name &&
+              c.instructorName.toLowerCase().trim() ===
+                currentUser.name.toLowerCase().trim()),
+        );
 
   const myOrg =
     currentUser.role === "organization"
@@ -722,7 +737,7 @@ const Dashboard = () => {
       : null;
   const isPaidOrg = myOrg?.plan === "paid" || currentUser.plan === "paid";
   const orgCourseLimitReached =
-    currentUser.role === "organization" && !isPaidOrg && myCourses.length >= 3;
+    currentUser.role === "organization" && !isPaidOrg && myCourses.length >= 15;
 
   const orgRequests =
     currentUser.role === "organization"
@@ -925,8 +940,8 @@ const Dashboard = () => {
                   {isPaidOrg
                     ? "Pro Plan • Unlimited Courses"
                     : orgCourseLimitReached
-                      ? `Free Plan • 3/3 Courses (Limit Reached)`
-                      : `Free Plan • ${myCourses.length}/3 Courses`}
+                      ? `Free Plan • 15/15 Courses (Limit Reached)`
+                      : `Free Plan • ${myCourses.length}/15 Courses`}
                 </span>
               )}
             </div>

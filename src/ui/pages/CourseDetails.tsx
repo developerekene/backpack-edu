@@ -33,6 +33,8 @@ import {
   Share2,
   Check,
   Eye,
+  EyeOff,
+  BookOpen,
   Edit3,
 } from "lucide-react";
 import { PublicCourseDetails } from "../components/PublicCourseDetails";
@@ -94,6 +96,14 @@ const CourseDetails = () => {
         params.get("joinLive") === "true" ||
         Boolean(params.get("eventId"))
       );
+    }
+    return false;
+  });
+
+  const [isPreviewAsStudent, setIsPreviewAsStudent] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("preview") === "student";
     }
     return false;
   });
@@ -226,12 +236,29 @@ const CourseDetails = () => {
   const isOrganization = currentUser?.role === "organization";
 
   const myOrgMemberRecords = orgMembers.filter(
-    (m) => m.email?.toLowerCase() === currentUser?.email?.toLowerCase(),
+    (m) =>
+      m.email?.toLowerCase().trim() === currentUser?.email?.toLowerCase().trim() ||
+      (currentUser?.id && m.userId === currentUser.id) ||
+      (currentUser?.id && m.id === currentUser.id),
   );
 
-  const hasInstructorAccess = myOrgMemberRecords.some(
-    (m) => m.role === "instructor" && m.courseIds?.includes(courseId as string),
-  );
+  const hasInstructorAccess =
+    myOrgMemberRecords.some(
+      (m) =>
+        m.role === "instructor" &&
+        (m.courseIds?.includes(courseId as string) ||
+          m.orgId === course?.orgId ||
+          `org_${m.orgId}` === course?.orgId ||
+          m.orgId === `org_${course?.orgId}`),
+    ) ||
+    currentUser?.id === course?.instructorId ||
+    Boolean(course?.instructors?.includes(currentUser?.id || "")) ||
+    (currentUser?.role === "instructor" &&
+      (course?.createdBy === currentUser?.id ||
+        (course?.instructorName &&
+          currentUser?.name &&
+          course.instructorName.toLowerCase().trim() ===
+            currentUser.name.toLowerCase().trim())));
 
   const myEnrollment = enrollmentRequests.find(
     (r) => r.userId === currentUser?.id && r.courseId === courseId,
@@ -276,31 +303,44 @@ const CourseDetails = () => {
   const hasOrgAccess =
     isOrganization &&
     (course?.orgId === currentUser?.id ||
-      course?.orgId === `org_${currentUser?.id}`);
+      course?.orgId === `org_${currentUser?.id}` ||
+      (myOrg && (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)));
 
-  const hasAccess = hasStudentAccess || hasInstructorAccess || hasOrgAccess;
+  const hasAccess =
+    hasStudentAccess ||
+    hasInstructorAccess ||
+    hasOrgAccess ||
+    Boolean(currentUser?.id === course?.instructorId);
   const effectiveViewMode = hasAccess ? viewMode : "public";
 
-  const isStudent =
+  // Check if current user is an enrolled student for this course
+  const isEnrolledStudent =
     myOrgMemberRecords.some(
       (m) => m.role === "student" && m.courseIds?.includes(courseId as string),
     ) ||
     myEnrollment?.status === "approved" ||
     (currentUser?.role === "student" && !hasInstructorAccess && !hasOrgAccess);
+
+  // If instructor/organization activates "Preview as Student", isStudent becomes true
+  const isStudent =
+    isPreviewAsStudent ||
+    (!hasOrgAccess && !hasInstructorAccess && isEnrolledStudent);
+
   const canStartVideoCall =
     !isStudent &&
     (hasOrgAccess ||
       hasInstructorAccess ||
       currentUser?.role === "organization" ||
       currentUser?.role === "instructor");
-  const canManageSessions = isOrganization || hasOrgAccess;
+  const canManageSessions = !isStudent && (isOrganization || hasOrgAccess || hasInstructorAccess);
   const canEditCourse = Boolean(
     hasOrgAccess ||
     hasInstructorAccess ||
     currentUser?.id === course?.instructorId ||
     (isOrganization &&
       (course?.orgId === currentUser?.id ||
-        course?.orgId === `org_${currentUser?.id}`)),
+        course?.orgId === `org_${currentUser?.id}` ||
+        (myOrg && (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)))),
   );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
@@ -1000,19 +1040,48 @@ const CourseDetails = () => {
             </>
           )}
 
+          {/* Preview as Student toggle button for Instructors and Organization Admins */}
+          {(hasOrgAccess || hasInstructorAccess || canEditCourse) && (
+            <button
+              onClick={() => setIsPreviewAsStudent((prev) => !prev)}
+              className={`flex items-center px-4 py-2 font-bold rounded-xl transition text-xs border shadow-sm cursor-pointer ${
+                isPreviewAsStudent
+                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+                  : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-600"
+              }`}
+              title={
+                isPreviewAsStudent
+                  ? "Exit student preview mode"
+                  : "Preview course as an enrolled student (Read-Only Mode)"
+              }
+            >
+              {isPreviewAsStudent ? (
+                <>
+                  <EyeOff className="w-4 h-4 mr-1.5 text-amber-500" />
+                  Exit Student Preview
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4 mr-1.5 text-indigo-500" />
+                  Preview as Student
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => setViewMode("public")}
             className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600 shadow-sm"
             title="View public course details & syllabus"
           >
-            <Eye className="w-4 h-4 mr-1.5 text-indigo-500" />
+            <BookOpen className="w-4 h-4 mr-1.5 text-indigo-500" />
             Public Course Page
           </button>
 
-          {canEditCourse && (
+          {canEditCourse && !isStudent && (
             <button
               onClick={() => setShowEditCourseModal(true)}
-              className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs shadow-xs"
+              className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs shadow-xs cursor-pointer"
               title="Edit course details, description, prerequisites, FAQs, and syllabus"
             >
               <Edit3 className="w-4 h-4 mr-1.5" />
@@ -1020,10 +1089,10 @@ const CourseDetails = () => {
             </button>
           )}
 
-          {canManageSessions && (
+          {canManageSessions && !isStudent && (
             <button
               onClick={() => setShowSessionModal(true)}
-              className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600 shadow-sm"
+              className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600 shadow-sm cursor-pointer"
             >
               <Settings2 className="w-4 h-4 mr-1.5 text-indigo-500" />
               Manage Admission Sessions
@@ -1054,6 +1123,38 @@ const CourseDetails = () => {
           )}
         </div>
       </div>
+
+      {/* Student Preview Mode Active Banner */}
+      {isPreviewAsStudent && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-purple-500/10 border-2 border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Eye className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="font-bold text-slate-900 dark:text-white text-sm">
+                  Student Preview Mode Active
+                </span>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full uppercase">
+                  Read-Only View
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                You are previewing this course exactly as an enrolled student experiences it. All editing controls are disabled.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsPreviewAsStudent(false)}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shrink-0 shadow-sm cursor-pointer"
+          >
+            <EyeOff className="w-4 h-4" />
+            <span>Exit Student Preview</span>
+          </button>
+        </div>
+      )}
 
       {/* Prominent Live Class Alert Banner */}
       {liveCallActiveEvent && !isCallActiveInApp && (
@@ -1376,7 +1477,12 @@ const CourseDetails = () => {
               </div>
             )}
             {activeTab === "modules" && (
-              <CourseModulesTab course={course} isStudent={isStudent} />
+              <CourseModulesTab
+                course={course}
+                isStudent={isStudent}
+                isPreview={isPreviewAsStudent}
+                onTogglePreview={setIsPreviewAsStudent}
+              />
             )}
 
             {activeTab === "materials" && (
