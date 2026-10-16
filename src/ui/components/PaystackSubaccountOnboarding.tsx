@@ -196,6 +196,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     };
 
     fetchBanks();
+    console.log("[PaystackSubaccountOnboarding] Initial banks state:", banks);
   }, []);
 
   // Handle Bank Selection Change
@@ -540,6 +541,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                         />
                       </div>
                       <div className="max-h-48 overflow-y-auto space-y-1">
+                        {console.log("[PaystackSubaccountOnboarding] Banks in dropdown:", banks, "Search:", bankSearch)}
                         {banks
                           .filter((b) => b.name.toLowerCase().includes(bankSearch.toLowerCase()))
                           .map((b, idx) => (

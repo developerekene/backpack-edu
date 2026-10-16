@@ -418,6 +418,7 @@ app.get("/api/paystack/resolve-account", async (req, res) => {
         account_number: cleanAcc,
         percentage_charge: 15,
         mode: "test",
+        verify_only: true, // Signal to gateway this is just a probe
       }),
     });
 
