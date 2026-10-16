@@ -32,7 +32,7 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
   isOpen,
   onClose,
   organization,
-  currentCourseCount = 3,
+  currentCourseCount = 15,
   onUpgradeSuccess,
 }) => {
   const { currentUser } = useAuth();
@@ -162,7 +162,7 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
           </div>
           <p className="text-xs sm:text-sm text-indigo-100/90 leading-relaxed mt-1">
             Free organizations are permitted up to{" "}
-            <strong>3 active courses</strong>. Unlock unlimited course
+            <strong>15 active courses</strong>. Unlock unlimited course
             publishing and institutional growth.
           </p>
         </div>
@@ -184,8 +184,8 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
                 <strong>{targetOrgName}</strong> has been successfully upgraded.
-                The 3-course restriction has been removed—you can now publish
-                your 4th course and create unlimited institutional curricula.
+                The 15-course restriction has been removed—you can now publish
+                your 16th course and create unlimited institutional curricula.
               </p>
             </div>
 
@@ -227,10 +227,10 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
               <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
                 <span className="font-bold block text-sm mb-0.5">
-                  Course Limit Reached ({currentCourseCount}/3 Used)
+                  Course Limit Reached ({currentCourseCount}/15 Used)
                 </span>
                 You have reached the maximum course threshold available on the
-                Free plan. To publish this 4th course, an upgrade is required.
+                Free plan. To publish this 16th course, an upgrade is required.
               </div>
             </div>
 
@@ -257,7 +257,7 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
                 <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700/60">
                   <li className="flex items-center text-amber-600 dark:text-amber-400 font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2 shrink-0"></span>
-                    Maximum 3 Courses (Capped)
+                    Maximum 15 Courses (Capped)
                   </li>
                   <li className="flex items-center">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2 shrink-0"></span>

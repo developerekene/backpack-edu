@@ -186,6 +186,7 @@ export interface Course {
     | "other";
   instructorName?: string;
   instructorId?: string;
+  instructors?: string[];
   instructorBio?: string;
   instructorTitle?: string;
   instructorAvatarUrl?: string;

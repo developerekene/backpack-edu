@@ -33,7 +33,7 @@ import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 
 const CourseUpload = () => {
   const navigate = useNavigate();
-  const { addCourse, orgMembers, organizations, courses } = useAppContext();
+  const { addCourse, orgMembers, organizations, courses, updateOrgMember } = useAppContext();
   const { currentUser } = useAuth();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -110,6 +110,7 @@ const CourseUpload = () => {
   const [instructorName, setInstructorName] = useState(
     currentUser?.role === "instructor" ? currentUser.name : "",
   );
+  const [selectedInstructorMemberId, setSelectedInstructorMemberId] = useState("");
   const [instructorTitle, setInstructorTitle] = useState("");
   const [instructorBio, setInstructorBio] = useState("");
 
@@ -183,7 +184,7 @@ const CourseUpload = () => {
       activeSubaccount.subaccount_code.startsWith("ACCT_"),
   );
 
-  // Organization existing courses and tier check (free accounts limited to 3 courses)
+  // Organization existing courses and tier check (free accounts limited to 15 courses)
   const orgExistingCourses = courses.filter((c) => {
     return (
       c.orgId === currentOrgIdToUse ||
@@ -195,7 +196,17 @@ const CourseUpload = () => {
   const isPaidOrg =
     activeOrg?.plan === "paid" ||
     (currentUser.role === "organization" && currentUser.plan === "paid");
-  const orgCourseLimitReached = !isPaidOrg && orgExistingCourses.length >= 3;
+  const orgCourseLimitReached = !isPaidOrg && orgExistingCourses.length >= 15;
+
+  const availableOrgInstructors = orgMembers.filter((m) => {
+    return (
+      (m.orgId === currentOrgIdToUse ||
+        m.orgId === `org_${currentOrgIdToUse}` ||
+        m.orgId === activeOrg?.id ||
+        m.orgId === activeOrg?.ownerId) &&
+      m.role === "instructor"
+    );
+  });
 
   // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
   if (currentUser.role === "instructor" && approvedOrgs.length === 0) {
@@ -382,7 +393,7 @@ const CourseUpload = () => {
       return;
     }
 
-    // Check Organization Course Limit (Free plan permits maximum 3 courses; prompt payment on 4th)
+    // Check Organization Course Limit (Free plan permits maximum 15 courses; prompt payment on 16th)
     const existingOrgCourses = courses.filter((c) => {
       return (
         c.orgId === orgIdToUse ||
@@ -396,7 +407,7 @@ const CourseUpload = () => {
       targetOrg?.plan === "paid" ||
       (currentUser.role === "organization" && currentUser.plan === "paid");
 
-    if (!isTargetOrgPaid && existingOrgCourses.length >= 3) {
+    if (!isTargetOrgPaid && existingOrgCourses.length >= 15) {
       setShowUpgradeModal(true);
       return;
     }
@@ -431,9 +442,19 @@ const CourseUpload = () => {
       createdAt: new Date().toISOString(),
     };
 
+    const selectedInstructor = availableOrgInstructors.find(
+      (m) => m.id === selectedInstructorMemberId,
+    );
+    const resolvedInstructorId =
+      selectedInstructor?.userId ||
+      selectedInstructor?.id ||
+      (currentUser.role === "instructor" ? currentUser.id : undefined);
+
+    const newCourseId = generateId("c");
+
     try {
       await addCourse({
-        id: generateId("c"),
+        id: newCourseId,
         orgId: orgIdToUse,
         title,
         description,
@@ -471,10 +492,10 @@ const CourseUpload = () => {
         prerequisites: studentReqList.filter(Boolean),
         instructorName:
           instructorName.trim() ||
+          selectedInstructor?.name ||
           (currentUser.role === "instructor" ? currentUser.name : "") ||
           undefined,
-        instructorId:
-          currentUser.role === "instructor" ? currentUser.id : undefined,
+        instructorId: resolvedInstructorId,
         instructorTitle: instructorTitle.trim() || undefined,
         instructorBio: instructorBio.trim() || undefined,
         certificationDetails: certificationDetails.trim() || undefined,
@@ -488,6 +509,17 @@ const CourseUpload = () => {
         requiredDocuments: requiredDocList,
         modules,
       });
+
+      // If an existing org instructor was selected, ensure this course is added to their courseIds
+      if (selectedInstructor && updateOrgMember) {
+        const prevCourseIds = selectedInstructor.courseIds || [];
+        if (!prevCourseIds.includes(newCourseId)) {
+          await updateOrgMember(selectedInstructor.id, {
+            courseIds: [...prevCourseIds, newCourseId],
+          });
+        }
+      }
+
       navigate("/dashboard");
     } catch (err) {
       console.error("Failed to upload course", err);
@@ -503,7 +535,7 @@ const CourseUpload = () => {
         <KnowledgeCityBanner variant="instructor" />
       )}
 
-      {/* 3-Course Free Plan Limit Banner */}
+      {/* 15-Course Free Plan Limit Banner */}
       {orgCourseLimitReached && (
         <div className="p-5 bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-amber-500/30 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
           <div className="flex items-start space-x-3.5">
@@ -513,7 +545,7 @@ const CourseUpload = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-slate-900 dark:text-white text-sm">
-                  Course Limit Reached ({orgExistingCourses.length}/3 Courses on
+                  Course Limit Reached ({orgExistingCourses.length}/15 Courses on
                   Free Plan)
                 </h3>
                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 uppercase">
@@ -521,8 +553,8 @@ const CourseUpload = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                Free organizations are allowed to publish a maximum of 3
-                courses. To publish this 4th course and unlock unlimited
+                Free organizations are allowed to publish a maximum of 15
+                courses. To publish your 16th course and unlock unlimited
                 courses, please upgrade your organization account to
                 Organization Pro.
               </p>
@@ -1370,6 +1402,39 @@ const CourseUpload = () => {
               credentials.
             </p>
           </div>
+
+          {availableOrgInstructors.length > 0 && (
+            <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                Assign Existing Organization Instructor (Optional)
+              </label>
+              <select
+                value={selectedInstructorMemberId}
+                onChange={(e) => {
+                  const mId = e.target.value;
+                  setSelectedInstructorMemberId(mId);
+                  const matched = availableOrgInstructors.find((m) => m.id === mId);
+                  if (matched) {
+                    setInstructorName(matched.name);
+                    if (matched.department) {
+                      setInstructorTitle(matched.department);
+                    }
+                  }
+                }}
+                className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
+              >
+                <option value="">-- Choose an Instructor or Enter Manually Below --</option>
+                {availableOrgInstructors.map((inst) => (
+                  <option key={inst.id} value={inst.id}>
+                    {inst.name} ({inst.email}) {inst.department ? `• ${inst.department}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-indigo-600/80 dark:text-indigo-400/80">
+                Selecting an instructor assigns them full editing access to this course's curriculum, materials, and live lectures.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
