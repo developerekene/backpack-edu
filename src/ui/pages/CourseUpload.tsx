@@ -7,6 +7,7 @@ import { CourseModule, CourseModuleItem, CourseFAQ } from "../../types";
 import { FileUpload } from "../components/FileUpload";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { PaystackSubaccountOnboarding } from "../components/PaystackSubaccountOnboarding";
+import { SpeechToTextButton } from "../components/SpeechToTextButton";
 import { generateId } from "../../lib/id";
 import {
   Plus,
@@ -22,6 +23,10 @@ import {
   Link as LinkIcon,
   Trash2,
   HeartHandshake,
+  Volume2,
+  Image,
+  FileSpreadsheet,
+  Edit3,
   Sparkles,
   Clock,
   Award,
@@ -99,8 +104,10 @@ const CourseUpload = () => {
   const [language, setLanguage] = useState("English");
   const [subtitlesInput, setSubtitlesInput] = useState("English [CC]");
   const [accessDuration, setAccessDuration] = useState(
-    "Lifetime Access upon Enrollment",
+    "Allows student removal once they graduate",
   );
+  const [studentRemovalOnGraduation, setStudentRemovalOnGraduation] =
+    useState(true);
 
   // Learning Objectives
   const [learningObjectives, setLearningObjectives] = useState<string[]>([]);
@@ -123,8 +130,33 @@ const CourseUpload = () => {
   const [newFaqQ, setNewFaqQ] = useState("");
   const [newFaqA, setNewFaqA] = useState("");
 
+  // Curriculum Structure (Modules, Sections, Lectures)
   const [modules, setModules] = useState<CourseModule[]>(() => [
-    { id: generateId("mod"), title: "", description: "", items: [] },
+    {
+      id: generateId("mod"),
+      title: "",
+      description: "",
+      learningGoals: "",
+      sections: [
+        {
+          id: generateId("sec"),
+          title: "",
+          description: "",
+          learningObjectives: "",
+          items: [
+            {
+              id: generateId("lec"),
+              title: "",
+              description: "",
+              learningOutcome: "",
+              type: "text",
+              formats: ["text"],
+            },
+          ],
+        },
+      ],
+      items: [],
+    },
   ]);
 
   const [showSubaccountModal, setShowSubaccountModal] = useState(false);
@@ -251,17 +283,37 @@ const CourseUpload = () => {
     );
   }
 
+  // Level 2: Module Handlers
   const addModule = () => {
     setModules([
       ...modules,
-      { id: generateId("mod"), title: "", description: "", items: [] },
+      {
+        id: generateId("mod"),
+        title: "",
+        description: "",
+        sections: [
+          {
+            id: generateId("sec"),
+            title: "",
+            description: "",
+            items: [
+              {
+                id: generateId("lec"),
+                title: "",
+                type: "video",
+              },
+            ],
+          },
+        ],
+        items: [],
+      },
     ]);
   };
 
   const updateModule = (
     index: number,
-    field: keyof CourseModule,
-    value: unknown,
+    field: "title" | "description",
+    value: string,
   ) => {
     const newModules = [...modules];
     newModules[index] = { ...newModules[index], [field]: value };
@@ -272,48 +324,176 @@ const CourseUpload = () => {
     setModules(modules.filter((_, i) => i !== index));
   };
 
-  const addModuleItem = (
-    moduleIndex: number,
-    itemType: CourseModuleItem["type"],
-  ) => {
+  // Section Handlers
+  const addSection = (moduleIndex: number) => {
     const newModules = [...modules];
-    const currentItems = newModules[moduleIndex].items || [];
-    newModules[moduleIndex].items = [
-      ...currentItems,
-      {
-        id: generateId("item"),
-        title: "",
-        type: itemType,
-      },
-    ];
+    const currentSections = newModules[moduleIndex].sections || [];
+    newModules[moduleIndex] = {
+      ...newModules[moduleIndex],
+      sections: [
+        ...currentSections,
+        {
+          id: generateId("sec"),
+          title: "",
+          description: "",
+          learningObjectives: "",
+          items: [
+            {
+              id: generateId("lec"),
+              title: "",
+              description: "",
+              learningOutcome: "",
+              type: "text",
+              formats: ["text"],
+            },
+          ],
+        },
+      ],
+    };
     setModules(newModules);
   };
 
-  const updateModuleItem = (
+  const updateSection = (
     moduleIndex: number,
-    itemIndex: number,
-    field: keyof CourseModuleItem,
-    value: any,
+    sectionIndex: number,
+    field: "title" | "description" | "learningObjectives",
+    value: string,
   ) => {
     const newModules = [...modules];
-    if (newModules[moduleIndex].items) {
-      newModules[moduleIndex].items![itemIndex] = {
-        ...newModules[moduleIndex].items![itemIndex],
+    if (newModules[moduleIndex].sections) {
+      const sections = [...newModules[moduleIndex].sections!];
+      sections[sectionIndex] = {
+        ...sections[sectionIndex],
         [field]: value,
+      };
+      newModules[moduleIndex] = {
+        ...newModules[moduleIndex],
+        sections,
       };
     }
     setModules(newModules);
   };
 
-  const removeModuleItem = (moduleIndex: number, itemIndex: number) => {
+  const removeSection = (moduleIndex: number, sectionIndex: number) => {
     const newModules = [...modules];
-    if (newModules[moduleIndex].items) {
-      newModules[moduleIndex].items = newModules[moduleIndex].items!.filter(
-        (_, i) => i !== itemIndex,
+    if (newModules[moduleIndex].sections) {
+      const sections = newModules[moduleIndex].sections!.filter(
+        (_, i) => i !== sectionIndex,
       );
+      newModules[moduleIndex] = {
+        ...newModules[moduleIndex],
+        sections,
+      };
     }
     setModules(newModules);
   };
+
+  // Lecture Handlers
+  const addLecture = (
+    moduleIndex: number,
+    sectionIndex: number,
+    itemType: CourseModuleItem["type"] = "text",
+  ) => {
+    const newModules = [...modules];
+    if (newModules[moduleIndex].sections && newModules[moduleIndex].sections![sectionIndex]) {
+      const sections = [...newModules[moduleIndex].sections!];
+      const targetSection = sections[sectionIndex];
+      const currentLectures = targetSection.items || [];
+      sections[sectionIndex] = {
+        ...targetSection,
+        items: [
+          ...currentLectures,
+          {
+            id: generateId("lec"),
+            title: "",
+            description: "",
+            learningOutcome: "",
+            type: itemType,
+            formats: [itemType],
+          },
+        ],
+      };
+      newModules[moduleIndex] = { ...newModules[moduleIndex], sections };
+    }
+    setModules(newModules);
+  };
+
+  const toggleLectureFormat = (
+    moduleIndex: number,
+    sectionIndex: number,
+    lectureIndex: number,
+    format: "text" | "video" | "document" | "audio" | "picture" | "embed",
+  ) => {
+    const newModules = [...modules];
+    const section = newModules[moduleIndex]?.sections?.[sectionIndex];
+    if (!section?.items?.[lectureIndex]) return;
+
+    const lecture = section.items[lectureIndex];
+    const currentFormats =
+      lecture.formats && lecture.formats.length > 0
+        ? [...(lecture.formats as any[])]
+        : [(lecture.type as any) || "text"];
+
+    let newFormats: any[];
+    if (currentFormats.includes(format)) {
+      if (currentFormats.length > 1) {
+        newFormats = currentFormats.filter((f) => f !== format);
+      } else {
+        newFormats = [format];
+      }
+    } else {
+      newFormats = [...currentFormats, format];
+    }
+
+    lecture.formats = newFormats;
+    lecture.type = newFormats[0];
+    setModules(newModules);
+  };
+
+  const updateLecture = (
+    moduleIndex: number,
+    sectionIndex: number,
+    lectureIndex: number,
+    field: keyof CourseModuleItem,
+    value: any,
+  ) => {
+    const newModules = [...modules];
+    if (
+      newModules[moduleIndex].sections &&
+      newModules[moduleIndex].sections![sectionIndex] &&
+      newModules[moduleIndex].sections![sectionIndex].items
+    ) {
+      const sections = [...newModules[moduleIndex].sections!];
+      const targetSection = sections[sectionIndex];
+      const items = [...targetSection.items!];
+      items[lectureIndex] = { ...items[lectureIndex], [field]: value };
+      sections[sectionIndex] = { ...targetSection, items };
+      newModules[moduleIndex] = { ...newModules[moduleIndex], sections };
+    }
+    setModules(newModules);
+  };
+
+  const removeLecture = (
+    moduleIndex: number,
+    sectionIndex: number,
+    lectureIndex: number,
+  ) => {
+    const newModules = [...modules];
+    if (
+      newModules[moduleIndex].sections &&
+      newModules[moduleIndex].sections![sectionIndex] &&
+      newModules[moduleIndex].sections![sectionIndex].items
+    ) {
+      const sections = [...newModules[moduleIndex].sections!];
+      const targetSection = sections[sectionIndex];
+      const items = targetSection.items!.filter((_, i) => i !== lectureIndex);
+      sections[sectionIndex] = { ...targetSection, items };
+      newModules[moduleIndex] = { ...newModules[moduleIndex], sections };
+    }
+    setModules(newModules);
+  };
+
+
 
   // Requirement helper handlers
   const handleAddStudentReq = () => {
@@ -488,6 +668,16 @@ const CourseUpload = () => {
           .map((s) => s.trim())
           .filter(Boolean),
         accessDuration: accessDuration.trim() || undefined,
+        accessType:
+          accessDuration.toLowerCase().includes("removal") ||
+          accessDuration.toLowerCase().includes("graduate")
+            ? "graduation_removal"
+            : accessDuration.toLowerCase().includes("lifetime")
+            ? "lifetime"
+            : accessDuration.toLowerCase().includes("session")
+            ? "session_bound"
+            : "fixed_term",
+        studentRemovalOnGraduation,
         learningObjectives: learningObjectives.filter(Boolean),
         prerequisites: studentReqList.filter(Boolean),
         instructorName:
@@ -507,7 +697,15 @@ const CourseUpload = () => {
         admissionSessions: [initialSession],
         requirements: studentReqList.join("\n"),
         requiredDocuments: requiredDocList,
-        modules,
+        modules: modules.map((mod) => {
+          const sections = mod.sections || [];
+          const allLectures = sections.flatMap((sec) => sec.items || []);
+          return {
+            ...mod,
+            sections,
+            items: allLectures.length > 0 ? allLectures : (mod.items || []),
+          };
+        }),
       });
 
       // If an existing org instructor was selected, ensure this course is added to their courseIds
@@ -658,9 +856,16 @@ const CourseUpload = () => {
           )}
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Course Title <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Course Title <span className="text-red-500">*</span>
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setTitle((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
+            </div>
             <input
               type="text"
               required
@@ -672,9 +877,16 @@ const CourseUpload = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Course Description <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Course Description <span className="text-red-500">*</span>
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setDescription((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
+            </div>
             <textarea
               required
               value={description}
@@ -685,9 +897,16 @@ const CourseUpload = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Subtitle or Hook (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Subtitle or Hook (Optional)
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setSubtitle((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
+            </div>
             <input
               type="text"
               value={subtitle}
@@ -702,9 +921,16 @@ const CourseUpload = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Why This Course Matters & Philosophy (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Why This Course Matters & Philosophy (Optional)
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setWhyItMatters((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
+            </div>
             <textarea
               value={whyItMatters}
               onChange={(e) => setWhyItMatters(e.target.value)}
@@ -766,9 +992,18 @@ const CourseUpload = () => {
               )}
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Qualification Title (Optional)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Qualification Title (Optional)
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setQualificationTitle((prev) =>
+                      prev ? `${prev} ${text}` : text
+                    )
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={qualificationTitle}
@@ -1099,9 +1334,18 @@ const CourseUpload = () => {
 
                     {installmentInterval === "custom" && (
                       <div className="mt-2 space-y-1.5">
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                          Describe Custom Milestone Payment Schedule
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                            Describe Custom Milestone Payment Schedule
+                          </label>
+                          <SpeechToTextButton
+                            onTranscript={(text) =>
+                              setCustomMilestonesText((prev) =>
+                                prev ? `${prev} ${text}` : text
+                              )
+                            }
+                          />
+                        </div>
                         <input
                           type="text"
                           value={customMilestonesText}
@@ -1146,10 +1390,15 @@ const CourseUpload = () => {
                 placeholder="e.g. High School Transcript, National ID"
                 className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
               />
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setNewDocName((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
               <button
                 type="button"
                 onClick={handleAddRequiredDoc}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Document Requirement</span>
@@ -1166,7 +1415,7 @@ const CourseUpload = () => {
                   <button
                     type="button"
                     onClick={() => handleRemoveRequiredDoc(doc)}
-                    className="ml-2 text-indigo-400 hover:text-red-500 transition"
+                    className="ml-2 text-indigo-400 hover:text-red-500 transition cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1188,10 +1437,15 @@ const CourseUpload = () => {
                 placeholder="e.g. Basic understanding of JavaScript, Grade 12 completion"
                 className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
               />
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setNewStudentReq((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
               <button
                 type="button"
                 onClick={handleAddStudentReq}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Criteria</span>
@@ -1254,9 +1508,16 @@ const CourseUpload = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Duration
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Duration
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setDurationWeeks((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={durationWeeks}
@@ -1267,9 +1528,16 @@ const CourseUpload = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Weekly Commitment
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Weekly Commitment
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setTimeCommitment((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={timeCommitment}
@@ -1282,9 +1550,16 @@ const CourseUpload = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Total Hours
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Total Hours
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setTotalHours((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={totalHours}
@@ -1295,9 +1570,16 @@ const CourseUpload = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Primary Language
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Primary Language
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setLanguage((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={language}
@@ -1308,23 +1590,64 @@ const CourseUpload = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Access Duration
-              </label>
-              <input
-                type="text"
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Access Duration
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setAccessDuration((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
+              <select
                 value={accessDuration}
-                onChange={(e) => setAccessDuration(e.target.value)}
-                placeholder="e.g. Lifetime Access upon Enrollment"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setAccessDuration(val);
+                  setStudentRemovalOnGraduation(
+                    val.toLowerCase().includes("removal") ||
+                      val.toLowerCase().includes("graduate") ||
+                      val.toLowerCase().includes("cohort") ||
+                      val.toLowerCase().includes("enrolment") ||
+                      val.toLowerCase().includes("continuous"),
+                  );
+                }}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
-              />
+              >
+                <option value="Continuous Study Access">
+                  Continuous Study Access - (treats access as continuous until the student specifically graduates. There is no predetermined time limit (like a semester or academic year) tied to the course itself; access remains active for as long as it takes the student to complete their program.)
+                </option>
+                <option value="Lifetime Access">
+                  Lifetime Access
+                </option>
+                <option value="Academic Session Cohort">
+                  Academic Session Cohort (Revoked upon graduation or session ends/closes)
+                </option>
+                <option value="Active enrolment Access">
+                  Active enrolment Access (Automatically revokes student access upon graduation, withdrawal or expulsion)
+                </option>
+                <option value="Limited Extended 6 Months post-cohort Access">
+                  Limited Extended 6 Months post-cohort Access (allows access 180 days after course session ends/closes, graduation, withdrawal or expulsion)
+                </option>
+                <option value="Fixed Term access">
+                  Fixed Term access (institutional custom course access duration)
+                </option>
+              </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Available Subtitles / Translations (comma-separated)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Available Subtitles / Translations (comma-separated)
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setSubtitlesInput((prev) => (prev ? `${prev}, ${text}` : text))
+                }
+              />
+            </div>
             <input
               type="text"
               value={subtitlesInput}
@@ -1355,6 +1678,11 @@ const CourseUpload = () => {
               onChange={(e) => setNewObjective(e.target.value)}
               placeholder="e.g. Architect scalable enterprise backends using microservices"
               className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+            />
+            <SpeechToTextButton
+              onTranscript={(text) =>
+                setNewObjective((prev) => (prev ? `${prev} ${text}` : text))
+              }
             />
             <button
               type="button"
@@ -1438,9 +1766,16 @@ const CourseUpload = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Instructor Name
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Instructor Name
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setInstructorName((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={instructorName}
@@ -1451,9 +1786,16 @@ const CourseUpload = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Professional Title & Credentials
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Professional Title & Credentials
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setInstructorTitle((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={instructorTitle}
@@ -1465,9 +1807,16 @@ const CourseUpload = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Instructor Biography (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Instructor Biography (Optional)
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setInstructorBio((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
+            </div>
             <textarea
               value={instructorBio}
               onChange={(e) => setInstructorBio(e.target.value)}
@@ -1491,9 +1840,18 @@ const CourseUpload = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Certification Criteria & Details (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Certification Criteria & Details (Optional)
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setCertificationDetails((prev) =>
+                    prev ? `${prev} ${text}` : text
+                  )
+                }
+              />
+            </div>
             <textarea
               value={certificationDetails}
               onChange={(e) => setCertificationDetails(e.target.value)}
@@ -1503,9 +1861,16 @@ const CourseUpload = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Refund Policy & Guarantee Window (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Refund Policy & Guarantee Window (Optional)
+              </label>
+              <SpeechToTextButton
+                onTranscript={(text) =>
+                  setRefundPolicy((prev) => (prev ? `${prev} ${text}` : text))
+                }
+              />
+            </div>
             <textarea
               value={refundPolicy}
               onChange={(e) => setRefundPolicy(e.target.value)}
@@ -1530,9 +1895,16 @@ const CourseUpload = () => {
 
           <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Question
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Question
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setNewFaqQ((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 value={newFaqQ}
@@ -1542,9 +1914,16 @@ const CourseUpload = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Answer
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Answer
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setNewFaqA((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <textarea
                 value={newFaqA}
                 onChange={(e) => setNewFaqA(e.target.value)}
@@ -1623,10 +2002,16 @@ const CourseUpload = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Initial Intake Session Name{" "}
-                <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Initial Intake Session Name <span className="text-red-500">*</span>
+                </label>
+                <SpeechToTextButton
+                  onTranscript={(text) =>
+                    setSessionName((prev) => (prev ? `${prev} ${text}` : text))
+                  }
+                />
+              </div>
               <input
                 type="text"
                 required
@@ -1694,246 +2079,727 @@ const CourseUpload = () => {
             <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
               Curriculum
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Start putting together your course by creating sections, lectures
-              and practice activities.
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Start putting together your course by creating sections, lectures and practice activities.
             </p>
           </div>
 
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+              Modules
+            </h3>
+            <button
+              type="button"
+              onClick={addModule}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Module</span>
+            </button>
+          </div>
+
           <div className="space-y-6">
-            {modules.map((mod, index) => (
+            {modules.map((mod, modIndex) => (
               <div
                 key={mod.id}
-                className="bg-slate-50/50 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-600 rounded-xl relative group overflow-hidden"
+                className="bg-slate-50/70 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-600 rounded-2xl relative group overflow-hidden space-y-5 p-5 sm:p-6"
               >
-                {/* Section Header */}
-                <div className="bg-white dark:bg-slate-800 p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-4">
-                  <div className="font-bold text-slate-900 dark:text-white shrink-0 flex items-center">
-                    <span className="text-sm">Section {index + 1}:</span>
-                  </div>
-                  <div className="flex-1 flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-shadow">
+                {/* Module Level Order Above Title */}
+                <div className="font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                    Module {modIndex + 1}
+                  </span>
+                </div>
+
+                {/* Module Header & Title */}
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-shadow">
                     <FileText className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
                     <input
                       type="text"
                       required
                       value={mod.title}
                       onChange={(e) =>
-                        updateModule(index, "title", e.target.value)
+                        updateModule(modIndex, "title", e.target.value)
                       }
                       className="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400"
-                      placeholder="Enter a title for this section"
+                      placeholder="Module Title"
+                    />
+                    <SpeechToTextButton
+                      onTranscript={(text) =>
+                        updateModule(
+                          modIndex,
+                          "title",
+                          mod.title ? `${mod.title} ${text}` : text,
+                        )
+                      }
                     />
                   </div>
                   {modules.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => removeModule(index)}
-                      className="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition shrink-0"
-                      title="Delete Section"
+                      onClick={() => removeModule(modIndex)}
+                      className="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition shrink-0 self-end sm:self-center cursor-pointer"
+                      title="Delete Module"
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
 
-                {/* Section Body */}
-                <div className="p-4 sm:p-6 space-y-6">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      What will students learn in this section?
+                {/* Module Description / Overview */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Module Description / Overview
                     </label>
-                    <textarea
-                      value={mod.description || ""}
-                      onChange={(e) =>
-                        updateModule(index, "description", e.target.value)
+                    <SpeechToTextButton
+                      onTranscript={(text) =>
+                        updateModule(
+                          modIndex,
+                          "description",
+                          mod.description ? `${mod.description} ${text}` : text,
+                        )
                       }
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm leading-relaxed"
-                      placeholder="Brief summary of the learning objectives..."
-                      rows={2}
                     />
                   </div>
+                  <textarea
+                    value={mod.description || ""}
+                    onChange={(e) =>
+                      updateModule(modIndex, "description", e.target.value)
+                    }
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-xs leading-relaxed"
+                    placeholder="Enter module description or overview..."
+                    rows={2}
+                  />
+                </div>
 
-                  {/* Lectures / Items */}
-                  <div className="space-y-4 sm:pl-8 sm:border-l-2 border-slate-200 dark:border-slate-700 ml-2">
-                    {mod.items &&
-                      mod.items.map((item, itemIndex) => (
-                        <div
-                          key={item.id}
-                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow group/item"
-                        >
-                          {/* Lecture Header */}
-                          <div className="p-3 sm:px-4 flex justify-between items-center bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50">
-                            <div className="flex items-center gap-3 flex-1">
-                              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest shrink-0">
-                                Lecture {itemIndex + 1}:
-                              </span>
-                              {item.type === "video" && (
-                                <Video className="w-4 h-4 text-purple-500 shrink-0" />
-                              )}
-                              {item.type === "document" && (
-                                <FileText className="w-4 h-4 text-blue-500 shrink-0" />
-                              )}
-                              {item.type === "embed" && (
-                                <LinkIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-                              )}
-                              {item.type === "text" && (
-                                <FileText className="w-4 h-4 text-slate-500 shrink-0" />
-                              )}
-                              <input
-                                type="text"
-                                required
-                                value={item.title}
-                                onChange={(e) =>
-                                  updateModuleItem(
-                                    index,
-                                    itemIndex,
-                                    "title",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Enter a title"
-                                className="flex-1 bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeModuleItem(index, itemIndex)}
-                              className="text-slate-400 hover:text-red-500 ml-3 opacity-0 group-hover/item:opacity-100 transition-opacity p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 shrink-0"
-                              title="Delete Lecture"
+                {/* Learning Goals Field */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Learning Goals
+                    </label>
+                    <SpeechToTextButton
+                      onTranscript={(text) =>
+                        updateModule(
+                          modIndex,
+                          "learningGoals",
+                          mod.learningGoals ? `${mod.learningGoals} ${text}` : text,
+                        )
+                      }
+                    />
+                  </div>
+                  <textarea
+                    value={mod.learningGoals || ""}
+                    onChange={(e) =>
+                      updateModule(modIndex, "learningGoals", e.target.value)
+                    }
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-xs leading-relaxed"
+                    placeholder="the core concepts, basic structures, and fundamental knowledge or skill students will gain"
+                    rows={2}
+                  />
+                </div>
+
+                {/* Sections within Module */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                      Sections
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => addSection(modIndex)}
+                      className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-purple-500 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-purple-500" />
+                      <span>Add Section</span>
+                    </button>
+                  </div>
+
+                  {(mod.sections || []).map((sec, secIndex) => (
+                    <div
+                      key={sec.id}
+                      className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 space-y-4 shadow-xs"
+                    >
+                      {/* Section Level Order Above Title */}
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
+                        <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                          Section {secIndex + 1}
+                        </span>
+                      </div>
+
+                      {/* Section Title */}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1 focus-within:ring-2 focus-within:ring-indigo-500">
+                          <input
+                            type="text"
+                            required
+                            value={sec.title}
+                            onChange={(e) =>
+                              updateSection(
+                                modIndex,
+                                secIndex,
+                                "title",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="Section Title"
+                            className="w-full bg-transparent border-none p-0 text-xs font-semibold focus:ring-0 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400"
+                          />
+                          <SpeechToTextButton
+                            onTranscript={(text) =>
+                              updateSection(
+                                modIndex,
+                                secIndex,
+                                "title",
+                                sec.title ? `${sec.title} ${text}` : text,
+                              )
+                            }
+                          />
+                        </div>
+                        {(mod.sections || []).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeSection(modIndex, secIndex)}
+                            className="text-slate-400 hover:text-red-500 p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
+                            title="Delete Section"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Section Description / Overview */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                            Section Description / Overview
+                          </label>
+                          <SpeechToTextButton
+                            onTranscript={(text) =>
+                              updateSection(
+                                modIndex,
+                                secIndex,
+                                "description",
+                                sec.description ? `${sec.description} ${text}` : text,
+                              )
+                            }
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={sec.description || ""}
+                          onChange={(e) =>
+                            updateSection(
+                              modIndex,
+                              secIndex,
+                              "description",
+                              e.target.value,
+                            )
+                          }
+                          placeholder="Enter section description or overview..."
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {/* Learning Objectives Field */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                            Learning Objectives
+                          </label>
+                          <SpeechToTextButton
+                            onTranscript={(text) =>
+                              updateSection(
+                                modIndex,
+                                secIndex,
+                                "learningObjectives",
+                                sec.learningObjectives ? `${sec.learningObjectives} ${text}` : text,
+                              )
+                            }
+                          />
+                        </div>
+                        <textarea
+                          value={sec.learningObjectives || ""}
+                          onChange={(e) =>
+                            updateSection(
+                              modIndex,
+                              secIndex,
+                              "learningObjectives",
+                              e.target.value,
+                            )
+                          }
+                          placeholder="Measurable results or demonstration of targeted knowledge, skills, or behaviors students will possess"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                          rows={2}
+                        />
+                      </div>
+
+                      {/* Lectures within Section */}
+                      <div className="space-y-3 sm:pl-4 sm:border-l-2 border-indigo-200 dark:border-indigo-900/60 ml-1">
+                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                            Lectures
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => addLecture(modIndex, secIndex, "text")}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-indigo-500" />
+                            <span>Add Lecture</span>
+                          </button>
+                        </div>
+
+                        {(sec.items || []).map((item, itemIndex) => {
+                          const activeFormats: ("text" | "video" | "document" | "audio" | "picture" | "embed")[] =
+                            item.formats && item.formats.length > 0
+                              ? (item.formats as any[])
+                              : [(item.type as any) || "text"];
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-2xs group/item space-y-3 p-3.5"
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Lecture Content */}
-                          <div className="p-4 sm:p-5 bg-white dark:bg-slate-800 space-y-3">
-                            {item.type === "text" && (
-                              <textarea
-                                required
-                                value={item.content || ""}
-                                onChange={(e) =>
-                                  updateModuleItem(
-                                    index,
-                                    itemIndex,
-                                    "content",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-indigo-500 leading-relaxed text-slate-900 dark:text-white"
-                                placeholder="Write your lecture content here... (Markdown supported)"
-                                rows={5}
-                              />
-                            )}
-                            {item.type === "embed" && (
-                              <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-slate-100 dark:bg-slate-900 rounded-lg shrink-0 border border-slate-200 dark:border-slate-700">
-                                  <LinkIcon className="w-5 h-5 text-slate-500" />
-                                </div>
-                                <input
-                                  type="url"
-                                  required
-                                  value={item.url || ""}
-                                  onChange={(e) =>
-                                    updateModuleItem(
-                                      index,
-                                      itemIndex,
-                                      "url",
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
-                                  placeholder="Paste video or external resource link URL here..."
-                                />
+                              {/* Lecture Level Order Above Title */}
+                              <div className="font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
+                                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  Lecture {itemIndex + 1}
+                                </span>
                               </div>
-                            )}
-                            {(item.type === "video" ||
-                              item.type === "document") && (
-                              <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-900/50 transition duration-200">
-                                <div className="max-w-xs mx-auto">
-                                  <FileUpload
-                                    label={`Upload ${item.type === "video" ? "Video" : "Document"}`}
-                                    accept={
-                                      item.type === "video"
-                                        ? "video/*"
-                                        : ".pdf,.doc,.docx,.txt"
-                                    }
-                                    onUpload={(url) =>
-                                      updateModuleItem(
-                                        index,
+
+                              {/* Lecture Title */}
+                              <div className="flex items-center gap-2.5">
+                                <div className="flex-1 flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 focus-within:ring-2 focus-within:ring-indigo-500">
+                                  <input
+                                    type="text"
+                                    required
+                                    value={item.title}
+                                    onChange={(e) =>
+                                      updateLecture(
+                                        modIndex,
+                                        secIndex,
                                         itemIndex,
-                                        "url",
-                                        url,
+                                        "title",
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder="Lecture Title"
+                                    className="w-full bg-transparent border-none p-0 text-xs font-semibold focus:ring-0 text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400"
+                                  />
+                                  <SpeechToTextButton
+                                    onTranscript={(text) =>
+                                      updateLecture(
+                                        modIndex,
+                                        secIndex,
+                                        itemIndex,
+                                        "title",
+                                        item.title ? `${item.title} ${text}` : text,
                                       )
                                     }
                                   />
                                 </div>
-                                {item.url && (
-                                  <div className="mt-4 inline-flex items-center px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold border border-emerald-200 dark:border-emerald-800/50">
-                                    <CheckCircle2 className="w-4 h-4 mr-2" />{" "}
-                                    File Uploaded Successfully
-                                  </div>
-                                )}
-                                {!item.url && (
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 font-medium">
-                                    No file selected. Please upload a{" "}
-                                    {item.type}.
-                                  </p>
+                                {(sec.items || []).length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      removeLecture(modIndex, secIndex, itemIndex)
+                                    }
+                                    className="text-slate-400 hover:text-red-500 p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0 cursor-pointer"
+                                    title="Delete Lecture"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
 
-                    {/* Add Item Actions */}
-                    <div className="pt-2 flex flex-col sm:flex-row sm:items-center gap-3">
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
-                        <Plus className="w-4 h-4 mr-1" /> Add Curriculum Item
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => addModuleItem(index, "video")}
-                          className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center shadow-sm"
-                        >
-                          <Video className="w-3.5 h-3.5 mr-1.5" /> Video
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addModuleItem(index, "document")}
-                          className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center shadow-sm"
-                        >
-                          <FileText className="w-3.5 h-3.5 mr-1.5" /> Article /
-                          Doc
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addModuleItem(index, "embed")}
-                          className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center shadow-sm"
-                        >
-                          <LinkIcon className="w-3.5 h-3.5 mr-1.5" /> Link
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addModuleItem(index, "text")}
-                          className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-500 hover:text-slate-900 dark:hover:text-white text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center shadow-sm"
-                        >
-                          <FileText className="w-3.5 h-3.5 mr-1.5" /> Text
-                        </button>
+                              {/* Lecture Description / Overview */}
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                    Lecture Description / Overview
+                                  </label>
+                                  <SpeechToTextButton
+                                    onTranscript={(text) =>
+                                      updateLecture(
+                                        modIndex,
+                                        secIndex,
+                                        itemIndex,
+                                        "description",
+                                        item.description ? `${item.description} ${text}` : text,
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <input
+                                  type="text"
+                                  value={item.description || ""}
+                                  onChange={(e) =>
+                                    updateLecture(
+                                      modIndex,
+                                      secIndex,
+                                      itemIndex,
+                                      "description",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="Enter lecture description or overview..."
+                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                />
+                              </div>
+
+                              {/* Learning Outcome Field */}
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                    Learning Outcome
+                                  </label>
+                                  <SpeechToTextButton
+                                    onTranscript={(text) =>
+                                      updateLecture(
+                                        modIndex,
+                                        secIndex,
+                                        itemIndex,
+                                        "learningOutcome",
+                                        item.learningOutcome ? `${item.learningOutcome} ${text}` : text,
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <input
+                                  type="text"
+                                  value={item.learningOutcome || ""}
+                                  onChange={(e) =>
+                                    updateLecture(
+                                      modIndex,
+                                      secIndex,
+                                      itemIndex,
+                                      "learningOutcome",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="what students will know, understand, and be able to do by the end of lecture"
+                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                />
+                              </div>
+
+                              {/* Content Field (text first, audio, pictures, video, document, embed or mixture) */}
+                              <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                    Content Formats (Select one or a mixture of formats)
+                                  </label>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {(["text", "audio", "picture", "video", "document", "embed"] as const).map((fmt) => {
+                                      const isFmtActive = activeFormats.includes(fmt);
+                                      return (
+                                        <button
+                                          key={fmt}
+                                          type="button"
+                                          onClick={() =>
+                                            toggleLectureFormat(
+                                              modIndex,
+                                              secIndex,
+                                              itemIndex,
+                                              fmt,
+                                            )
+                                          }
+                                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center space-x-1 cursor-pointer border ${
+                                            isFmtActive
+                                              ? fmt === "text"
+                                                ? "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 shadow-2xs"
+                                                : fmt === "audio"
+                                                ? "bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300 border-amber-300 dark:border-amber-700 shadow-2xs"
+                                                : fmt === "picture"
+                                                ? "bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border-rose-300 dark:border-rose-700 shadow-2xs"
+                                                : fmt === "video"
+                                                ? "bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border-purple-300 dark:border-purple-700 shadow-2xs"
+                                                : fmt === "document"
+                                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow-2xs"
+                                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 shadow-2xs"
+                                              : "bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 border-slate-200 dark:border-slate-700"
+                                          }`}
+                                        >
+                                          {fmt === "text" && <Edit3 className="w-3 h-3 text-slate-500" />}
+                                          {fmt === "audio" && <Volume2 className="w-3 h-3 text-amber-500" />}
+                                          {fmt === "picture" && <Image className="w-3 h-3 text-rose-500" />}
+                                          {fmt === "video" && <Video className="w-3 h-3 text-purple-500" />}
+                                          {fmt === "document" && <FileSpreadsheet className="w-3 h-3 text-blue-500" />}
+                                          {fmt === "embed" && <LinkIcon className="w-3 h-3 text-emerald-500" />}
+                                          <span className="capitalize">{fmt}</span>
+                                          {isFmtActive && <CheckCircle2 className="w-3 h-3 ml-0.5" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Active Format Inputs with Delete / Remove option */}
+                                <div className="space-y-3 pt-1">
+                                  {/* Text Format Input */}
+                                  {activeFormats.includes("text") && (
+                                    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 relative group/fmt">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center">
+                                          <FileText className="w-3.5 h-3.5 mr-1.5 text-slate-500" /> Text Content (Markdown supported)
+                                        </span>
+                                        <div className="flex items-center space-x-2">
+                                          <SpeechToTextButton
+                                            onTranscript={(text) =>
+                                              updateLecture(
+                                                modIndex,
+                                                secIndex,
+                                                itemIndex,
+                                                "content",
+                                                item.content ? `${item.content} ${text}` : text,
+                                              )
+                                            }
+                                          />
+                                          {activeFormats.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleLectureFormat(modIndex, secIndex, itemIndex, "text")}
+                                              className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-[10px] font-bold flex items-center"
+                                              title="Remove Text Format"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <textarea
+                                        value={item.content || ""}
+                                        onChange={(e) =>
+                                          updateLecture(
+                                            modIndex,
+                                            secIndex,
+                                            itemIndex,
+                                            "content",
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 leading-relaxed text-slate-900 dark:text-white"
+                                        placeholder="Write your lecture text or notes here..."
+                                        rows={4}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Audio Format Input */}
+                                  {activeFormats.includes("audio") && (
+                                    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center">
+                                          Audio Content
+                                        </span>
+                                        {activeFormats.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLectureFormat(modIndex, secIndex, itemIndex, "audio")}
+                                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-[10px] font-bold flex items-center"
+                                            title="Remove Audio Format"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-3 text-center bg-slate-50/50 dark:bg-slate-900/40">
+                                        <div className="max-w-xs mx-auto">
+                                          <FileUpload
+                                            label="Upload Audio (.mp3, .wav, .m4a)"
+                                            accept="audio/*"
+                                            onUpload={(url) => {
+                                              updateLecture(modIndex, secIndex, itemIndex, "audioUrl", url);
+                                            }}
+                                          />
+                                        </div>
+                                        {item.audioUrl && (
+                                          <div className="mt-2 inline-flex items-center px-2.5 py-0.5 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-md text-[11px] font-semibold border border-amber-200 dark:border-amber-800">
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> Audio Attached
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Picture Format Input */}
+                                  {activeFormats.includes("picture") && (
+                                    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center">
+                                          Picture / Image Content
+                                        </span>
+                                        {activeFormats.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLectureFormat(modIndex, secIndex, itemIndex, "picture")}
+                                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-[10px] font-bold flex items-center"
+                                            title="Remove Picture Format"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-3 text-center bg-slate-50/50 dark:bg-slate-900/40">
+                                        <div className="max-w-xs mx-auto">
+                                          <FileUpload
+                                            label="Upload Image (.png, .jpg, .jpeg, .webp)"
+                                            accept="image/*"
+                                            onUpload={(url) => {
+                                              updateLecture(modIndex, secIndex, itemIndex, "pictureUrl", url);
+                                            }}
+                                          />
+                                        </div>
+                                        {item.pictureUrl && (
+                                          <div className="mt-2 inline-flex items-center px-2.5 py-0.5 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 rounded-md text-[11px] font-semibold border border-rose-200 dark:border-rose-800">
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> Picture Attached
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Video Format Input */}
+                                  {activeFormats.includes("video") && (
+                                    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 flex items-center">
+                                          <Video className="w-3.5 h-3.5 mr-1.5" /> Video Content
+                                        </span>
+                                        {activeFormats.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLectureFormat(modIndex, secIndex, itemIndex, "video")}
+                                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-[10px] font-bold flex items-center"
+                                            title="Remove Video Format"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1">
+                                        <LinkIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <input
+                                          type="url"
+                                          value={item.videoUrl || (item.type === "video" ? item.url : "") || ""}
+                                          onChange={(e) => {
+                                            updateLecture(modIndex, secIndex, itemIndex, "videoUrl", e.target.value);
+                                            if (item.type === "video") {
+                                              updateLecture(modIndex, secIndex, itemIndex, "url", e.target.value);
+                                            }
+                                          }}
+                                          placeholder="Video link (YouTube, Vimeo, MP4 URL)..."
+                                          className="w-full bg-transparent border-none p-0 text-xs focus:ring-0 text-slate-900 dark:text-white"
+                                        />
+                                      </div>
+                                      <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-3 text-center bg-slate-50/50 dark:bg-slate-900/40">
+                                        <div className="max-w-xs mx-auto">
+                                          <FileUpload
+                                            label="Upload Video File"
+                                            accept="video/*"
+                                            onUpload={(url) => {
+                                              updateLecture(modIndex, secIndex, itemIndex, "videoUrl", url);
+                                              updateLecture(modIndex, secIndex, itemIndex, "url", url);
+                                            }}
+                                          />
+                                        </div>
+                                        {(item.videoUrl || (item.type === "video" && item.url)) && (
+                                          <div className="mt-2 inline-flex items-center px-2.5 py-0.5 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-md text-[11px] font-semibold border border-purple-200 dark:border-purple-800">
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> Video Attached
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Document Format Input (Including PowerPoint slides) */}
+                                  {activeFormats.includes("document") && (
+                                    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center">
+                                          <FileText className="w-3.5 h-3.5 mr-1.5" /> Document / PowerPoint Slides
+                                        </span>
+                                        {activeFormats.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLectureFormat(modIndex, secIndex, itemIndex, "document")}
+                                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-[10px] font-bold flex items-center"
+                                            title="Remove Document Format"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-3 text-center bg-slate-50/50 dark:bg-slate-900/40">
+                                        <div className="max-w-xs mx-auto">
+                                          <FileUpload
+                                            label="Upload Document / PowerPoint (.pdf, .doc, .docx, .ppt, .pptx, .txt)"
+                                            accept=".pdf,.doc,.docx,.ppt,.pptx,.txt"
+                                            onUpload={(url) => {
+                                              updateLecture(modIndex, secIndex, itemIndex, "documentUrl", url);
+                                              if (item.type === "document") {
+                                                updateLecture(modIndex, secIndex, itemIndex, "url", url);
+                                              }
+                                            }}
+                                          />
+                                        </div>
+                                        {(item.documentUrl || (item.type === "document" && item.url)) && (
+                                          <div className="mt-2 inline-flex items-center px-2.5 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-md text-[11px] font-semibold border border-blue-200 dark:border-blue-800">
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> Document Attached
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Embed Format Input */}
+                                  {activeFormats.includes("embed") && (
+                                    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center">
+                                          <LinkIcon className="w-3.5 h-3.5 mr-1.5" /> Embed Resource
+                                        </span>
+                                        {activeFormats.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLectureFormat(modIndex, secIndex, itemIndex, "embed")}
+                                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-[10px] font-bold flex items-center"
+                                            title="Remove Embed Format"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1">
+                                        <LinkIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <input
+                                          type="url"
+                                          value={item.embedUrl || (item.type === "embed" ? item.url : "") || ""}
+                                          onChange={(e) => {
+                                            updateLecture(modIndex, secIndex, itemIndex, "embedUrl", e.target.value);
+                                            if (item.type === "embed") {
+                                              updateLecture(modIndex, secIndex, itemIndex, "url", e.target.value);
+                                            }
+                                          }}
+                                          placeholder="Paste embed link URL or external resource..."
+                                          className="w-full bg-transparent border-none p-0 text-xs focus:ring-0 text-slate-900 dark:text-white"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             ))}
-
-            <button
-              type="button"
-              onClick={addModule}
-              className="w-full py-4 border-2 border-dashed border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-400 rounded-2xl text-sm font-bold transition flex items-center justify-center bg-transparent"
-            >
-              <Plus className="w-5 h-5 mr-2" /> Add Section
-            </button>
           </div>
         </div>
 
@@ -1966,7 +2832,12 @@ const CourseUpload = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <PaystackSubaccountOnboarding onClose={() => setShowSubaccountModal(false)} />
+            <PaystackSubaccountOnboarding
+              onClose={() => {
+                setShowSubaccountModal(false);
+                setBypassSubaccount(true);
+              }}
+            />
           </div>
         </div>
       )}

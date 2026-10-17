@@ -340,29 +340,19 @@ export const CourseModulesTab = ({
                                 <span className="text-[10px] font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-full">Completed</span>
                               )}
                             </div>
-                            {item.type === "text" && (
-                              <div className="text-sm text-slate-600 dark:text-slate-300 prose prose-invert max-w-none bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg mt-2 cursor-auto" onClick={(e) => e.stopPropagation()}>
-                                <p className="whitespace-pre-wrap">
-                                  {item.content}
-                                </p>
-                              </div>
+                            {/* Lecture Description if present */}
+                            {item.description && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
+                                {item.description}
+                              </p>
                             )}
-                            {item.type === "embed" && item.url && (
-                              <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-slate-200 dark:border-slate-700 shadow-sm mt-2">
-                                <iframe
-                                  src={getYouTubeEmbedUrl(item.url)}
-                                  className="w-full h-full"
-                                  allowFullScreen
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  onLoad={() => handleCompleteItem(item.id)}
-                                ></iframe>
-                              </div>
-                            )}
-                            {item.type === "video" && item.url && (
-                              isYouTubeUrl(item.url) ? (
+
+                            {/* Video Content */}
+                            {(item.type === "video" || item.videoUrl || (item.formats?.includes("video") && item.url)) && (item.videoUrl || item.url) && (
+                              isYouTubeUrl(item.videoUrl || item.url || "") ? (
                                 <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-slate-200 dark:border-slate-700 shadow-sm mt-2">
                                   <iframe
-                                    src={getYouTubeEmbedUrl(item.url)}
+                                    src={getYouTubeEmbedUrl(item.videoUrl || item.url || "")}
                                     className="w-full h-full"
                                     allowFullScreen
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -371,24 +361,50 @@ export const CourseModulesTab = ({
                                 </div>
                               ) : (
                                 <video
-                                  src={item.url}
+                                  src={item.videoUrl || item.url}
                                   controls
                                   className="w-full max-h-96 rounded-xl bg-black border border-slate-200 dark:border-slate-700 shadow-sm mt-2"
                                   onPlay={() => handleCompleteItem(item.id)}
                                 />
                               )
                             )}
-                            {item.type === "document" && item.url && (
-                              <a
-                                href={item.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => { e.stopPropagation(); handleCompleteItem(item.id); }}
-                                className="inline-flex items-center px-4 py-2.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-xs font-bold transition border border-indigo-100 dark:border-indigo-500/20 mt-2"
-                              >
-                                <FileText className="w-4 h-4 mr-2" /> View /
-                                Download Document
-                              </a>
+
+                            {/* Embed Content */}
+                            {(item.type === "embed" || item.embedUrl || (item.formats?.includes("embed") && item.url)) && (item.embedUrl || item.url) && (
+                              <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-slate-200 dark:border-slate-700 shadow-sm mt-2">
+                                <iframe
+                                  src={getYouTubeEmbedUrl(item.embedUrl || item.url || "")}
+                                  className="w-full h-full"
+                                  allowFullScreen
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  onLoad={() => handleCompleteItem(item.id)}
+                                ></iframe>
+                              </div>
+                            )}
+
+                            {/* Document Content */}
+                            {(item.type === "document" || item.documentUrl || (item.formats?.includes("document") && item.url)) && (item.documentUrl || item.url) && (
+                              <div className="mt-2">
+                                <a
+                                  href={item.documentUrl || item.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => { e.stopPropagation(); handleCompleteItem(item.id); }}
+                                  className="inline-flex items-center px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-xs font-bold transition border border-indigo-100 dark:border-indigo-500/20"
+                                >
+                                  <FileText className="w-4 h-4 mr-2" /> View /
+                                  Download Document
+                                </a>
+                              </div>
+                            )}
+
+                            {/* Text Content */}
+                            {(item.type === "text" || item.content) && item.content && (
+                              <div className="text-sm text-slate-600 dark:text-slate-300 prose prose-invert max-w-none bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg mt-2 cursor-auto" onClick={(e) => e.stopPropagation()}>
+                                <p className="whitespace-pre-wrap">
+                                  {item.content}
+                                </p>
+                              </div>
                             )}
                           </div>
                         )})}

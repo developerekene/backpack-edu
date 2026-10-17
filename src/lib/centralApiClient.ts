@@ -34,7 +34,7 @@ export async function centralApiClient(endpoint: string, options: RequestInit = 
   // 2. Otherwise, use relative path (works in dev/AIS environment)
   try {
     return await fetch(endpoint, options);
-  } catch (err) {
+  } catch {
     // If relative fetch fails in dev, try fallback
     return fetch(`${PROD_BACKEND_URL}/${endpoint.startsWith("/") ? endpoint.substring(1) : endpoint}`, options);
   }

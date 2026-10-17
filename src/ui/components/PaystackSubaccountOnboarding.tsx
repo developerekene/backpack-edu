@@ -9,7 +9,6 @@ import {
   Sparkles,
   CreditCard,
   ArrowRight,
-  HelpCircle,
   Edit3,
   Lock,
   Building2,
@@ -102,34 +101,6 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     details?: any;
   } | null>(null);
 
-  // Secret Key Config state
-  const [secretKeyInput, setSecretKeyInput] = useState("");
-  const [keyConfigStatus, setKeyConfigStatus] = useState<{ success: boolean; message: string } | null>(null);
-  const [showKeyConfig, setShowKeyConfig] = useState(false);
-
-  const handleConfigureKey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!secretKeyInput.trim().startsWith("sk_")) {
-      setKeyConfigStatus({ success: false, message: "Key must start with 'sk_live_' or 'sk_test_'." });
-      return;
-    }
-    try {
-      const res = await centralApiClient("/api/paystack/configure-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secretKey: secretKeyInput.trim() }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setKeyConfigStatus({ success: true, message: `Secret key configured successfully (${json.maskedKey})!` });
-        setSecretKeyInput("");
-      } else {
-        setKeyConfigStatus({ success: false, message: json.message || "Failed to configure key." });
-      }
-    } catch {
-      setKeyConfigStatus({ success: false, message: "Network error configuring key." });
-    }
-  };
 
   // Verify Live Status of Subaccount directly with Paystack API
   const handleVerifyLiveStatus = async (codeToVerify?: string) => {
@@ -196,18 +167,9 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     };
 
     fetchBanks();
-    console.log("[PaystackSubaccountOnboarding] Initial banks state:", banks);
   }, []);
 
-  // Handle Bank Selection Change
-  const handleBankChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const code = e.target.value;
-    setSelectedBankCode(code);
-    const found = banks.find((b) => b.code === code);
-    if (found) setSelectedBankName(found.name);
-    setResolvedAccountName("");
-    setResolutionError("");
-  };
+
 
   // Resolve Bank Account
   const handleResolveAccount = async () => {
@@ -620,16 +582,18 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
             </div>
 
             {/* Form Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700">
-              <button
-                type="button"
-                onClick={() => {
-                   if (onClose) onClose();
-                }}
-                className="px-4 py-2.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-100 text-xs font-bold rounded-xl transition cursor-pointer"
-              >
-                Set Up Subaccount Later
-              </button>
+            <div className={`flex items-center ${onClose ? "justify-between" : "justify-end"} pt-3 border-t border-slate-200 dark:border-slate-700`}>
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={() => {
+                     onClose();
+                  }}
+                  className="px-4 py-2.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-100 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Set Up Subaccount Later
+                </button>
+              )}
 
               <div className="flex items-center space-x-3">
                 {currentSubaccount && (

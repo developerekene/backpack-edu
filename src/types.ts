@@ -197,6 +197,8 @@ export interface Course {
   language?: string;
   subtitles?: string[];
   accessDuration?: string;
+  accessType?: "graduation_removal" | "lifetime" | "session_bound" | "fixed_term" | "custom";
+  studentRemovalOnGraduation?: boolean;
   learningObjectives?: string[];
   whyItMatters?: string;
   prerequisites?: string[];
@@ -249,15 +251,37 @@ export interface CourseModuleMedia {
 export interface CourseModuleItem {
   id: string;
   title: string;
-  type: "video" | "document" | "embed" | "text" | "link";
+  type: "text" | "video" | "document" | "audio" | "picture" | "embed" | "link";
+  description?: string;
   content?: string;
   url?: string;
+  videoUrl?: string;
+  documentUrl?: string;
+  audioUrl?: string;
+  pictureUrl?: string;
+  embedUrl?: string;
+  formats?: ("text" | "video" | "document" | "audio" | "picture" | "embed" | "link")[];
+  duration?: string;
+  learningOutcome?: string;
+}
+
+export type CourseLecture = CourseModuleItem;
+
+export interface CourseSection {
+  id: string;
+  title: string;
+  description?: string;
+  learningObjectives?: string;
+  items?: CourseModuleItem[];
+  lectures?: CourseModuleItem[];
 }
 
 export interface CourseModule {
   id: string;
   title: string;
   description?: string;
+  learningGoals?: string;
+  sections?: CourseSection[];
   items?: CourseModuleItem[];
 
   content?: string;
