@@ -34,8 +34,8 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
   const isOrg = currentUser?.role === "organization";
   const myOrg = isOrg
     ? organizations.find(
-        (o) => o.ownerId === currentUser.id || o.id === currentUser.id,
-      )
+      (o) => o.ownerId === currentUser.id || o.id === currentUser.id,
+    )
     : null;
 
   const [savedSubaccount, setSavedSubaccount] = useState<PaystackSubaccount | undefined>(undefined);
@@ -66,9 +66,9 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
   );
   const [businessName, setBusinessName] = useState(
     currentSubaccount?.business_name ||
-      (isOrg
-        ? myOrg?.name || currentUser?.name || ""
-        : currentUser?.name || ""),
+    (isOrg
+      ? myOrg?.name || currentUser?.name || ""
+      : currentUser?.name || ""),
   );
 
   // Paystack Subaccount Split Allocation (85% to subaccount, 15% to main account)
@@ -156,8 +156,8 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
   // Resolve Bank Account
   const handleResolveAccount = async () => {
     const curBank = banks.find((b) => b.code === selectedBankCode);
-    const activeCountry = selectedCountry !== "all" 
-      ? selectedCountry 
+    const activeCountry = selectedCountry !== "all"
+      ? selectedCountry
       : (selectedBankCountry || curBank?.country || curBank?.country_id || "");
     const spec = (!activeCountry || (selectedCountry === "all" && !selectedBankCode))
       ? { minLen: 6, maxLen: 30, description: "account number" }
@@ -197,13 +197,13 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         setResolutionError("");
       } else {
         // Do not auto-populate name if resolution failed to avoid incorrect bank account matching
-        setResolvedAccountName(""); 
+        setResolvedAccountName("");
         setResolutionError(
           String(json.message || "Unable to auto-resolve account name. Please verify or type your account holder name below."),
         );
       }
     } catch {
-      setResolvedAccountName(""); 
+      setResolvedAccountName("");
       setResolutionError("Network error during resolution. You can enter your account holder name directly below.");
     } finally {
       setResolvingAccount(false);
@@ -340,7 +340,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         </div>
       </div>
 
-        {/* Success Notification Banner */}
+      {/* Success Notification Banner */}
       {successMessage && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 p-4 rounded-xl flex items-start space-x-3 text-xs font-medium animate-in fade-in-50">
           <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
@@ -415,11 +415,10 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
             <div className="mt-4 pt-4 border-t border-emerald-200/60 dark:border-emerald-800/40">
               {liveVerificationNotice ? (
                 <div
-                  className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${
-                    liveVerificationNotice.isVerified
+                  className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${liveVerificationNotice.isVerified
                       ? "bg-emerald-100/80 dark:bg-emerald-900/40 text-emerald-900 dark:text-emerald-200"
                       : "bg-rose-100/80 dark:bg-rose-900/40 text-rose-900 dark:text-rose-200"
-                  }`}
+                    }`}
                 >
                   {liveVerificationNotice.isVerified ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -531,9 +530,8 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                         <Search className="w-4 h-4 text-slate-400" />
                         <input
                           type="text"
-                          placeholder={`Search ${banks.length} banks across ${
-                            selectedCountry === "all" ? "all countries" : selectedCountry
-                          }...`}
+                          placeholder={`Search ${banks.length} banks across ${selectedCountry === "all" ? "all countries" : selectedCountry
+                            }...`}
                           value={bankSearch}
                           onChange={(e) => setBankSearch(e.target.value)}
                           className="w-full bg-transparent text-xs text-slate-900 dark:text-white outline-none"
@@ -598,11 +596,10 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                                   return (
                                     <div
                                       key={`bank-${b.country_code || b.country}-${b.code}-${idx}`}
-                                      className={`px-3 py-2 text-xs rounded-lg cursor-pointer flex items-center justify-between transition ${
-                                        isSelected
+                                      className={`px-3 py-2 text-xs rounded-lg cursor-pointer flex items-center justify-between transition ${isSelected
                                           ? "bg-indigo-600 text-white font-semibold"
                                           : "text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40"
-                                      }`}
+                                        }`}
                                       onClick={() => {
                                         setSelectedBankCode(b.code);
                                         setSelectedBankName(b.name);
@@ -618,11 +615,10 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                                       </div>
                                       <div className="flex items-center space-x-1.5 shrink-0 ml-2">
                                         <span
-                                          className={`px-1.5 py-0.5 text-[9px] rounded font-mono ${
-                                            isSelected
+                                          className={`px-1.5 py-0.5 text-[9px] rounded font-mono ${isSelected
                                               ? "bg-white/20 text-white"
                                               : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                                          }`}
+                                            }`}
                                         >
                                           {b.country_code || b.country} · {b.currency}
                                         </span>
@@ -644,18 +640,18 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
               <div>
                 {(() => {
                   const curBank = banks.find((b) => b.code === selectedBankCode);
-                  const activeCountry = selectedCountry !== "all" 
-                    ? selectedCountry 
+                  const activeCountry = selectedCountry !== "all"
+                    ? selectedCountry
                     : (selectedBankCountry || curBank?.country || curBank?.country_id || "");
                   const spec = (!activeCountry || (selectedCountry === "all" && !selectedBankCode))
                     ? {
-                        minLen: 6,
-                        maxLen: 30,
-                        label: "Account Number",
-                        placeholder: "e.g. Account Number or IBAN",
-                        allowAlphanumeric: true,
-                        description: "Enter your bank account number.",
-                      }
+                      minLen: 6,
+                      maxLen: 30,
+                      label: "Account Number",
+                      placeholder: "e.g. Account Number or IBAN",
+                      allowAlphanumeric: true,
+                      description: "Enter your bank account number.",
+                    }
                     : getCountryAccountSpec(activeCountry);
                   return (
                     <>
@@ -712,7 +708,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                   required
                   value={resolvedAccountName}
                   onChange={(e) => setResolvedAccountName(e.target.value)}
-                  placeholder="e.g. John Doe / Apex Coding Academy Ltd"
+                  placeholder="e.g. Ogochukwu Okoli / Backpack Academy Ltd"
                   className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white uppercase font-bold focus:ring-2 focus:ring-indigo-500"
                 />
                 <p className="text-[10px] text-slate-500">
@@ -727,7 +723,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                 <button
                   type="button"
                   onClick={() => {
-                     onClose();
+                    onClose();
                   }}
                   className="px-4 py-2.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-100 text-xs font-bold rounded-xl transition cursor-pointer"
                 >

@@ -93,7 +93,7 @@ const Signup = () => {
             </p>
           </div>
         </div>
-        
+
         {error && (
           <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 px-4 py-3 rounded-xl mb-6 text-sm">
             {error}
@@ -111,7 +111,7 @@ const Signup = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500 outline-none transition-shadow text-sm"
-              placeholder="John Doe"
+              placeholder="Ogochukwu Okoli"
             />
           </div>
 
@@ -125,7 +125,7 @@ const Signup = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500 outline-none transition-shadow text-sm"
-              placeholder="you@example.com"
+              placeholder="ogo@example.com"
             />
           </div>
 
