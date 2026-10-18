@@ -146,6 +146,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            room: cleanRoomName,
+            identity: displayName,
             roomName: cleanRoomName,
             participantName: displayName,
             role: effectiveRole,
@@ -170,7 +172,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
         if (data.token) {
           setToken(data.token);
-          const targetWs = data.wsUrl || wsUrlFromEnv;
+          const targetWs = data.livekitUrl || data.wsUrl || wsUrlFromEnv;
           if (targetWs) {
             setResolvedWsUrl(targetWs);
             setUseLiveKitRoom(true);
@@ -204,6 +206,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          room: cleanRoomName,
+          identity: displayName,
           roomName: cleanRoomName,
           participantName: displayName,
           role: effectiveRole,
@@ -212,7 +216,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       const data = await res.json();
       if (data.token) {
         setToken(data.token);
-        const targetWs = data.wsUrl || wsUrlFromEnv;
+        const targetWs = data.livekitUrl || data.wsUrl || wsUrlFromEnv;
         if (targetWs) {
           setResolvedWsUrl(targetWs);
           setUseLiveKitRoom(true);

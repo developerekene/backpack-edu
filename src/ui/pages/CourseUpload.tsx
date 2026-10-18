@@ -2330,7 +2330,7 @@ const CourseUpload = () => {
                               e.target.value,
                             )
                           }
-                          placeholder="Measurable results or demonstration of targeted knowledge, skills, or behaviors students will possess"
+                          placeholder="Measurable results or demonstration of targeted knowledge, skills, or behaviors students can possess after instruction"
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
                           rows={2}
                         />

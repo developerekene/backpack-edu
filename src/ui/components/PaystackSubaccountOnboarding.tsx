@@ -18,27 +18,13 @@ import {
 import { PaystackSubaccount } from "../../types";
 import { ProviderRevenueBreakdownVisualizer } from "./ProviderRevenueBreakdownVisualizer";
 import { centralApiClient } from "../../lib/centralApiClient";
-
-interface BankOption {
-  name: string;
-  code: string;
-  country?: string;
-  country_code?: string;
-  currency?: string;
-}
-
-const FALLBACK_BANKS: BankOption[] = [
-  { name: "Guaranty Trust Bank (GTBank)", code: "058", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "Access Bank", code: "044", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "Zenith Bank", code: "057", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "United Bank for Africa (UBA)", code: "033", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "First Bank of Nigeria", code: "011", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "Kuda Bank", code: "50211", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "Moniepoint MFB", code: "50515", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "OPay Digital Services", code: "999992", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "Fidelity Bank", code: "070", country: "Nigeria", country_code: "NG", currency: "NGN" },
-  { name: "Stanbic IBTC Bank", code: "221", country: "Nigeria", country_code: "NG", currency: "NGN" },
-];
+import {
+  PAYSTACK_SUPPORTED_COUNTRIES,
+  PaystackBankRecord,
+  fetchAllWorldwideBanks,
+  WORLDWIDE_BANKS_CACHE,
+  getCountryAccountSpec,
+} from "../../lib/paystackBanks";
 
 export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const { currentUser, updateCurrentUser } = useAuth();
@@ -61,12 +47,19 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
   const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
 
   // Form State
-  const [banks, setBanks] = useState<BankOption[]>(FALLBACK_BANKS);
+  const [selectedCountry, setSelectedCountry] = useState<string>("all");
+  const [banks, setBanks] = useState<PaystackBankRecord[]>(WORLDWIDE_BANKS_CACHE);
   const [selectedBankCode, setSelectedBankCode] = useState(
-    currentSubaccount?.bank_code || "058",
+    currentSubaccount?.bank_code || "",
   );
   const [selectedBankName, setSelectedBankName] = useState(
-    currentSubaccount?.bank_name || "Guaranty Trust Bank (GTBank)",
+    currentSubaccount?.bank_name || "",
+  );
+  const [selectedBankCountry, setSelectedBankCountry] = useState(
+    currentSubaccount?.country || "",
+  );
+  const [selectedBankCurrency, setSelectedBankCurrency] = useState(
+    currentSubaccount?.currency || "",
   );
   const [accountNumber, setAccountNumber] = useState(
     currentSubaccount?.account_number || "",
@@ -138,43 +131,39 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     }
   };
 
-  // Fetch All Banks available on Paystack with fallback
+  // Fetch All Banks available on Paystack worldwide across all 7 countries
   useEffect(() => {
+    let isMounted = true;
     const fetchBanks = async () => {
       try {
-        const res = await centralApiClient("/api/paystack/banks?country=all");
-        if (res.ok) {
-          const json = await res.json();
-          if (json.banks && json.banks.length > 0) {
-            const rawBanks: BankOption[] = json.banks;
-            const uniqueBanksMap = new Map<string, BankOption>();
-            for (const b of rawBanks) {
-              const code = String(b.code || "").trim();
-              const key = `${b.country_code || b.country || "all"}-${code}`;
-              if (code && !uniqueBanksMap.has(key)) {
-                uniqueBanksMap.set(key, b);
-              }
-            }
-            const dedupedBanks = Array.from(uniqueBanksMap.values());
-            if (dedupedBanks.length > 0) {
-              setBanks(dedupedBanks);
-            }
-          }
+        const worldwideBanks = await fetchAllWorldwideBanks("all");
+        if (isMounted && worldwideBanks.length > 0) {
+          setBanks(worldwideBanks);
         }
       } catch (err) {
-        console.warn("Error loading banks from proxy, using built-in bank directory:", err);
+        console.warn("Error loading worldwide banks:", err);
       }
     };
 
     fetchBanks();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
 
 
   // Resolve Bank Account
   const handleResolveAccount = async () => {
-    if (!accountNumber || accountNumber.length < 10) {
-      setResolutionError("Please enter a valid 10-digit NUBAN account number.");
+    const curBank = banks.find((b) => b.code === selectedBankCode);
+    const activeCountry = selectedCountry !== "all" 
+      ? selectedCountry 
+      : (selectedBankCountry || curBank?.country || curBank?.country_id || "");
+    const spec = (!activeCountry || (selectedCountry === "all" && !selectedBankCode))
+      ? { minLen: 6, maxLen: 30, description: "account number" }
+      : getCountryAccountSpec(activeCountry);
+    if (!accountNumber || accountNumber.length < spec.minLen) {
+      setResolutionError(`Please enter a valid account number (${spec.description}).`);
       return;
     }
     if (!selectedBankCode) {
@@ -202,8 +191,9 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         };
       }
 
-      if (json.success && json.account_name) {
-        setResolvedAccountName(String(json.account_name));
+      const accountName = json.account_name || (json.data as Record<string, unknown>)?.account_name;
+      if ((json.success || json.status) && accountName) {
+        setResolvedAccountName(String(accountName));
         setResolutionError("");
       } else {
         // Do not auto-populate name if resolution failed to avoid incorrect bank account matching
@@ -264,19 +254,20 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         json = { success: false, message: "Subaccount creation service returned invalid response format." };
       }
 
-      if (json.success && json.subaccount_code) {
-        const subCode = String(json.subaccount_code);
-        const modeCreated: "test" | "live" = (json.mode as "test" | "live") || "test";
+      const subCode = json.subaccount_code || (json.data as Record<string, unknown>)?.subaccount_code;
+      if ((json.success || json.status) && subCode) {
+        const subCodeStr = String(subCode);
+        const modeCreated: "test" | "live" = (json.mode as "test" | "live") || ((json.data as Record<string, unknown>)?.mode as "test" | "live") || "test";
         const newSubaccountData: PaystackSubaccount = {
-          subaccount_code: subCode,
+          subaccount_code: subCodeStr,
           business_name: businessName.trim(),
           bank_code: selectedBankCode,
           bank_name:
             selectedBankName ||
             selectedBankObj?.name ||
             "Settlement Bank",
-          country: selectedBankObj?.country || "Nigeria",
-          currency: selectedBankObj?.currency || "NGN",
+          country: selectedBankObj?.country || selectedBankCountry || "Nigeria",
+          currency: selectedBankObj?.currency || selectedBankCurrency || "NGN",
           account_number: accountNumber.trim(),
           account_name: resolvedAccountName || businessName.trim(),
           percentage_charge: subaccountSharePercent,
@@ -477,50 +468,173 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                 />
               </div>
 
-              {/* Settlement Bank */}
+              {/* Settlement Bank & Worldwide Country Selector */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Settlement Bank <span className="text-red-500">*</span>
-                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Settlement Bank <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Country:</span>
+                    <select
+                      value={selectedCountry}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedCountry(val);
+                        if (val !== "all") {
+                          setSelectedBankCountry(val);
+                        }
+                        setBankSearch("");
+                      }}
+                      className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                    >
+                      {PAYSTACK_SUPPORTED_COUNTRIES.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.flag} {c.name} {c.id !== "all" ? `(${c.currency})` : `(${banks.length})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="relative">
                   <div
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 flex items-center justify-between cursor-pointer"
                     onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
                   >
-                    <span className="truncate">{banks.find((b) => b.code === selectedBankCode)?.name || "Select Settlement Bank"}</span>
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                    <div className="flex items-center space-x-2 truncate">
+                      {(() => {
+                        const cur = banks.find((b) => b.code === selectedBankCode);
+                        if (!selectedBankCode || !cur) return <span className="text-slate-400">Select Bank</span>;
+                        const countryInfo = PAYSTACK_SUPPORTED_COUNTRIES.find(
+                          (c) =>
+                            c.id === cur.country_id ||
+                            c.code.toLowerCase() === cur.country_code?.toLowerCase(),
+                        );
+                        return (
+                          <>
+                            <span>{countryInfo?.flag || "🏦"}</span>
+                            <span className="font-semibold">{cur.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                              {cur.country || "Global"} · {cur.currency || "NGN"}
+                            </span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
                   </div>
+
                   {isBankDropdownOpen && (
-                    <div className="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2 space-y-2">
+                    <div className="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2.5 space-y-2">
                       <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-700 pb-2">
                         <Search className="w-4 h-4 text-slate-400" />
                         <input
                           type="text"
-                          placeholder="Search banks..."
+                          placeholder={`Search ${banks.length} banks across ${
+                            selectedCountry === "all" ? "all countries" : selectedCountry
+                          }...`}
                           value={bankSearch}
                           onChange={(e) => setBankSearch(e.target.value)}
                           className="w-full bg-transparent text-xs text-slate-900 dark:text-white outline-none"
+                          autoFocus
                         />
+                        {bankSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setBankSearch("")}
+                            className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
                       </div>
-                      <div className="max-h-48 overflow-y-auto space-y-1">
-                        {console.log("[PaystackSubaccountOnboarding] Banks in dropdown:", banks, "Search:", bankSearch)}
-                        {banks
-                          .filter((b) => b.name.toLowerCase().includes(bankSearch.toLowerCase()))
-                          .map((b, idx) => (
-                            <div
-                              key={`bank-${b.code}-${idx}`}
-                              className="px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-lg cursor-pointer"
-                              onClick={() => {
-                                setSelectedBankCode(b.code);
-                                setSelectedBankName(b.name);
-                                setIsBankDropdownOpen(false);
-                                setBankSearch("");
-                              }}
-                            >
-                              {b.name}
+
+                      {(() => {
+                        const displayedBanks = banks.filter((b) => {
+                          if (selectedCountry !== "all") {
+                            const matchCountry =
+                              b.country_id === selectedCountry ||
+                              b.country_code?.toLowerCase() === selectedCountry.toLowerCase() ||
+                              b.country?.toLowerCase() === selectedCountry.toLowerCase();
+                            if (!matchCountry) return false;
+                          }
+                          if (bankSearch.trim()) {
+                            const q = bankSearch.toLowerCase().trim();
+                            const matchName = b.name.toLowerCase().includes(q);
+                            const matchCode = b.code.toLowerCase().includes(q);
+                            const matchCountry = (b.country || "").toLowerCase().includes(q);
+                            const matchCurrency = (b.currency || "").toLowerCase().includes(q);
+                            return matchName || matchCode || matchCountry || matchCurrency;
+                          }
+                          return true;
+                        });
+
+                        return (
+                          <>
+                            <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 px-1 flex items-center justify-between">
+                              <span>Showing {displayedBanks.length} banks</span>
+                              <span>
+                                {selectedCountry === "all"
+                                  ? "Worldwide"
+                                  : selectedCountry.toUpperCase()}
+                              </span>
                             </div>
-                          ))}
-                      </div>
+
+                            <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+                              {displayedBanks.length === 0 ? (
+                                <div className="p-4 text-center text-xs text-slate-500">
+                                  No banks match &ldquo;{bankSearch}&rdquo; in{" "}
+                                  {selectedCountry === "all" ? "any country" : selectedCountry}.
+                                </div>
+                              ) : (
+                                displayedBanks.map((b, idx) => {
+                                  const countryInfo = PAYSTACK_SUPPORTED_COUNTRIES.find(
+                                    (c) =>
+                                      c.id === b.country_id ||
+                                      c.code.toLowerCase() === b.country_code?.toLowerCase(),
+                                  );
+                                  const isSelected = selectedBankCode === b.code;
+                                  return (
+                                    <div
+                                      key={`bank-${b.country_code || b.country}-${b.code}-${idx}`}
+                                      className={`px-3 py-2 text-xs rounded-lg cursor-pointer flex items-center justify-between transition ${
+                                        isSelected
+                                          ? "bg-indigo-600 text-white font-semibold"
+                                          : "text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40"
+                                      }`}
+                                      onClick={() => {
+                                        setSelectedBankCode(b.code);
+                                        setSelectedBankName(b.name);
+                                        setSelectedBankCountry(b.country);
+                                        setSelectedBankCurrency(b.currency);
+                                        setIsBankDropdownOpen(false);
+                                        setBankSearch("");
+                                      }}
+                                    >
+                                      <div className="flex items-center space-x-2 truncate">
+                                        <span>{countryInfo?.flag || "🏦"}</span>
+                                        <span className="truncate">{b.name}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                                        <span
+                                          className={`px-1.5 py-0.5 text-[9px] rounded font-mono ${
+                                            isSelected
+                                              ? "bg-white/20 text-white"
+                                              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                          }`}
+                                        >
+                                          {b.country_code || b.country} · {b.currency}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -528,28 +642,54 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
 
               {/* Account Number */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  10-Digit Account Number (NUBAN) <span className="text-red-500">*</span>
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    required
-                    maxLength={10}
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
-                    placeholder="e.g. 0123456789"
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleResolveAccount}
-                    disabled={resolvingAccount || accountNumber.length < 10}
-                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition shrink-0 cursor-pointer"
-                  >
-                    {resolvingAccount ? "Verifying..." : "Verify Name"}
-                  </button>
-                </div>
+                {(() => {
+                  const curBank = banks.find((b) => b.code === selectedBankCode);
+                  const activeCountry = selectedCountry !== "all" 
+                    ? selectedCountry 
+                    : (selectedBankCountry || curBank?.country || curBank?.country_id || "");
+                  const spec = (!activeCountry || (selectedCountry === "all" && !selectedBankCode))
+                    ? {
+                        minLen: 6,
+                        maxLen: 30,
+                        label: "Account Number",
+                        placeholder: "e.g. Account Number or IBAN",
+                        allowAlphanumeric: true,
+                        description: "Enter your bank account number.",
+                      }
+                    : getCountryAccountSpec(activeCountry);
+                  return (
+                    <>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        {spec.label} <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          required
+                          maxLength={spec.maxLen}
+                          value={accountNumber}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setAccountNumber(spec.allowAlphanumeric ? val.replace(/[^a-zA-Z0-9]/g, "") : val.replace(/\D/g, ""));
+                          }}
+                          placeholder={spec.placeholder}
+                          className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleResolveAccount}
+                          disabled={resolvingAccount || accountNumber.length < spec.minLen}
+                          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition shrink-0 cursor-pointer"
+                        >
+                          {resolvingAccount ? "Verifying..." : "Verify Name"}
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                        {spec.description}
+                      </div>
+                    </>
+                  );
+                })()}
                 {resolutionError && (
                   <div className="text-amber-600 dark:text-amber-400 text-[11px] mt-1">
                     {resolutionError}

@@ -1,5 +1,5 @@
 import { ScheduleEvent } from '../types';
-import { centralApiClient } from './centralApiClient';
+import { centralApiClient, fetchLiveKitToken } from './centralApiClient';
 
 export const sanitizeRoomName = (name: string): string => {
   return (name || 'backpack-live-class')
@@ -137,7 +137,24 @@ export const createLiveKitMeetingUrl = async (params: {
       }
     }
   } catch (err) {
-    console.warn('[LiveKit API] create-url network fallback:', err);
+    console.warn('[LiveKit API] create-url network notice, falling back to direct token generator:', err);
+  }
+
+  // Direct Render backend token fallback (critical for static Firebase Hosting)
+  try {
+    const tokenData = await fetchLiveKitToken(params.roomName, params.participantName || 'Instructor');
+    if (tokenData && tokenData.token) {
+      const directUrl = getLiveKitDirectUrl(params.roomName);
+      return {
+        success: true,
+        url: directUrl,
+        joinUrl: directUrl,
+        token: tokenData.token,
+        wsUrl: tokenData.wsUrl || tokenData.livekitUrl,
+      };
+    }
+  } catch {
+    // Continue to standard fallback
   }
 
   // Graceful fallback to deterministic direct URL

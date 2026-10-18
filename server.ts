@@ -249,6 +249,7 @@ const PAYSTACK_SUPPORTED_COUNTRIES = [
   { id: "south africa", name: "South Africa", code: "ZA", currency: "ZAR" },
   { id: "cote d'ivoire", name: "Côte d'Ivoire", code: "CI", currency: "XOF" },
   { id: "egypt", name: "Egypt", code: "EG", currency: "EGP" },
+  { id: "rwanda", name: "Rwanda", code: "RW", currency: "RWF" },
 ];
 
 interface PaystackBankRecord {
@@ -276,7 +277,7 @@ async function fetchAllPaystackBanks(forceRefresh = false): Promise<PaystackBank
   console.log("[Paystack Banks] Fetching all banks across all supported countries from Paystack...");
   const countryFetchTasks = PAYSTACK_SUPPORTED_COUNTRIES.map(async (c) => {
     try {
-      const res = await fetch(`https://api.paystack.co/bank?country=${encodeURIComponent(c.id)}&perPage=100`, {
+      const res = await fetch(`https://api.paystack.co/bank?country=${encodeURIComponent(c.id)}&perPage=300`, {
         signal: AbortSignal.timeout(8000),
       });
       if (res.ok) {
@@ -323,8 +324,8 @@ async function fetchAllPaystackBanks(forceRefresh = false): Promise<PaystackBank
 // Initial async fetch on startup
 fetchAllPaystackBanks().catch(() => {});
 
-// --- 1. GET /api/paystack/banks ---
-app.get("/api/paystack/banks", async (req, res) => {
+// --- 1. GET /api/paystack/banks and /api/banks ---
+app.get(["/api/paystack/banks", "/api/banks"], async (req, res) => {
   const countryQuery = (req.query.country as string || "").trim().toLowerCase();
   try {
     const allBanks = await fetchAllPaystackBanks();
@@ -367,8 +368,8 @@ function pingRenderGateway() {
 pingRenderGateway();
 setInterval(pingRenderGateway, 3 * 60 * 1000); // keep warm every 3 minutes
 
-// --- 2. GET /api/paystack/resolve-account ---
-app.get("/api/paystack/resolve-account", async (req, res) => {
+// --- 2. GET /api/paystack/resolve-account and variants ---
+app.get(["/api/paystack/resolve-account", "/api/resolve-account", "/api/bank/resolve"], async (req, res) => {
   const { account_number, bank_code } = req.query;
   if (!account_number || !bank_code) {
     return res.status(400).json({ success: false, message: "account_number and bank_code are required" });
@@ -426,15 +427,17 @@ app.get("/api/paystack/resolve-account", async (req, res) => {
     if (renderProxyRes.ok && (proxyJson.status || proxyJson.subaccount_code || proxyJson.data)) {
       const data = proxyJson.data || proxyJson;
       const resolvedName = data.account_name || (data.business_name && data.business_name !== "Account Verification Probe" ? data.business_name : "");
-      console.log(`[Gateway] Account resolved via proxy: ${resolvedName || data.settlement_bank}`);
-      return res.json({
-        success: true,
-        account_name: resolvedName || `${data.settlement_bank || "Bank"} Verified Account`,
-        account_number: data.account_number || cleanAcc,
-        bank_name: data.settlement_bank,
-        currency: data.currency,
-        verified: true,
-      });
+      if (resolvedName) {
+        console.log(`[Gateway] Account resolved via proxy: ${resolvedName}`);
+        return res.json({
+          success: true,
+          account_name: resolvedName,
+          account_number: data.account_number || cleanAcc,
+          bank_name: data.settlement_bank,
+          currency: data.currency,
+          verified: true,
+        });
+      }
     }
 
     if (proxyJson.detail?.message) {
