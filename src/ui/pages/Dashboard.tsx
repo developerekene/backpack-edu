@@ -693,6 +693,16 @@ const Dashboard = () => {
   }
 
   // Organization / Instructor Dashboard Logic
+  const myOrg =
+    currentUser.role === "organization"
+      ? organizations.find(
+          (o) =>
+            o.id === currentUser.id ||
+            o.ownerId === currentUser.id ||
+            o.id === `org_${currentUser.id}`,
+        )
+      : null;
+
   const myOrgMemberRecords = orgMembers.filter(
     (m) =>
       m.email?.toLowerCase().trim() === currentUser.email?.toLowerCase().trim() ||
@@ -726,15 +736,6 @@ const Dashboard = () => {
                 currentUser.name.toLowerCase().trim()),
         );
 
-  const myOrg =
-    currentUser.role === "organization"
-      ? organizations.find(
-          (o) =>
-            o.id === currentUser.id ||
-            o.ownerId === currentUser.id ||
-            o.id === `org_${currentUser.id}`,
-        )
-      : null;
   const isPaidOrg = myOrg?.plan === "paid" || currentUser.plan === "paid";
   const orgCourseLimitReached =
     currentUser.role === "organization" && !isPaidOrg && myCourses.length >= 15;
