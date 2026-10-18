@@ -708,12 +708,7 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
   }
 
   const amountInKobo = Math.round(Number(amount) * 100);
-  const baseAmountInKobo = req.body.base_amount
-    ? Math.round(Number(req.body.base_amount) * 100)
-    : Math.round(amountInKobo / 1.15);
-  const transactionChargeInKobo = req.body.transaction_charge
-    ? Math.round(Number(req.body.transaction_charge) * 100)
-    : Math.max(0, amountInKobo - baseAmountInKobo);
+  const transactionChargeInKobo = Math.round(amountInKobo * 0.85); // 85% to subaccount
 
   // Enforce TEST mode per user instruction (still use test keys even in production)
   const activeMode = "test";
@@ -746,17 +741,16 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
           amount: amountInKobo,
           subaccount_code: targetSubaccount,
           subaccount: targetSubaccount,
-          transaction_charge: baseAmountInKobo,
-          bearer: "account", // Our main account bears 100% of Paystack fees, subaccount gets 100% of their base tuition fee
+          transaction_charge: transactionChargeInKobo,
+          bearer: "account", // Our main account bears 100% of Paystack fees, subaccount gets 85% of total
           mode: activeMode,
           currency,
           metadata: {
             ...metadata,
-            base_amount_kobo: baseAmountInKobo,
-            platform_fee_kobo: transactionChargeInKobo,
-            subaccount_receives_kobo: amountInKobo - transactionChargeInKobo,
-            subaccount_fee_allocation: "100% of base fee",
-            platform_fee_allocation: "15% platform addition minus paystack fees",
+            subaccount_receives_percent: 85,
+            platform_receives_percent: 15,
+            subaccount_fee_allocation: "85% of total amount",
+            platform_fee_allocation: "15% of total amount minus paystack fees",
             bearer: "account",
           },
         }),
@@ -799,22 +793,21 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
         email,
         amount: amountInKobo,
         currency,
-        bearer: "account", // Main account bears full Paystack fees so subaccount gets 100% of their base fee
+        bearer: "account", // Main account bears full Paystack fees so subaccount gets 85% of total
         metadata: {
           ...metadata,
           subaccount_code: targetSubaccount,
           mode: activeMode,
-          base_amount_kobo: baseAmountInKobo,
-          platform_fee_kobo: transactionChargeInKobo,
-          subaccount_receives_kobo: amountInKobo - transactionChargeInKobo,
-          subaccount_fee_allocation: "100% of base fee",
-          platform_fee_allocation: "15% platform addition minus paystack fees",
+          subaccount_receives_percent: 85,
+          platform_receives_percent: 15,
+          subaccount_fee_allocation: "85% of total amount",
+          platform_fee_allocation: "15% of total amount minus paystack fees",
           bearer: "account",
         },
       };
       if (targetSubaccount) {
         payload.subaccount = targetSubaccount;
-        payload.transaction_charge = baseAmountInKobo;
+        payload.transaction_charge = transactionChargeInKobo;
       }
 
       const response = await fetch("https://api.paystack.co/transaction/initialize", {

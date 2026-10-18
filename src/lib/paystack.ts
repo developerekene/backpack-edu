@@ -71,12 +71,7 @@ export const triggerPaystackPayment = (options: PaystackTransactionOptions) => {
   }
 
   const amountInKobo = Math.round(options.amount * 100);
-  const baseAmountInKobo = options.baseAmount
-    ? Math.round(options.baseAmount * 100)
-    : Math.round(amountInKobo / 1.15);
-  const transactionChargeInKobo = options.transactionCharge
-    ? Math.round(options.transactionCharge * 100)
-    : Math.max(0, amountInKobo - baseAmountInKobo);
+  const transactionChargeInKobo = Math.round(amountInKobo * 0.85); // 85% to subaccount
 
   const targetSubaccount = options.subaccount_code || options.subaccount;
 
@@ -245,11 +240,10 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
         ...(options.metadata || {}),
         subaccount_code: targetSubaccount,
         bearer: "account",
-        base_amount_kobo: baseAmountInKobo,
-        platform_fee_kobo: transactionChargeInKobo,
-        subaccount_receives_kobo: amountInKobo - transactionChargeInKobo,
-        subaccount_fee_allocation: "100% of base fee",
-        platform_fee_allocation: "15% platform addition minus paystack fees",
+        subaccount_receives_percent: 85,
+        platform_receives_percent: 15,
+        subaccount_fee_allocation: "85% of total amount",
+        platform_fee_allocation: "15% of total amount minus paystack fees",
         mode: "test",
       },
     };
@@ -257,7 +251,7 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
     if (targetSubaccount) {
       txConfig.subaccount = targetSubaccount;
       txConfig.subaccount_code = targetSubaccount;
-      txConfig.transaction_charge = baseAmountInKobo;
+      txConfig.transaction_charge = transactionChargeInKobo;
       txConfig.bearer = "account";
     }
     if (options.split_code) {
