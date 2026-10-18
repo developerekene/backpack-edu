@@ -245,6 +245,11 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
         ...(options.metadata || {}),
         subaccount_code: targetSubaccount,
         bearer: "account",
+        base_amount_kobo: baseAmountInKobo,
+        platform_fee_kobo: transactionChargeInKobo,
+        subaccount_receives_kobo: amountInKobo - transactionChargeInKobo,
+        subaccount_fee_allocation: "100% of base fee",
+        platform_fee_allocation: "15% platform addition minus paystack fees",
         mode: "test",
       },
     };
@@ -252,7 +257,7 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
     if (targetSubaccount) {
       txConfig.subaccount = targetSubaccount;
       txConfig.subaccount_code = targetSubaccount;
-      txConfig.transaction_charge = transactionChargeInKobo;
+      txConfig.transaction_charge = baseAmountInKobo;
       txConfig.bearer = "account";
     }
     if (options.split_code) {

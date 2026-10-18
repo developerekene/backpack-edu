@@ -303,7 +303,7 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
                   </li>
                   <li className="flex items-center">
                     <Check className="w-4 h-4 mr-1.5 text-emerald-500 shrink-0" />
-                    Paystack Subaccount Payouts
+                    Automated Direct Payouts
                   </li>
                 </ul>
               </div>
@@ -315,7 +315,7 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
               </div>
             )}
 
-            {/* Paystack Checkout Action */}
+            {/* Payment Action */}
             <div className="space-y-3 pt-2">
               <button
                 type="button"
@@ -326,8 +326,8 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
                 <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
                 <span>
                   {loading
-                    ? "Connecting to Paystack..."
-                    : `Pay ${currency === "NGN" ? "₦35,000" : "$50"} with Paystack`}
+                    ? "Processing Payment..."
+                    : `Pay ${currency === "NGN" ? "₦35,000" : "$50"}`}
                 </span>
               </button>
 
@@ -347,7 +347,7 @@ export const OrgPlanUpgradeModal: React.FC<OrgPlanUpgradeModalProps> = ({
                   <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-500" />
                   256-bit Encrypted Checkout
                 </span>
-                <span>Powered by Paystack</span>
+                <span>Powered by Secure Payment Gateway</span>
               </div>
             </div>
           </div>

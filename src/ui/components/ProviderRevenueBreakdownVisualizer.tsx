@@ -250,7 +250,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
                 {currency} {formatPriceWithDecimals(baseTuition)}
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Paid directly to your bank account via Paystack Subaccount{" "}
+                Paid directly to your bank account via your connected payout subaccount{" "}
                 {subaccountCode ? `(${subaccountCode})` : ""}.
               </p>
               {bankName && accountNumber && (

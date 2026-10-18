@@ -746,11 +746,19 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
           amount: amountInKobo,
           subaccount_code: targetSubaccount,
           subaccount: targetSubaccount,
-          transaction_charge: transactionChargeInKobo,
+          transaction_charge: baseAmountInKobo,
           bearer: "account", // Our main account bears 100% of Paystack fees, subaccount gets 100% of their base tuition fee
           mode: activeMode,
           currency,
-          metadata,
+          metadata: {
+            ...metadata,
+            base_amount_kobo: baseAmountInKobo,
+            platform_fee_kobo: transactionChargeInKobo,
+            subaccount_receives_kobo: amountInKobo - transactionChargeInKobo,
+            subaccount_fee_allocation: "100% of base fee",
+            platform_fee_allocation: "15% platform addition minus paystack fees",
+            bearer: "account",
+          },
         }),
       });
 
@@ -791,16 +799,22 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
         email,
         amount: amountInKobo,
         currency,
-        bearer: "account", // Main account bears full Paystack fees so subaccount gets 100% of their money
+        bearer: "account", // Main account bears full Paystack fees so subaccount gets 100% of their base fee
         metadata: {
           ...metadata,
           subaccount_code: targetSubaccount,
           mode: activeMode,
+          base_amount_kobo: baseAmountInKobo,
+          platform_fee_kobo: transactionChargeInKobo,
+          subaccount_receives_kobo: amountInKobo - transactionChargeInKobo,
+          subaccount_fee_allocation: "100% of base fee",
+          platform_fee_allocation: "15% platform addition minus paystack fees",
+          bearer: "account",
         },
       };
       if (targetSubaccount) {
         payload.subaccount = targetSubaccount;
-        payload.transaction_charge = transactionChargeInKobo;
+        payload.transaction_charge = baseAmountInKobo;
       }
 
       const response = await fetch("https://api.paystack.co/transaction/initialize", {

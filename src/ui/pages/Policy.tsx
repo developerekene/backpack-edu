@@ -199,7 +199,7 @@ const sections: PolicySection[] = [
           [
             "Payment details",
             "All users",
-            "Processed securely by Paystack for transactions",
+            "Processed securely by our payment gateway for transactions",
           ],
           [
             "Proctored session recordings",
@@ -306,7 +306,7 @@ const sections: PolicySection[] = [
       {
         type: "list",
         items: [
-          "Service providers \u2014 trusted companies that help us run the Platform, such as payment processors (Paystack), video and live-class infrastructure (LiveKit), hosting, and analytics providers.",
+          "Service providers \u2014 trusted companies that help us run the Platform, such as payment processors, video and live-class infrastructure (LiveKit), hosting, and analytics providers.",
           "Organizations that sponsor your course \u2014 if you enroll through a school or academy, that organization may see your progress and assessment results to support your learning.",
           "With your consent \u2014 we share information when you have clearly asked us to.",
           "Legal and safety requirements \u2014 we may disclose information to comply with a legal obligation, protect the rights and safety of our users, or respond to valid legal requests.",
@@ -609,7 +609,7 @@ const sections: PolicySection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "We use reputable providers to handle certain parts of the experience, including payment processing (Paystack) and live video (LiveKit). These providers have their own privacy practices, which you can review on their websites.",
+        text: "We use reputable providers to handle certain parts of the experience, including payment processing and live video (LiveKit). These providers have their own privacy practices, which you can review on their websites.",
       },
       {
         type: "paragraph",
@@ -806,7 +806,7 @@ const sections: PolicySection[] = [
       {
         type: "subsection",
         heading: "Payment Processing & Zero Data Retention",
-        text: "All payment transactions are handled through PCI-DSS Level 1 compliant processors (Paystack). Backpack servers never store sensitive credit/debit card numbers, CVVs, or cardholder banking credentials, ensuring compliance with the Nigeria Data Protection Act (NDPA), GDPR, and international e-payment security standards.",
+        text: "All payment transactions are handled through PCI-DSS Level 1 compliant processors. Backpack servers never store sensitive credit/debit card numbers, CVVs, or cardholder banking credentials, ensuring compliance with the Nigeria Data Protection Act (NDPA), GDPR, and international e-payment security standards.",
       },
       {
         type: "note",

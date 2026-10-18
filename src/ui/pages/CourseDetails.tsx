@@ -86,6 +86,7 @@ const CourseDetails = () => {
     organizations,
     courseDonations,
     getCourseAdmissionGate,
+    deleteCourse,
   } = useAppContext();
   const { currentUser } = useAuth();
   const [isCallActiveInApp, setIsCallActiveInApp] = useState(() => {
@@ -168,6 +169,7 @@ const CourseDetails = () => {
   const [linkCopied, setLinkCopied] = useState(false);
   const [copiedClassLink, setCopiedClassLink] = useState(false);
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleCopyClassUrl = async (targetRoom: string) => {
     try {
@@ -341,6 +343,18 @@ const CourseDetails = () => {
       (course?.orgId === currentUser?.id ||
         course?.orgId === `org_${currentUser?.id}` ||
         (myOrg && (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)))),
+  );
+
+  const canDeleteCourse = Boolean(
+    currentUser?.role === "organization" &&
+    course &&
+    (
+      course.orgId === currentUser.id ||
+      course.orgId === `org_${currentUser.id}` ||
+      course.createdBy === currentUser.id ||
+      (currentUser.id && course.orgId?.includes(currentUser.id)) ||
+      (myOrg && (course.orgId === myOrg.id || course.orgId === myOrg.ownerId || course.orgId === `org_${myOrg.id}`))
+    )
   );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
@@ -887,6 +901,8 @@ const CourseDetails = () => {
           onGoToClassroom={() => setViewMode("classroom")}
           canEditCourse={canEditCourse}
           onEditCourse={() => setShowEditCourseModal(true)}
+          canDeleteCourse={canDeleteCourse}
+          onDeleteCourse={() => setShowDeleteModal(true)}
         />
 
         {showEditCourseModal && course && (
@@ -958,6 +974,23 @@ const CourseDetails = () => {
             setAlertConfig((prev) => ({ ...prev, isOpen: false }))
           }
         />
+
+        {course && (
+          <CustomAlert
+            isOpen={showDeleteModal}
+            title="Delete Course Permanently?"
+            message={`Are you sure you want to delete "${course.title}"? This action will permanently remove this course, syllabus modules, admission sessions, and all course materials.`}
+            confirmText="Yes, Delete Course"
+            cancelText="Cancel"
+            type="danger"
+            onConfirm={async () => {
+              await deleteCourse(course.id);
+              setShowDeleteModal(false);
+              navigate("/dashboard");
+            }}
+            onCancel={() => setShowDeleteModal(false)}
+          />
+        )}
       </div>
     );
   }
@@ -1096,6 +1129,18 @@ const CourseDetails = () => {
             >
               <Settings2 className="w-4 h-4 mr-1.5 text-indigo-500" />
               Manage Admission Sessions
+            </button>
+          )}
+
+          {canDeleteCourse && !isStudent && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition text-xs shadow-xs cursor-pointer"
+              title="Delete this course permanently"
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              Delete Course
             </button>
           )}
 
@@ -2048,6 +2093,23 @@ const CourseDetails = () => {
         <EditCourseDetailsModal
           course={course}
           onClose={() => setShowEditCourseModal(false)}
+        />
+      )}
+
+      {course && (
+        <CustomAlert
+          isOpen={showDeleteModal}
+          title="Delete Course Permanently?"
+          message={`Are you sure you want to delete "${course.title}"? This action will permanently remove this course, syllabus modules, admission sessions, and all course materials.`}
+          confirmText="Yes, Delete Course"
+          cancelText="Cancel"
+          type="danger"
+          onConfirm={async () => {
+            await deleteCourse(course.id);
+            setShowDeleteModal(false);
+            navigate("/dashboard");
+          }}
+          onCancel={() => setShowDeleteModal(false)}
         />
       )}
 

@@ -70,12 +70,15 @@ export const CourseModulesTab = ({
     isOpen: boolean;
     title: string;
     message: string;
-    onConfirm: () => Promise<void> | void;
+    confirmText?: string;
+    cancelText?: string;
+    type?: "info" | "warning" | "error" | "success" | "danger";
+    onConfirm?: () => Promise<void> | void;
   }>({
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    type: "danger",
   });
 
   const progress = userProgress.find(
@@ -138,6 +141,8 @@ export const CourseModulesTab = ({
       title: "Delete Module",
       message:
         "Are you sure you want to delete this module? This action cannot be undone.",
+      confirmText: "Yes, Delete Module",
+      type: "danger",
       onConfirm: async () => {
         await new Promise((r) => setTimeout(r, 400));
         const newModules = [...localModules];
@@ -184,6 +189,8 @@ export const CourseModulesTab = ({
       title: "Delete Item",
       message:
         "Are you sure you want to delete this curriculum item? This action cannot be undone.",
+      confirmText: "Yes, Delete Item",
+      type: "danger",
       onConfirm: async () => {
         await new Promise((r) => setTimeout(r, 400));
         const newModules = [...localModules];
@@ -791,6 +798,9 @@ export const CourseModulesTab = ({
         isOpen={alertConfig.isOpen}
         title={alertConfig.title}
         message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        type={alertConfig.type}
         onConfirm={alertConfig.onConfirm}
         onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
       />

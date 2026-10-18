@@ -72,9 +72,19 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
             <h3 className="text-lg font-bold text-slate-900 dark:text-white text-center mb-2">
               {title}
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-4">
               {message}
             </p>
+
+            {(type === "danger" || (confirmText && confirmText.toLowerCase().includes("delete"))) && (
+              <div className="mb-5 p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-left flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                  <span className="block font-bold">⚠️ Warning: Deletion is Permanent</span>
+                  This action cannot be undone. All associated records and data will be permanently deleted.
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-3">
               <button

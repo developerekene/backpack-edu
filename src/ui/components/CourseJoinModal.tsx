@@ -286,6 +286,8 @@ export const CourseJoinModal: React.FC<CourseJoinModalProps> = ({
                                     <PaystackButtonWrapper
                                         email={currentUser.email}
                                         amount={paymentAmount}
+                                        baseAmount={baseTuitionAmount}
+                                        transactionCharge={platform15Addition}
                                         currency={course.currency}
                                         subaccountCode={subaccount?.subaccount_code}
                                         mode={subaccount?.mode || "test"}

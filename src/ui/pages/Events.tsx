@@ -23,6 +23,7 @@ import { useEventContext } from "../../store/EventContext";
 import type { AppEvent } from "../../store/EventContext";
 import { EventCreation } from "../components/EventCreation";
 import { EventDetailsModel } from "../components/EventDetailsModel";
+import { CustomAlert } from "../components/CustomAlert";
 import {
   courseTypeLabel,
   EVENT_MODE_BADGE_STYLES,
@@ -131,13 +132,11 @@ const Events: React.FC = () => {
     }
   };
 
+  const [eventToDelete, setEventToDelete] = useState<AppEvent | null>(null);
+
   /* Organizations can remove their events. */
   const handleDeleteEvent = (event: AppEvent) => {
-    const confirmed = window.confirm(
-      `Delete "${event.title}"? This cannot be undone.`,
-    );
-    if (!confirmed) return;
-    deleteEvent(event.id);
+    setEventToDelete(event);
   };
 
   return (
@@ -467,6 +466,22 @@ const Events: React.FC = () => {
         <EventDetailsModel
           event={detailsEvent}
           onClose={() => setDetailsEvent(null)}
+        />
+      )}
+
+      {eventToDelete && (
+        <CustomAlert
+          isOpen={Boolean(eventToDelete)}
+          title="Delete Event Permanently?"
+          message={`Are you sure you want to delete "${eventToDelete.title}"?`}
+          confirmText="Yes, Delete Event"
+          cancelText="Cancel"
+          type="danger"
+          onConfirm={() => {
+            deleteEvent(eventToDelete.id);
+            setEventToDelete(null);
+          }}
+          onCancel={() => setEventToDelete(null)}
         />
       )}
     </div>

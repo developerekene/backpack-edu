@@ -47,6 +47,7 @@ const Dashboard = () => {
     addEnrollmentRequest,
     openCourseAdmission,
     closeCourseAdmission,
+    deleteCourse,
     courses,
     userProgress,
     orgMembers,
@@ -70,6 +71,8 @@ const Dashboard = () => {
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [showOrgUpgradeModal, setShowOrgUpgradeModal] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [deletingCourse, setDeletingCourse] = useState(false);
 
   if (!currentUser)
     return <div className="p-8 text-center text-slate-500">Please login.</div>;
@@ -740,6 +743,16 @@ const Dashboard = () => {
   const orgCourseLimitReached =
     currentUser.role === "organization" && !isPaidOrg && myCourses.length >= 15;
 
+  const isCourseOwner = (c: Course) =>
+    currentUser?.role === "organization" &&
+    (
+      c.orgId === currentUser.id ||
+      c.orgId === `org_${currentUser.id}` ||
+      c.createdBy === currentUser.id ||
+      (currentUser.id && c.orgId?.includes(currentUser.id)) ||
+      (myOrg && (c.orgId === myOrg.id || c.orgId === myOrg.ownerId || c.orgId === `org_${myOrg.id}`))
+    );
+
   const orgRequests =
     currentUser.role === "organization"
       ? enrollmentRequests.filter(
@@ -1036,25 +1049,37 @@ const Dashboard = () => {
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-xs">
                   {currentUser.role === "organization" ? (
-                    <button
-                      onClick={async () => {
-                        if (isOpen) {
-                          await closeCourseAdmission(course.id);
-                        } else {
-                          await openCourseAdmission(
-                            course.id,
-                            course.activeSessionId,
-                          );
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition border ${
-                        isOpen
-                          ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-100"
-                          : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100"
-                      }`}
-                    >
-                      {isOpen ? "Close Admission" : "Open Admission"}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={async () => {
+                          if (isOpen) {
+                            await closeCourseAdmission(course.id);
+                          } else {
+                            await openCourseAdmission(
+                              course.id,
+                              course.activeSessionId,
+                            );
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition border ${
+                          isOpen
+                            ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-100"
+                            : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100"
+                        }`}
+                      >
+                        {isOpen ? "Close Admission" : "Open Admission"}
+                      </button>
+                      {isCourseOwner(course) && (
+                        <button
+                          type="button"
+                          onClick={() => setCourseToDelete(course)}
+                          className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg font-bold text-xs transition cursor-pointer"
+                          title="Delete course permanently"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-[11px] text-slate-500 font-medium italic">
                       Managed by Organization
@@ -1162,6 +1187,60 @@ const Dashboard = () => {
           setShowOrgUpgradeModal(false);
         }}
       />
+
+      {/* Course Delete Confirmation Modal */}
+      {courseToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4 text-center">
+            <div className="w-14 h-14 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center mx-auto border border-red-500/20">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                Delete Course Permanently?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                Are you sure you want to delete <strong className="text-slate-800 dark:text-slate-200">"{courseToDelete.title}"</strong>? This will permanently remove the course, its syllabus modules, admission sessions, and learning materials.
+              </p>
+              <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-600 dark:text-red-400 text-left font-semibold flex items-start space-x-2.5">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <span className="block font-bold">⚠️ Warning: Deletion is Permanent</span>
+                  This action cannot be undone. All course content, modules, enrollments, and learning materials will be permanently erased.
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                disabled={deletingCourse}
+                onClick={() => setCourseToDelete(null)}
+                className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingCourse}
+                onClick={async () => {
+                  setDeletingCourse(true);
+                  try {
+                    await deleteCourse(courseToDelete.id);
+                    setCourseToDelete(null);
+                  } catch (err) {
+                    console.error("Failed to delete course:", err);
+                  } finally {
+                    setDeletingCourse(false);
+                  }
+                }}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-md shadow-red-600/20 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {deletingCourse ? "Deleting..." : "Yes, Delete Course"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

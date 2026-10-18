@@ -5,10 +5,11 @@ import { triggerPaystackPayment, generateReferenceNumber } from "../../lib/payst
 interface PaystackProps {
   email: string;
   amount: number;
+  baseAmount?: number;
+  transactionCharge?: number;
   currency: string;
   subaccountCode?: string;
   splitCode?: string;
-  // isLive?: boolean; // Commented out per user instruction
   mode?: "test" | "live";
   providerName?: string;
   providerSharePercent?: number;
@@ -26,6 +27,8 @@ interface PaystackProps {
 export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
   email,
   amount,
+  baseAmount,
+  transactionCharge,
   currency,
   subaccountCode,
   splitCode,
@@ -60,6 +63,8 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
     triggerPaystackPayment({
       email,
       amount,
+      baseAmount,
+      transactionCharge,
       currency: currency || "NGN",
       subaccount: subaccountCode,
       subaccount_code: subaccountCode,
@@ -78,6 +83,10 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         providerName,
         subaccount_code: subaccountCode,
         subaccountCode,
+        base_amount: baseAmount,
+        transaction_charge: transactionCharge,
+        bearer: "account",
+        split_rule: "subaccount_100pct_base_fee_platform_bears_paystack_fees",
         mode: mode || "test",
       },
       onSuccess: (res) => {
@@ -147,13 +156,13 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         <div className="flex items-center justify-center space-x-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold pt-1">
           <Split className="w-3 h-3 text-emerald-500" />
           <span>
-            Paystack Split Enabled • Direct Payout to {providerName || "Provider"} ({subaccountCode})
+            Payment Split Enabled • Direct Payout to {providerName || "Provider"} ({subaccountCode})
           </span>
         </div>
       )}
 
       <div className="flex items-center justify-center space-x-2 text-[10px] text-slate-400 pt-0.5">
-        <span>256-bit Encrypted Checkout • Powered by Paystack</span>
+        <span>256-bit Encrypted Checkout • Powered by Secure Payment Gateway</span>
       </div>
     </div>
   );

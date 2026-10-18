@@ -194,7 +194,7 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
                   Gateway
                 </span>
                 <span className="text-[10px] text-slate-500">
-                  Powered by Paystack
+                  Powered by Secure Gateway
                 </span>
               </div>
             </div>
@@ -218,9 +218,16 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
                 </span>
               </div>
 
+              <div className="flex justify-between items-center text-[10.5px] text-slate-500 dark:text-slate-400">
+                <span>Gateway Processing Fee:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  Shouldered 100% by Platform (0% from subaccount)
+                </span>
+              </div>
+
               {subaccount ? (
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400 pt-1 font-mono">
-                  ✓ Routed to Paystack Subaccount {subaccount.subaccount_code} (
+                  ✓ Routed to Payment Subaccount {subaccount.subaccount_code} (
                   {subaccount.bank_name || "Bank"})
                 </p>
               ) : (
@@ -255,6 +262,8 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
           <PaystackButtonWrapper
             email={currentUser.email}
             amount={paymentAmount}
+            baseAmount={baseTuitionAmount}
+            transactionCharge={platform15Addition}
             currency={course.currency}
             subaccountCode={subaccount?.subaccount_code}
             mode={subaccount?.mode || "test"}

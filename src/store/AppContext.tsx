@@ -89,6 +89,7 @@ interface AppState {
   deleteOrganization: (id: string) => Promise<void>;
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
+  deleteCourse: (courseId: string) => Promise<void>;
   addCourseDonation: (donation: CourseDonation) => Promise<void>;
   getCourseAdmissionGate: (courseId: string) => AdmissionGateStatus;
   addEnrollmentRequest: (req: EnrollmentRequest) => Promise<void>;
@@ -827,6 +828,108 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setCourses((prev) =>
       prev.map((c) => (c.id === courseId ? { ...c, ...cleaned } : c)),
     );
+  };
+
+  const deleteCourse = async (courseId: string) => {
+    const existingCourse = courses.find((c) => c.id === courseId);
+    if (!existingCourse) {
+      console.warn("Course not found for deletion:", courseId);
+      return;
+    }
+
+    // Strict ownership validation: user must be an organization that owns this course
+    const isOwner =
+      currentUser?.role === "organization" &&
+      (
+        existingCourse.orgId === currentUser.id ||
+        existingCourse.orgId === `org_${currentUser.id}` ||
+        existingCourse.createdBy === currentUser.id ||
+        (currentUser.id && existingCourse.orgId?.includes(currentUser.id)) ||
+        organizations.some(
+          (o) =>
+            (o.id === currentUser.id || o.ownerId === currentUser.id) &&
+            (existingCourse.orgId === o.id ||
+              existingCourse.orgId === o.ownerId ||
+              existingCourse.orgId === `org_${o.id}` ||
+              existingCourse.orgId === `org_${o.ownerId}`),
+        )
+      );
+
+    if (!isOwner) {
+      console.error("Unauthorized course deletion attempt:", courseId);
+      throw new Error("Unauthorized: Only the organization that owns this course can delete it.");
+    }
+
+    // 1. Remove from all possible target UIDs in backpack
+    const targetUids = new Set<string>();
+    if (existingCourse.orgId) {
+      targetUids.add(existingCourse.orgId);
+      if (existingCourse.orgId.startsWith("org_")) {
+        targetUids.add(existingCourse.orgId.replace("org_", ""));
+      }
+    }
+    if (existingCourse.createdBy) {
+      targetUids.add(existingCourse.createdBy);
+    }
+    if (currentUser?.id) {
+      targetUids.add(currentUser.id);
+    }
+
+    for (const uid of targetUids) {
+      try {
+        await updateBackpackUserField<Course>(
+          uid,
+          "course.courses",
+          (list) => list.filter((c) => c.id !== courseId),
+        );
+      } catch (err) {
+        console.warn(`Could not update backpack for uid ${uid}:`, err);
+      }
+    }
+
+    // 2. Also check all backpack docs to ensure complete removal from backend
+    try {
+      const snap = await getDocs(collection(db, "backpack"));
+      for (const docSnap of snap.docs) {
+        if (!targetUids.has(docSnap.id)) {
+          const data = docSnap.data();
+          const userObj = getUserData(data);
+          const courseObj = (userObj.course as Record<string, unknown>) || {};
+          if (
+            Array.isArray(courseObj.courses) &&
+            courseObj.courses.some((c: Course) => c.id === courseId)
+          ) {
+            await updateBackpackUserField<Course>(
+              docSnap.id,
+              "course.courses",
+              (list) => list.filter((c) => c.id !== courseId),
+            );
+          }
+        }
+      }
+    } catch (scanErr) {
+      console.warn("Backpack doc scan notice during course deletion:", scanErr);
+    }
+
+    // 3. Update local state and local cache immediately
+    setCourses((prev) => {
+      const updated = prev.filter((c) => c.id !== courseId);
+      try {
+        localStorage.setItem("bp_cache_courses", JSON.stringify(updated));
+      } catch {
+        /* ignore */
+      }
+      return updated;
+    });
+
+    if (currentUser?.id) {
+      addNotification({
+        userId: currentUser.id,
+        title: "Course Deleted",
+        message: `Course "${existingCourse.title}" was permanently deleted.`,
+        type: "info",
+      });
+    }
   };
 
   const addCourseDonation = async (donation: CourseDonation) => {
@@ -2016,6 +2119,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         deleteOrganization,
         addCourse,
         updateCourse,
+        deleteCourse,
         addCourseDonation,
         getCourseAdmissionGate,
         addEnrollmentRequest,

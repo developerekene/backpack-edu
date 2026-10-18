@@ -74,8 +74,8 @@ const Home = () => {
       step: "02",
       title: "Enroll with Flexible Payments",
       description:
-        "Access free sponsored courses instantly, or pay tuition securely via Paystack with one-time or 3-installment options in NGN, GHS, or KES.",
-      feature: "Paystack Split Checkout",
+        "Access free sponsored courses instantly, or pay tuition securely with one-time or 3-installment options in NGN, GHS, or KES.",
+      feature: "Split Checkout",
       icon: CreditCard,
       to: "/courses",
       actionText: "Payment options",
@@ -127,11 +127,11 @@ const Home = () => {
       step: "03",
       title: "Connect Settlement Bank",
       description:
-        "Link your bank account or Paystack subaccount. Backpack automates split payouts so 100% of your tuition lands directly in your bank account.",
+        "Link your bank account. Backpack automates split payouts so 100% of your tuition lands directly in your bank account.",
       feature: "Automated Direct Payouts",
       icon: Banknote,
       to: "/onboarding",
-      actionText: "Set up Paystack",
+      actionText: "Set up account",
     },
     {
       step: "04",

@@ -29,6 +29,7 @@ import {
   HeartHandshake,
   Settings2,
   Edit3,
+  Trash2,
 } from "lucide-react";
 import courseHeroBanner from "../../assets/images/course_hero_banner_1790126241947.jpg";
 
@@ -57,6 +58,8 @@ interface PublicCourseDetailsProps {
   onGoToClassroom?: () => void;
   canEditCourse?: boolean;
   onEditCourse?: () => void;
+  canDeleteCourse?: boolean;
+  onDeleteCourse?: () => void;
 }
 
 export const PublicCourseDetails: React.FC<PublicCourseDetailsProps> = ({
@@ -79,6 +82,8 @@ export const PublicCourseDetails: React.FC<PublicCourseDetailsProps> = ({
   onGoToClassroom,
   canEditCourse,
   onEditCourse,
+  canDeleteCourse,
+  onDeleteCourse,
 }) => {
   const navigate = useNavigate();
   const [copiedLink, setCopiedLink] = useState(false);
@@ -233,6 +238,17 @@ export const PublicCourseDetails: React.FC<PublicCourseDetailsProps> = ({
             >
               <Edit3 className="w-3.5 h-3.5 mr-1.5" />
               Edit Course Information
+            </button>
+          )}
+
+          {canDeleteCourse && onDeleteCourse && (
+            <button
+              onClick={onDeleteCourse}
+              className="flex items-center px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition text-xs shadow-xs cursor-pointer"
+              title="Delete this course permanently"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+              Delete Course
             </button>
           )}
 

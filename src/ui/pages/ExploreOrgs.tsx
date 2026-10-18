@@ -86,7 +86,8 @@ const ExploreOrgs = () => {
     isOpen: boolean;
     title: string;
     message: string;
-    type?: "info" | "warning" | "error" | "success";
+    type?: "info" | "warning" | "error" | "success" | "danger";
+    onConfirm?: () => Promise<void> | void;
   }>({
     isOpen: false,
     title: "",
@@ -235,19 +236,22 @@ const ExploreOrgs = () => {
     setEnrollModalCourse(null);
   };
 
-  const handleDeleteOrg = async (
+  const handleDeleteOrg = (
     e: React.MouseEvent,
     orgId: string,
     orgName: string,
   ) => {
     e.stopPropagation();
-    if (
-      confirm(
-        `Are you sure you want to delete "${orgName}"? Deleted organizations will no longer appear in the catalog.`,
-      )
-    ) {
-      await deleteOrganization(orgId);
-    }
+    setAlertConfig({
+      isOpen: true,
+      title: "Delete Organization Permanently?",
+      message: `Are you sure you want to delete "${orgName}"? Deleted organizations will no longer appear in the catalog.`,
+      type: "danger",
+      onConfirm: async () => {
+        await deleteOrganization(orgId);
+        setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   return (
@@ -825,6 +829,7 @@ const ExploreOrgs = () => {
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
+        onConfirm={alertConfig.onConfirm}
         onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
