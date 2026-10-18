@@ -231,7 +231,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
               </span>
               <span className="flex items-center space-x-1">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                <span>Main Account (+15% Fee)</span>
+                <span>Platform Fee (+15% Charges)</span>
               </span>
             </div>
           </div>
