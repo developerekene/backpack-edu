@@ -56,7 +56,7 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
     }
 
     setLoading(true);
-    setStatusMessage("Opening Paystack Checkout...");
+    setStatusMessage("Opening Secure Checkout...");
 
     const generatedRef = generateReferenceNumber();
 

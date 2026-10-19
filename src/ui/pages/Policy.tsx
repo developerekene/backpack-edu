@@ -159,7 +159,7 @@ const sections: PolicySection[] = [
       {
         type: "subsection",
         heading: "Payment information",
-        text: "When you pay for a course or service, your card details and bank information are collected and processed directly by our trusted payment providers (such as Paystack). We do not store your full card number or CVV on our servers.",
+        text: "When you pay for a course or service, your card details and bank information are collected and processed directly by our trusted, certified payment processors. We do not store your full card number or CVV on our servers.",
       },
       {
         type: "subsection",

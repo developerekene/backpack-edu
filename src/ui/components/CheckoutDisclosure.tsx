@@ -132,7 +132,7 @@ export const CheckoutDisclosure: React.FC<CheckoutDisclosureProps> = ({
         <div className="flex items-start space-x-2">
           <Lock className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
           <span>
-            <strong>Payment Security & Encryption:</strong> Transactions are routed through PCI-DSS Level 1 certified gateways (Paystack). Backpack never stores sensitive card credentials, account passwords, or CVV data.
+            <strong>Payment Security & Encryption:</strong> Transactions are routed through PCI-DSS Level 1 certified gateways. Backpack never stores sensitive card credentials, account passwords, or CVV data.
           </span>
         </div>
         <div className="flex items-start space-x-2">

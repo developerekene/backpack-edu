@@ -60,15 +60,15 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
   // Donut chart data
   const pieData = [
     {
-      name: "Your Direct Payout",
+      name: "Subaccount (100% Base)",
       value: baseTuition,
-      percentage: "85%",
+      percentage: "100% Base",
       color: "#10b981", // emerald-500
     },
     {
-      name: "Platform Addition (15%)",
+      name: "Main Account (+15% Fee)",
       value: platformFee,
-      percentage: "15%",
+      percentage: "+15% Fee",
       color: "#6366f1", // indigo-500
     },
   ];
@@ -231,7 +231,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
               </span>
               <span className="flex items-center space-x-1">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                <span>Platform Fee (+15% Charges)</span>
+                <span>Main Account (+15% Fee)</span>
               </span>
             </div>
           </div>

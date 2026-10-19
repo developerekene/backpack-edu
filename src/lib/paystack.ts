@@ -71,7 +71,29 @@ export const triggerPaystackPayment = (options: PaystackTransactionOptions) => {
   }
 
   const amountInKobo = Math.round(options.amount * 100);
-  const transactionChargeInKobo = Math.round(amountInKobo * 0.85); // 85% to subaccount
+
+  // Base tuition fee (organization subaccount receives 100% of base fee).
+  // Platform fee (+15% added to base tuition) is collected by the platform.
+  // Platform shoulders all Paystack fees alone without affecting subaccount 100% base fee.
+  // In Paystack, `transaction_charge` is the fee paid to the MAIN (platform) account.
+  // Subaccount automatically receives: `amount - transaction_charge`.
+  let baseAmountKobo: number;
+  let platformFeeKobo: number;
+
+  if (options.baseAmount && options.baseAmount > 0) {
+    baseAmountKobo = Math.round(options.baseAmount * 100);
+    platformFeeKobo = Math.max(0, amountInKobo - baseAmountKobo);
+  } else if (options.transactionCharge !== undefined && options.transactionCharge >= 0 && options.transactionCharge < options.amount) {
+    platformFeeKobo = Math.round(options.transactionCharge * 100);
+    baseAmountKobo = Math.max(0, amountInKobo - platformFeeKobo);
+  } else {
+    // 15% platform addition added to base tuition: Total = Base * 1.15
+    baseAmountKobo = Math.round(amountInKobo / 1.15);
+    platformFeeKobo = Math.max(0, amountInKobo - baseAmountKobo);
+  }
+
+  // The flat transaction_charge allocated to the main account is the platform fee:
+  const transactionChargeInKobo = platformFeeKobo;
 
   const targetSubaccount = options.subaccount_code || options.subaccount;
 
@@ -240,10 +262,11 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
         ...(options.metadata || {}),
         subaccount_code: targetSubaccount,
         bearer: "account",
-        subaccount_receives_percent: 85,
-        platform_receives_percent: 15,
-        subaccount_fee_allocation: "85% of total amount",
-        platform_fee_allocation: "15% of total amount minus paystack fees",
+        base_amount_kobo: baseAmountKobo,
+        subaccount_receives_kobo: baseAmountKobo,
+        platform_fee_kobo: platformFeeKobo,
+        subaccount_fee_allocation: "100% base tuition fee",
+        platform_fee_allocation: "15% platform addition minus paystack gateway fees",
         mode: "test",
       },
     };

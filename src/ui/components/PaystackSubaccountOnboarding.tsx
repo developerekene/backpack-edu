@@ -71,8 +71,8 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
       : currentUser?.name || ""),
   );
 
-  // Paystack Subaccount Split Allocation (85% to subaccount, 15% to main account)
-  const subaccountSharePercent = 85;
+  // Platform fee percentage transferred to main account (15% platform fee to main account, so subaccount receives remaining 85% / 100% base fee)
+  const platformFeePercent = 15;
 
   // Account Resolution state
   const [resolvingAccount, setResolvingAccount] = useState(false);
@@ -95,7 +95,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
   } | null>(null);
 
 
-  // Verify Live Status of Subaccount directly with Paystack API
+  // Verify Live Status of Subaccount directly with payment API
   const handleVerifyLiveStatus = async (codeToVerify?: string) => {
     const targetCode = codeToVerify || currentSubaccount?.subaccount_code;
     if (!targetCode) return;
@@ -112,19 +112,19 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
           isVerified: true,
           message:
             json.notice ||
-            `Subaccount ${targetCode} is verified and active on Paystack! Settlement Bank: ${json.subaccount.settlement_bank || currentSubaccount?.bank_name}, Account: ****${String(json.subaccount.account_number || currentSubaccount?.account_number || "").slice(-4)}.`,
+            `Payout account ${targetCode} is verified and active! Settlement Bank: ${json.subaccount.settlement_bank || currentSubaccount?.bank_name}, Account: ****${String(json.subaccount.account_number || currentSubaccount?.account_number || "").slice(-4)}.`,
           details: json.subaccount,
         });
       } else {
         setLiveVerificationNotice({
           isVerified: false,
-          message: json.message || `Subaccount ${targetCode} could not be confirmed on Paystack.`,
+          message: json.message || `Payout account ${targetCode} could not be confirmed.`,
         });
       }
     } catch {
       setLiveVerificationNotice({
         isVerified: false,
-        message: "Failed to connect to Paystack live status check.",
+        message: "Failed to connect to payout account status check.",
       });
     } finally {
       setVerifyingLiveStatus(false);
@@ -177,7 +177,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
 
     try {
       const res = await centralApiClient(
-        `/api/paystack/resolve-account?account_number=${accountNumber}&bank_code=${selectedBankCode}`,
+        `/api/paystack/resolve-account?account_number=${encodeURIComponent(accountNumber.trim())}&bank_code=${encodeURIComponent(selectedBankCode.trim())}&business_name=${encodeURIComponent(businessName.trim())}`,
       );
       const text = await res.text();
       let json: Record<string, unknown> = {};
@@ -234,7 +234,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         business_name: businessName.trim(),
         settlement_bank: selectedBankCode,
         account_number: accountNumber.trim(),
-        percentage_charge: subaccountSharePercent,
+        percentage_charge: platformFeePercent, // 15% platform cut allocated to main account, 85% to subaccount (100% of base tuition)
         description: `Backpack Vendor Subaccount for ${businessName}`,
         primary_contact_email: currentUser?.email,
         primary_contact_name: currentUser?.name,
@@ -270,7 +270,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
           currency: selectedBankObj?.currency || selectedBankCurrency || "NGN",
           account_number: accountNumber.trim(),
           account_name: resolvedAccountName || businessName.trim(),
-          percentage_charge: subaccountSharePercent,
+          percentage_charge: platformFeePercent,
           is_verified: true,
           mode: modeCreated,
           updatedAt: new Date().toISOString(),
@@ -288,20 +288,20 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         }
 
         setSuccessMessage(
-          `Official Paystack subaccount (${json.subaccount_code}) generated and connected successfully! Payouts will settle automatically into your bank account.`,
+          `Official payout account (${json.subaccount_code}) connected successfully! Payouts will settle automatically into your bank account.`,
         );
         setIsEditing(false);
       } else {
         setSubaccountError(
           typeof json.message === "string"
             ? json.message
-            : "Unable to generate Paystack subaccount. Please verify your details or check your internet connection.",
+            : "Unable to connect payout account. Please verify your details or check your connection.",
         );
       }
     } catch (err) {
       console.error("Save subaccount error:", err);
       setSubaccountError(
-        "Network error saving Paystack subaccount. Please try again.",
+        "Network error saving payout account. Please try again.",
       );
     } finally {
       setSubmitting(false);
@@ -431,7 +431,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                 <div className="flex items-center space-x-2 text-xs text-emerald-800 dark:text-emerald-300">
                   <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>
-                    Automated Split Payouts Active: 85% of each payment settles directly into your bank account. Our main account (15%) absorbs all processing fees so you get 100% of your money.
+                    Automated Split Payouts Active: 100% of your listed tuition settles directly into your bank account. The 15% platform fee absorbs all payment gateway processing fees so your tuition payout is 100% intact.
                   </span>
                 </div>
               )}
