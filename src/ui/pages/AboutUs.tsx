@@ -11,6 +11,7 @@ import {
   Layout,
   Code2,
   ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -228,6 +229,161 @@ const AboutUs: React.FC = () => {
               Get Started
               <ArrowRight className="w-4 h-4" />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================== */}
+      {/* HOW TO USE BACKPACK */}
+      {/* ========================================== */}
+      <section className="py-20 sm:py-24 bg-slate-100/60 dark:bg-slate-900/50 border-y border-slate-200/80 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider">
+              User Guide
+            </span>
+            <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
+              How to Use Backpack as an Organisation or Student
+            </h2>
+            <p className="mt-4 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+              Step-by-step instructions on how to register, log on, and get the most out of Backpack across all user types.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Organisation / Instructor Guide */}
+            <div className="bg-white dark:bg-slate-800/80 rounded-3xl p-7 sm:p-9 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    For Organisations & Instructors
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Publish courses, manage payouts, and educate students
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    1
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Register & Create Profile</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Sign up for an account, select the organisation role, and configure your institution name, logo, and public bio.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    2
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Connect Payout Subaccount</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Go to Settings &gt; Payout Subaccount. Enter your bank details, verify your account name instantly via the secure payout gateway, and save. This ensures you receive 100% of your base tuition automatically.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    3
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Publish Courses & Set Pricing</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Create courses, add modules, curriculum resources, and define tuition pricing with flexible payment terms (one-time or installment milestones).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    4
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Manage Students & Host Classes</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Review enrollment applications, host live video classes, utilize AI grading tools, and track student performance from your dashboard.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Student Guide */}
+            <div className="bg-white dark:bg-slate-800/80 rounded-3xl p-7 sm:p-9 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    For Students & Learners
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Discover courses, enroll, and join live classes
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    1
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Create Your Account</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Register a student profile with your email, set up your learning preferences, and log in to your student dashboard.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    2
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Explore & Apply for Courses</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Browse verified organizations and courses on the Explore page, review curricula, and submit your enrollment application with required documents.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    3
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Secure Tuition Checkout</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Once accepted, pay tuition securely through our transparent split checkout. 100% of base tuition goes directly to the organization while platform fees cover server and processing costs.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    4
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Enter the Classroom & Learn</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Access live video lectures, complete interactive assignments, collaborate with peers, and track your educational progress in real time.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
