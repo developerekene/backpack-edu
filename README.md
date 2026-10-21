@@ -1,6 +1,15 @@
+[![Backpack Web App Preview](https://img.shields.io/badge/Live_App-backpack--edu.com-indigo?style=for-the-badge&logo=google-chrome&logoColor=white)](https://backpack-edu.com)
+[![Web App Demo](https://img.shields.io/badge/Watch_Demo-Video_Tour-emerald?style=for-the-badge&logo=youtube&logoColor=white)](https://backpack-edu.com)
+
 # Backpack Learning & Payout Platform
 
 Backpack is a modern, full-stack educational and institutional management platform built with React, TypeScript, Vite, Tailwind CSS, and Node.js (Express backend). It provides a robust ecosystem for organizations, instructors, and students to create courses, manage live classes, track student progress, and handle automated secure payment splits and bank payouts.
+
+---
+
+## 👥 Leadership & Founders
+- **Founder**: [Ekenedilichukwu Okoli](https://github.com/developerekene)
+- **Co-Founder**: Ogochukwu Okoli
 
 ---
 
