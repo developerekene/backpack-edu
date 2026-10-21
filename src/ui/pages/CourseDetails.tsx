@@ -57,9 +57,9 @@ import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
 import { CourseDiscussions } from "../components/discussion/CourseDiscussions ";
 import { SpecialNeedsAccommodations, ScheduleEvent } from "../../types";
-import { 
-  getLiveClassRoomName, 
-  createLiveKitMeetingUrl, 
+import {
+  getLiveClassRoomName,
+  createLiveKitMeetingUrl,
   getLiveKitDirectUrl,
   endLiveClassSessionApi,
 } from "../../lib/liveClass";
@@ -173,7 +173,8 @@ const CourseDetails = () => {
 
   const handleCopyClassUrl = async (targetRoom: string) => {
     try {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
       const url = `${origin}/live/${targetRoom}`;
       await navigator.clipboard.writeText(url);
       setCopiedClassLink(true);
@@ -239,7 +240,8 @@ const CourseDetails = () => {
 
   const myOrgMemberRecords = orgMembers.filter(
     (m) =>
-      m.email?.toLowerCase().trim() === currentUser?.email?.toLowerCase().trim() ||
+      m.email?.toLowerCase().trim() ===
+        currentUser?.email?.toLowerCase().trim() ||
       (currentUser?.id && m.userId === currentUser.id) ||
       (currentUser?.id && m.id === currentUser.id),
   );
@@ -306,7 +308,8 @@ const CourseDetails = () => {
     isOrganization &&
     (course?.orgId === currentUser?.id ||
       course?.orgId === `org_${currentUser?.id}` ||
-      (myOrg && (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)));
+      (myOrg &&
+        (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)));
 
   const hasAccess =
     hasStudentAccess ||
@@ -334,7 +337,9 @@ const CourseDetails = () => {
       hasInstructorAccess ||
       currentUser?.role === "organization" ||
       currentUser?.role === "instructor");
-  const canManageSessions = !isStudent && (isOrganization || hasOrgAccess || hasInstructorAccess);
+  const canManageSessions = Boolean(
+    !isStudent && (isOrganization || hasOrgAccess || hasInstructorAccess),
+  );
   const canEditCourse = Boolean(
     hasOrgAccess ||
     hasInstructorAccess ||
@@ -342,19 +347,21 @@ const CourseDetails = () => {
     (isOrganization &&
       (course?.orgId === currentUser?.id ||
         course?.orgId === `org_${currentUser?.id}` ||
-        (myOrg && (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)))),
+        (myOrg &&
+          (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)))),
   );
 
   const canDeleteCourse = Boolean(
     currentUser?.role === "organization" &&
     course &&
-    (
-      course.orgId === currentUser.id ||
+    (course.orgId === currentUser.id ||
       course.orgId === `org_${currentUser.id}` ||
       course.createdBy === currentUser.id ||
       (currentUser.id && course.orgId?.includes(currentUser.id)) ||
-      (myOrg && (course.orgId === myOrg.id || course.orgId === myOrg.ownerId || course.orgId === `org_${myOrg.id}`))
-    )
+      (myOrg &&
+        (course.orgId === myOrg.id ||
+          course.orgId === myOrg.ownerId ||
+          course.orgId === `org_${myOrg.id}`))),
   );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
@@ -382,8 +389,7 @@ const CourseDetails = () => {
       if (match) return match;
     }
     return (
-      scheduleEvents.find((e) => e.courseId === courseId && e.isActive) ||
-      null
+      scheduleEvents.find((e) => e.courseId === courseId && e.isActive) || null
     );
   }, [scheduleEvents, courseId, targetEventId]);
 
@@ -421,7 +427,8 @@ const CourseDetails = () => {
           role: currentUser?.role || "student",
           forceSync: true,
         });
-        const meetingUrl = match.meetingUrl || livekitRes.url || getLiveKitDirectUrl(roomName);
+        const meetingUrl =
+          match.meetingUrl || livekitRes.url || getLiveKitDirectUrl(roomName);
         await updateScheduleEvent(match.id, {
           isActive: true,
           meetingUrl,
@@ -445,7 +452,10 @@ const CourseDetails = () => {
         role: currentUser?.role || "student",
         forceSync: true,
       });
-      const meetingUrl = todayScheduled.meetingUrl || livekitRes.url || getLiveKitDirectUrl(roomName);
+      const meetingUrl =
+        todayScheduled.meetingUrl ||
+        livekitRes.url ||
+        getLiveKitDirectUrl(roomName);
       await updateScheduleEvent(todayScheduled.id, {
         isActive: true,
         meetingUrl,
@@ -456,8 +466,11 @@ const CourseDetails = () => {
 
     // 4. Otherwise, generate a single new session for on-demand live class
     const newEventId = `live_${courseId}_${Date.now()}`;
-    const roomName = getLiveClassRoomName({ id: newEventId, courseId }, courseId);
-    
+    const roomName = getLiveClassRoomName(
+      { id: newEventId, courseId },
+      courseId,
+    );
+
     const livekitRes = await createLiveKitMeetingUrl({
       roomName,
       participantName: currentUser?.name || "Participant",
@@ -1145,27 +1158,25 @@ const CourseDetails = () => {
           )}
 
           {/* Live class controls for students and instructors */}
-          {liveCallActiveEvent ? (
-            !isCallActiveInApp && (
-              <div className="flex items-center gap-2">
+          {liveCallActiveEvent
+            ? !isCallActiveInApp && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsCallActiveInApp(true)}
+                    className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm animate-pulse"
+                  >
+                    <Video className="w-4 h-4 mr-2" /> Join Live Class
+                  </button>
+                </div>
+              )
+            : canStartVideoCall && (
                 <button
-                  onClick={() => setIsCallActiveInApp(true)}
-                  className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm animate-pulse"
+                  onClick={handleStartCall}
+                  className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm"
                 >
-                  <Video className="w-4 h-4 mr-2" /> Join Live Class
+                  <Video className="w-4 h-4 mr-2" /> Start Live Class
                 </button>
-              </div>
-            )
-          ) : (
-            canStartVideoCall && (
-              <button
-                onClick={handleStartCall}
-                className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm"
-              >
-                <Video className="w-4 h-4 mr-2" /> Start Live Class
-              </button>
-            )
-          )}
+              )}
         </div>
       </div>
 
@@ -1186,7 +1197,8 @@ const CourseDetails = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                You are previewing this course exactly as an enrolled student experiences it. All editing controls are disabled.
+                You are previewing this course exactly as an enrolled student
+                experiences it. All editing controls are disabled.
               </p>
             </div>
           </div>
@@ -1212,17 +1224,21 @@ const CourseDetails = () => {
                   LIVE SESSION ACTIVE
                 </span>
                 <h3 className="font-bold text-base text-white">
-                  {liveCallActiveEvent.title || "Live Class Session In Progress"}
+                  {liveCallActiveEvent.title ||
+                    "Live Class Session In Progress"}
                 </h3>
               </div>
               <p className="text-xs text-white/80 mt-0.5">
-                Students and instructors are currently connected in this live virtual classroom.
+                Students and instructors are currently connected in this live
+                virtual classroom.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <button
-              onClick={() => handleCopyClassUrl(getEffectiveRoomName(liveCallActiveEvent))}
+              onClick={() =>
+                handleCopyClassUrl(getEffectiveRoomName(liveCallActiveEvent))
+              }
               className="px-3.5 py-2.5 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-xl transition flex items-center justify-center border border-white/30"
               title="Copy direct join link to share with students or guests"
             >
@@ -1231,7 +1247,9 @@ const CourseDetails = () => {
               ) : (
                 <Share2 className="w-4 h-4 mr-1.5" />
               )}
-              <span>{copiedClassLink ? "Copied Link!" : "Copy Class Link"}</span>
+              <span>
+                {copiedClassLink ? "Copied Link!" : "Copy Class Link"}
+              </span>
             </button>
             <button
               onClick={() => setIsCallActiveInApp(true)}
@@ -1831,14 +1849,22 @@ const CourseDetails = () => {
                     setIsCallActiveInApp(true);
                     setTimeout(() => {
                       const el = document.getElementById("live-class-viewport");
-                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      if (el)
+                        el.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
                     }, 200);
                   }}
                   onStartLiveCall={() => {
                     setIsCallActiveInApp(true);
                     setTimeout(() => {
                       const el = document.getElementById("live-class-viewport");
-                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      if (el)
+                        el.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
                     }, 200);
                   }}
                 />
