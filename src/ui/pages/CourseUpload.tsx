@@ -291,6 +291,7 @@ const CourseUpload = () => {
         id: generateId("mod"),
         title: "",
         description: "",
+        learningGoals: "",
         sections: [
           {
             id: generateId("sec"),
@@ -312,7 +313,7 @@ const CourseUpload = () => {
 
   const updateModule = (
     index: number,
-    field: "title" | "description",
+    field: "title" | "description" | "learningGoals",
     value: string,
   ) => {
     const newModules = [...modules];
