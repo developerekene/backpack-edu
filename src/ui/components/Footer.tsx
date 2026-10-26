@@ -154,7 +154,7 @@ const Footer: React.FC = () => {
               for Africa.
             </span>
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-              v0.1.2
+              v0.1.4
             </span>
           </p>
 
