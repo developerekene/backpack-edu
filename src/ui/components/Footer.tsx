@@ -147,10 +147,15 @@ const Footer: React.FC = () => {
 
         {/* Bottom Bar: Copyright & Socials */}
         <div className="pt-8 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <p className="flex items-center gap-1">
-            © {new Date().getFullYear()} Backpack Education Inc. Built with{" "}
-            <Heart className="w-3.5 h-3.5 text-indigo-500 fill-indigo-500" />{" "}
-            for Africa.
+          <p className="flex items-center gap-2">
+            <span>
+              © {new Date().getFullYear()} Backpack Education Inc. Built with{" "}
+              <Heart className="w-3.5 h-3.5 text-indigo-500 fill-indigo-500 inline" />{" "}
+              for Africa.
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              v0.1.2
+            </span>
           </p>
 
           <div className="flex items-center space-x-4">
