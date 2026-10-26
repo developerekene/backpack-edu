@@ -69,7 +69,7 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
       subaccount: subaccountCode,
       subaccount_code: subaccountCode,
       split_code: splitCode,
-      mode: mode || "test",
+      mode: mode || "live",
       reference: generatedRef,
       studentDetails: {
         firstName: studentName ? studentName.split(" ")[0] : email.split("@")[0],
@@ -87,7 +87,7 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         transaction_charge: transactionCharge,
         bearer: "account",
         split_rule: "subaccount_100pct_base_fee_platform_bears_paystack_fees",
-        mode: mode || "test",
+        mode: mode || "live",
       },
       onSuccess: (res) => {
         setLoading(false);
