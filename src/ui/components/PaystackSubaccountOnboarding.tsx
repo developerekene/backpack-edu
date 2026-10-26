@@ -257,7 +257,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
       const subCode = json.subaccount_code || (json.data as Record<string, unknown>)?.subaccount_code;
       if ((json.success || json.status) && subCode) {
         const subCodeStr = String(subCode);
-        const modeCreated: "test" | "live" = (json.mode as "test" | "live") || ((json.data as Record<string, unknown>)?.mode as "test" | "live") || "test";
+        const modeCreated: "test" | "live" = (json.mode as "test" | "live") || ((json.data as Record<string, unknown>)?.mode as "test" | "live") || "live";
         const newSubaccountData: PaystackSubaccount = {
           subaccount_code: subCodeStr,
           business_name: businessName.trim(),

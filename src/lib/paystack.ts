@@ -13,12 +13,13 @@ export const PAYSTACK_TEST_PUBLIC_KEY =
   import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
   "pk_test_db0145199289f83c428d57cf70755142bb0b8b28";
 
-// Live key definition (default remains TEST key for safety):
+// Live key definition:
 export const PAYSTACK_LIVE_PUBLIC_KEY =
   import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY ||
+  import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
   "pk_live_d2b967eddda456841f504b85549767fc33cc9fd4";
 
-export const PAYSTACK_KEY = PAYSTACK_TEST_PUBLIC_KEY;
+export const PAYSTACK_KEY = PAYSTACK_LIVE_PUBLIC_KEY;
 
 export const generateReferenceNumber = (): string => {
   const prefix = "DT";
@@ -97,8 +98,8 @@ export const triggerPaystackPayment = (options: PaystackTransactionOptions) => {
 
   const targetSubaccount = options.subaccount_code || options.subaccount;
 
-  // Always use TEST mode until user decides (per instruction)
-  const activePublicKey = PAYSTACK_TEST_PUBLIC_KEY;
+  // Use LIVE mode key
+  const activePublicKey = PAYSTACK_LIVE_PUBLIC_KEY;
 
   const handleSuccess = async (res: { reference?: string; trxref?: string; status?: string }) => {
     const finalRef = res?.reference || res?.trxref || referenceNumber;
@@ -267,7 +268,7 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
         platform_fee_kobo: platformFeeKobo,
         subaccount_fee_allocation: "100% base tuition fee",
         platform_fee_allocation: "15% platform addition minus paystack gateway fees",
-        mode: "test",
+        mode: "live",
       },
     };
 

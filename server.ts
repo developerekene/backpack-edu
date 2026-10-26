@@ -15,31 +15,36 @@ app.use(cors({
 app.use(express.json());
 
 // Paystack Secret Keys - Dynamic Vault Sync + Environment initialization
-let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "sk_test_980c62c900609f0612c62c2f6d53862bb008c2a4";
-// Live key commented out per user instruction (still use test keys even in production):
-// let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";
+let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "";
+let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";
 
-// Helper for Paystack API headers - Enforces test keys even in production until user decides
-const getPaystackHeaders = () => {
-  // Always use test secret key as requested
-  const secretKey = PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || "sk_test_980c62c900609f0612c62c2f6d53862bb008c2a4";
+// Helper for Paystack API headers - Strictly enforces LIVE mode
+const getPaystackHeaders = (preferLive = true) => {
+  const secretKey = preferLive
+    ? (PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || "")
+    : (PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || PAYSTACK_LIVE_SECRET_KEY || "");
   
-  const masked = secretKey.substring(0, 7) + "..." + secretKey.substring(secretKey.length - 4);
-  console.log(`[Paystack API] Using test secret key: ${masked} (forced test mode)`);
+  if (!secretKey) {
+    return null;
+  }
+  
+  const isLive = preferLive || secretKey.startsWith("sk_live_");
+  const mode = isLive ? "live" : "test";
+  const masked = secretKey.length > 10 ? secretKey.substring(0, 7) + "..." + secretKey.substring(secretKey.length - 4) : "configured";
+  console.log(`[Paystack API] Using ${mode} secret key: ${masked}`);
 
   return {
     Authorization: `Bearer ${secretKey}`,
     "Content-Type": "application/json",
-    "X-Paystack-Mode": "test",
-    "X-Environment-Mode": "test",
-    "X-Context-Mode": "test",
+    "X-Paystack-Mode": "live",
+    "X-Environment-Mode": "live",
+    "X-Context-Mode": "live",
   };
 };
 
 // Dynamic retrieval of secret keys from Keysafe Render URL for subaccounts and payment splits
 async function fetchSecretKeys() {
-  // Live mode commented out per instruction - only use test mode until user decides
-  const modes = ["test"];
+  const modes = ["live"];
   
   const subaccountUrls = [
     "https://keysafe-ntia.onrender.com/subaccount",
@@ -82,11 +87,10 @@ async function fetchSecretKeys() {
 
             const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key");
             if (headerKey && headerKey.startsWith("sk_")) {
-              // Live key loading commented out per user instruction:
-              // if (headerKey.startsWith("sk_live_")) {
-              //   PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-              // }
-              if (headerKey.startsWith("sk_test_")) {
+              if (headerKey.startsWith("sk_live_")) {
+                PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+                console.log(`[KeySafe] Loaded live secret key from header`);
+              } else if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
                 console.log(`[KeySafe] Loaded test secret key from header`);
               }
@@ -106,11 +110,10 @@ async function fetchSecretKeys() {
               ).trim();
 
               if (extractedKey && extractedKey.startsWith("sk_")) {
-                // Live key extraction commented out per user instruction:
-                // if (extractedKey.startsWith("sk_live_")) {
-                //   PAYSTACK_LIVE_SECRET_KEY = extractedKey;
-                // }
-                if (extractedKey.startsWith("sk_test_")) {
+                if (extractedKey.startsWith("sk_live_")) {
+                  PAYSTACK_LIVE_SECRET_KEY = extractedKey;
+                  console.log(`[KeySafe] Loaded live secret key from subaccount endpoint`);
+                } else if (extractedKey.startsWith("sk_test_")) {
                   PAYSTACK_TEST_SECRET_KEY = extractedKey;
                   console.log(`[KeySafe] Loaded test secret key from subaccount endpoint`);
                 }
@@ -153,11 +156,10 @@ async function fetchSecretKeys() {
 
             const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key");
             if (headerKey && headerKey.startsWith("sk_")) {
-              // Live key loading commented out per user instruction:
-              // if (headerKey.startsWith("sk_live_")) {
-              //   PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-              // }
-              if (headerKey.startsWith("sk_test_")) {
+              if (headerKey.startsWith("sk_live_")) {
+                PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+                console.log(`[KeySafe] Loaded live secret key from header`);
+              } else if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
                 console.log(`[KeySafe] Loaded test secret key from header`);
               }
@@ -394,11 +396,11 @@ app.get(["/api/paystack/resolve-account", "/api/resolve-account", "/api/bank/res
     });
   }
 
-  // 2. Direct Paystack API resolve if keys are available (TEST mode enforced)
+  // 2. Direct Paystack API resolve if keys are available (LIVE mode)
   const headers = getPaystackHeaders();
   if (headers) {
     try {
-      console.log(`[Paystack API] Direct resolve for account ${cleanAcc} with bank ${cleanBank} (TEST mode)`);
+      console.log(`[Paystack API] Direct resolve for account ${cleanAcc} with bank ${cleanBank} (LIVE mode)`);
       const response = await fetch(
         `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(cleanAcc)}&bank_code=${encodeURIComponent(cleanBank)}`,
         { headers, signal: AbortSignal.timeout(10000) }
@@ -519,8 +521,8 @@ app.post("/api/paystack/subaccount", async (req, res) => {
     });
   }
 
-  // Enforce TEST mode per user instruction (still use test keys even in production)
-  const activeMode = "test";
+  // Active mode is LIVE
+  const activeMode = "live";
   // Paystack's percentage_charge is the percentage of transaction allocated to the MAIN (platform) account.
   // 15% platform fee added to base fee. Subaccount receives 85% of total (100% of base tuition).
   // If percentage_charge was sent as 85 (confusing subaccount payout with charge), normalize to 15.
@@ -646,19 +648,20 @@ app.get("/api/paystack/subaccount/:code", async (req, res) => {
     });
   }
 
-  // 1. Check with direct Paystack API in TEST mode if test key is present
+  // 1. Check with direct Paystack API in LIVE mode
   try {
-    const testHeaders = getPaystackHeaders(false);
-    if (testHeaders) {
+    const paystackHeaders = getPaystackHeaders(true);
+    if (paystackHeaders) {
       const response = await fetch(`https://api.paystack.co/subaccount/${encodeURIComponent(code)}`, {
-        headers: testHeaders,
+        headers: paystackHeaders,
         signal: AbortSignal.timeout(6000),
       });
       const json = await response.json();
       if (response.ok && json.status && json.data) {
+        const modeUsed = paystackHeaders["X-Paystack-Mode"] || "live";
         return res.json({
           success: true,
-          mode: "test",
+          mode: modeUsed,
           subaccount: {
             subaccount_code: json.data.subaccount_code,
             settlement_bank: json.data.settlement_bank,
@@ -668,9 +671,9 @@ app.get("/api/paystack/subaccount/:code", async (req, res) => {
             percentage_charge: json.data.percentage_charge || 15,
             description: json.data.description,
             is_active: json.data.active,
-            mode: "test",
+            mode: modeUsed,
           },
-          message: "Subaccount verified (TEST mode)",
+          message: `Subaccount verified (${String(modeUsed).toUpperCase()} mode)`,
         });
       }
     }
@@ -685,16 +688,16 @@ app.get("/api/paystack/subaccount/:code", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Paystack-Mode": "test",
-        "X-Environment-Mode": "test",
-        "X-Context-Mode": "test",
+        "X-Paystack-Mode": "live",
+        "X-Environment-Mode": "live",
+        "X-Context-Mode": "live",
       },
       signal: AbortSignal.timeout(25000),
       body: JSON.stringify({
         email: "verify@backpack-edu.com",
         amount: 10000,
         subaccount_code: code,
-        mode: "test",
+        mode: "live",
       }),
     });
 
@@ -703,14 +706,14 @@ app.get("/api/paystack/subaccount/:code", async (req, res) => {
       console.log(`[Gateway] Subaccount ${code} confirmed active on Paystack`);
       return res.json({
         success: true,
-        mode: "test",
+        mode: "live",
         subaccount: {
           subaccount_code: code,
           percentage_charge: 15,
           is_active: true,
-          mode: "test",
+          mode: "live",
         },
-        message: `Payout account ${code} is verified and active (TEST mode).`,
+        message: `Payout account ${code} is verified and active (LIVE mode).`,
       });
     }
 
@@ -781,8 +784,8 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
   // The flat transaction_charge allocated to the main account is the platform fee:
   const transactionChargeInKobo = platformFeeKobo;
 
-  // Enforce TEST mode per user instruction (still use test keys even in production)
-  const activeMode = "test";
+  // Active mode is LIVE
+  const activeMode = "live";
   console.log(`[Paystack Split Init] Initializing payment with subaccount: ${targetSubaccount || 'none'}, base (subaccount receives): ${baseAmountKobo} kobo, platform charge: ${transactionChargeInKobo} kobo (mode=${activeMode})`);
 
   let lastErrorMessage = "Payment split initialization failed on Paystack.";
@@ -1027,10 +1030,11 @@ app.post("/api/livekit/token", async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    paystackConfigured: !!(PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY),
+    paystackConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY),
+    liveKeyConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY),
     testKeyConfigured: !!PAYSTACK_TEST_SECRET_KEY,
-    testHeaders: getPaystackHeaders(),
-    mode: "test",
+    headers: getPaystackHeaders(true),
+    mode: "live",
   });
 });
 
