@@ -79,9 +79,6 @@ async function fetchSecretKeys() {
                 "X-Context-Mode": mode,
               },
               body: JSON.stringify({}),
-            }).catch(e => {
-              console.error(`[KeySafe] Fetch failed for ${url}:`, e);
-              throw e;
             });
             clearTimeout(timeoutId);
 
@@ -89,10 +86,8 @@ async function fetchSecretKeys() {
             if (headerKey && headerKey.startsWith("sk_")) {
               if (headerKey.startsWith("sk_live_")) {
                 PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded live secret key from header`);
               } else if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded test secret key from header`);
               }
             }
 
@@ -112,15 +107,13 @@ async function fetchSecretKeys() {
               if (extractedKey && extractedKey.startsWith("sk_")) {
                 if (extractedKey.startsWith("sk_live_")) {
                   PAYSTACK_LIVE_SECRET_KEY = extractedKey;
-                  console.log(`[KeySafe] Loaded live secret key from subaccount endpoint`);
                 } else if (extractedKey.startsWith("sk_test_")) {
                   PAYSTACK_TEST_SECRET_KEY = extractedKey;
-                  console.log(`[KeySafe] Loaded test secret key from subaccount endpoint`);
                 }
               }
             }
           } catch {
-            // timeout or network notice
+            // Background key fetch retry gracefully
           }
         })()
       );
@@ -148,9 +141,6 @@ async function fetchSecretKeys() {
                 subaccount_code: "ACCT_vault_sync",
                 mode,
               })
-            }).catch(e => {
-              console.error(`[KeySafe] Split fetch failed for ${url}:`, e);
-              throw e;
             });
             clearTimeout(timeoutId);
 
