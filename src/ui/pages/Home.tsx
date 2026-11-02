@@ -169,7 +169,7 @@ const Home: React.FC = () => {
   return (
     <div className="w-full text-slate-900 dark:text-slate-100 flex flex-col">
       {/* ======================================================== */}
-      {/* 1. HERO SECTION (Full-Width with Flanking Floating Icons) */}
+      {/* 1. HERO SECTION (Full-Width with Framed Floating Icons)   */}
       {/* ======================================================== */}
       <section className="relative w-full overflow-hidden pt-8 pb-14 sm:pt-14 sm:pb-20 border-b border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-b from-[#f0f7fd]/90 via-white to-white dark:from-[#0f2231]/30 dark:via-[#0a1824] dark:to-[#0a1824]">
         {/* Ambient luminous glow backdrop */}
@@ -177,171 +177,134 @@ const Home: React.FC = () => {
           <div className="absolute top-[-15%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-[#d6e9f8]/70 via-[#0078d4]/10 to-transparent dark:from-[#0078d4]/20 dark:via-[#0f2231]/30 dark:to-transparent rounded-full blur-3xl opacity-80" />
         </div>
 
-        {/* ======================================================== */}
-        {/* FLOATING ANIMATED TECH BADGES (Outside text container)   */}
-        {/* ======================================================== */}
-        {/* Left Side: 2 clean floating badges in outer screen space */}
-        <div className="hidden 2xl:flex flex-col gap-10 absolute left-8 top-16 z-20 pointer-events-auto">
-          {/* Software Engineering */}
-          <Link
-            to="/explore"
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-[#d6e9f8] dark:border-[#1e3a52] shadow-xl hover:scale-105 hover:border-[#0078d4]/40 transition-all duration-300 animate-float-1 group cursor-pointer"
-            title="Browse Software Engineering Courses"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#d6e9f8]/70 dark:bg-[#1a384f]/80 border border-[#0078d4]/20 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] group-hover:rotate-6 transition-transform">
-              <Code2 className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading flex items-center gap-1.5">
-                <span>Software Engineering</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              </div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Python • React • Node</div>
-            </div>
-          </Link>
-
-          {/* Product & UI/UX */}
-          <Link
-            to="/explore"
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-rose-200/80 dark:border-rose-900/60 shadow-xl hover:scale-105 hover:border-rose-400/40 transition-all duration-300 animate-float-3 group cursor-pointer"
-            title="Browse UI/UX & Design Courses"
-          >
-            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-[#2b141d] border border-rose-200/60 dark:border-rose-800/60 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:rotate-6 transition-transform">
-              <Palette className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Product & UI/UX</div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Figma • Systems • UX</div>
-            </div>
-          </Link>
-        </div>
-
-        {/* Right Side: 2 clean floating badges in outer screen space */}
-        <div className="hidden 2xl:flex flex-col gap-10 absolute right-8 top-16 z-20 pointer-events-auto">
-          {/* AI & Data Science */}
-          <Link
-            to="/explore"
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-purple-200/80 dark:border-purple-900/60 shadow-xl hover:scale-105 hover:border-purple-400/40 transition-all duration-300 animate-float-2 group cursor-pointer"
-            title="Browse AI & Data Science Courses"
-          >
-            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-[#201533] border border-purple-200/60 dark:border-purple-800/60 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:rotate-6 transition-transform">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading flex items-center gap-1.5">
-                <span>AI & Data Science</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-              </div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Prompt Eng • PyTorch</div>
-            </div>
-          </Link>
-
-          {/* Cloud & DevOps */}
-          <Link
-            to="/explore"
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-cyan-200/80 dark:border-cyan-900/60 shadow-xl hover:scale-105 hover:border-cyan-400/40 transition-all duration-300 animate-float-4 group cursor-pointer"
-            title="Browse Cloud & DevOps Courses"
-          >
-            <div className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-[#0b242e] border border-cyan-200/60 dark:border-cyan-800/60 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover:rotate-6 transition-transform">
-              <Cloud className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Cloud & DevOps</div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">AWS • Docker • CI/CD</div>
-            </div>
-          </Link>
-        </div>
-
-        {/* Hero Content Container (Completely unobstructed, spacious, clean) */}
-        <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8 px-4 relative z-10">
-          {/* Network Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#d6e9f8]/70 dark:bg-[#1a384f]/70 border border-[#0078d4]/20 dark:border-[#04a4ec]/30 text-[#0078d4] dark:text-[#04a4ec] text-xs font-semibold font-heading shadow-xs">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0078d4] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0078d4]"></span>
-            </span>
-            <span>Pan-African E-Learning & Vocational Infrastructure</span>
-          </div>
-
-          {/* Main Title */}
-          <div className="space-y-4 sm:space-y-5">
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-slate-900 dark:text-white leading-[1.15] sm:leading-[1.12] break-words">
-              Education Without Borders.
-              <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-1.5 sm:mt-3">
-                Learn, Teach, and Scale Across Africa.
-              </span>
-            </h1>
-
-            <p className="text-sm sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto font-normal font-body px-2">
-              Backpack connects students, secondary schools, universities, and vocational academies. 
-              Attend live HD video classes, manage comprehensive student telemetry, and settle tuition in regional African currencies.
-            </p>
-
-            {/* Popular Learning Tracks Quick-Pills */}
-            <div className="pt-2 flex flex-wrap items-center justify-center gap-2 max-w-2xl mx-auto">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mr-1 font-body">Tracks:</span>
-              {[
-                { label: "Software Eng", icon: Code2, color: "text-[#0078d4] dark:text-[#04a4ec] bg-blue-50/90 dark:bg-blue-950/50 border-blue-200/80 dark:border-blue-800/60" },
-                { label: "AI & ML", icon: Sparkles, color: "text-purple-600 dark:text-purple-400 bg-purple-50/90 dark:bg-purple-950/50 border-purple-200/80 dark:border-purple-800/60" },
-                { label: "Cloud DevOps", icon: Cloud, color: "text-cyan-600 dark:text-cyan-400 bg-cyan-50/90 dark:bg-cyan-950/50 border-cyan-200/80 dark:border-cyan-800/60" },
-                { label: "UI/UX Design", icon: Palette, color: "text-rose-600 dark:text-rose-400 bg-rose-50/90 dark:bg-rose-950/50 border-rose-200/80 dark:border-rose-800/60" },
-                { label: "Cybersecurity", icon: ShieldCheck, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-200/80 dark:border-emerald-800/60" },
-                { label: "Diplomas & Certs", icon: GraduationCap, color: "text-amber-600 dark:text-amber-400 bg-amber-50/90 dark:bg-amber-950/50 border-amber-200/80 dark:border-amber-800/60" },
-              ].map((track, idx) => (
-                <Link
-                  key={idx}
-                  to="/explore"
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold font-heading border ${track.color} hover:scale-105 transition-all shadow-2xs hover:shadow-xs cursor-pointer`}
-                >
-                  <track.icon className="w-3.5 h-3.5" />
-                  <span>{track.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Action Link Group */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 pt-2 text-sm font-heading max-w-md sm:max-w-none mx-auto w-full">
-            <Link
-              to="/explore"
-              className="w-full sm:w-auto px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Explore Catalog</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to="/signup"
-              className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Get Started Free</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+        {/* Framing Container (Brings floating badges closer to content without edge-pinning) */}
+        <div className="relative max-w-6xl mx-auto px-4">
+          {/* FLOATING INSTITUTIONAL PLATFORM BADGES (Left Flank) */}
+          <div className="hidden xl:flex flex-col gap-10 absolute left-0 top-10 z-20 pointer-events-auto">
+            {/* Publish Curriculums */}
             <Link
               to="/onboard"
-              className="w-full sm:w-auto px-6 py-3 bg-white dark:bg-[#0f2231] hover:bg-slate-50 dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 border border-[#d6e9f8] dark:border-[#1e3a52] font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              className="w-52 flex items-center gap-3 p-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-[#d6e9f8] dark:border-[#1e3a52] shadow-xl hover:scale-105 hover:border-[#0078d4]/40 transition-all duration-300 animate-float-1 group cursor-pointer"
+              title="Publish Institutional Courses"
             >
-              <Building2 className="w-4 h-4 text-[#0078d4]" />
-              <span>Register an Institution</span>
+              <div className="w-10 h-10 rounded-xl bg-[#d6e9f8]/70 dark:bg-[#1a384f]/80 border border-[#0078d4]/20 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] group-hover:rotate-6 transition-transform shrink-0">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Publish Courses</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Institutional Catalog</div>
+              </div>
+            </Link>
+
+            {/* Tuition Payouts */}
+            <Link
+              to="/onboard"
+              className="w-52 flex items-center gap-3 p-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-900/60 shadow-xl hover:scale-105 hover:border-emerald-400/40 transition-all duration-300 animate-float-3 group cursor-pointer"
+              title="Direct Bank Tuition Settlement"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-[#0d2618] border border-emerald-200/60 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:rotate-6 transition-transform shrink-0">
+                <Banknote className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Tuition Settlement</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Direct Bank Settlement</div>
+              </div>
             </Link>
           </div>
 
-          {/* Proof Bar (Microsoft / Coursera Metric Tiles) */}
-          <div className="pt-6 sm:pt-8 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 max-w-4xl mx-auto w-full">
-            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">100+</div>
-              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Partner Academies</div>
+          {/* FLOATING INSTITUTIONAL PLATFORM BADGES (Right Flank) */}
+          <div className="hidden xl:flex flex-col gap-10 absolute right-0 top-10 z-20 pointer-events-auto">
+            {/* Live Classrooms */}
+            <Link
+              to="/explore"
+              className="w-52 flex items-center gap-3 p-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-cyan-200/80 dark:border-cyan-900/60 shadow-xl hover:scale-105 hover:border-cyan-400/40 transition-all duration-300 animate-float-2 group cursor-pointer"
+              title="Interactive Live HD Classrooms"
+            >
+              <div className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-[#0b242e] border border-cyan-200/60 dark:border-cyan-800/60 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover:rotate-6 transition-transform shrink-0">
+                <Video className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Live Classrooms</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Interactive Video HD</div>
+              </div>
+            </Link>
+
+            {/* Verifiable Credentials */}
+            <Link
+              to="/explore"
+              className="w-52 flex items-center gap-3 p-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-amber-200/80 dark:border-amber-900/60 shadow-xl hover:scale-105 hover:border-amber-400/40 transition-all duration-300 animate-float-4 group cursor-pointer"
+              title="Accredited Verifiable Certificates"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-[#261e0e] border border-amber-200/60 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:rotate-6 transition-transform shrink-0">
+                <Award className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Accredited Certs</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Digital Credentials</div>
+              </div>
+            </Link>
+          </div>
+
+          {/* Hero Content Container (Completely unobstructed, spacious, clean) */}
+          <div className="max-w-2xl sm:max-w-3xl mx-auto text-center space-y-6 sm:space-y-8 px-4 relative z-10">
+            {/* Main Title */}
+            <div className="space-y-4 sm:space-y-5">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-slate-900 dark:text-white leading-[1.15] sm:leading-[1.12] break-words">
+                Education Without Borders.
+                <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-1.5 sm:mt-3">
+                  Learn, Teach, and Scale Across Africa.
+                </span>
+              </h1>
+
+              <p className="text-sm sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto font-normal font-body px-2">
+                Backpack connects students, secondary schools, universities, and vocational academies. 
+                Attend live HD video classes, manage comprehensive student telemetry, and settle tuition in regional African currencies.
+              </p>
             </div>
-            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-[#0078d4] tracking-tight">15+</div>
-              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Regional Currencies</div>
+
+            {/* Action Link Group */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 pt-2 text-sm font-heading max-w-md sm:max-w-none mx-auto w-full">
+              <Link
+                to="/explore"
+                className="w-full sm:w-auto px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Explore Catalog</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/signup"
+                className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Get Started Free</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/onboard"
+                className="w-full sm:w-auto px-6 py-3 bg-white dark:bg-[#0f2231] hover:bg-slate-50 dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 border border-[#d6e9f8] dark:border-[#1e3a52] font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Building2 className="w-4 h-4 text-[#0078d4]" />
+                <span>Register an Institution</span>
+              </Link>
             </div>
-            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-emerald-600 dark:text-emerald-400 tracking-tight">100%</div>
-              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Direct Bank Settlement</div>
-            </div>
-            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">HD Live</div>
-              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Interactive Classrooms</div>
+
+            {/* Proof Bar (Microsoft / Coursera Metric Tiles) */}
+            <div className="pt-6 sm:pt-8 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 max-w-3xl sm:max-w-4xl mx-auto w-full">
+              <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">100+</div>
+                <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Partner Academies</div>
+              </div>
+              <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-[#0078d4] tracking-tight">15+</div>
+                <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Regional Currencies</div>
+              </div>
+              <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-emerald-600 dark:text-emerald-400 tracking-tight">100%</div>
+                <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Direct Bank Settlement</div>
+              </div>
+              <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] text-center shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">HD Live</div>
+                <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Interactive Classrooms</div>
+              </div>
             </div>
           </div>
         </div>
