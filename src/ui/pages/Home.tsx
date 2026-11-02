@@ -32,12 +32,6 @@ import {
   Bell,
   Laptop,
   Check,
-  Code2,
-  Sparkles,
-  Palette,
-  Cloud,
-  Cpu,
-  Terminal,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { Course } from "../../types";
