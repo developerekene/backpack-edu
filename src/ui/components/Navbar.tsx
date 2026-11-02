@@ -218,17 +218,17 @@ export const Navbar = () => {
   }, []);
 
   const getLinkStyle = (path: string) =>
-    `text-sm font-medium transition-colors font-body ${
+    `text-sm font-medium transition-colors font-body px-2.5 py-1.5 rounded-lg ${
       pathname === path
-        ? "text-[#0078d4] dark:text-[#04a4ec] font-semibold"
-        : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+        ? "text-[#0078d4] dark:text-[#04a4ec] font-bold bg-[#d6e9f8]/60 dark:bg-[#1a384f]/60"
+        : "text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/40"
     }`;
 
   const getMobileLinkStyle = (path: string) =>
     `block px-4 py-2.5 rounded-xl text-base font-medium transition-colors font-body ${
       pathname === path
-        ? "bg-blue-50 dark:bg-blue-950/60 text-[#0078d4] dark:text-[#04a4ec] font-semibold"
-        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+        ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] font-bold"
+        : "text-slate-700 dark:text-slate-200 hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/50"
     }`;
 
   const handleLogout = async () => {
@@ -250,19 +250,19 @@ export const Navbar = () => {
 
   const moreTriggerStyle = `flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors font-heading border ${
     moreActive
-      ? "bg-blue-50 dark:bg-blue-950/60 text-[#0078d4] dark:text-[#04a4ec] border-blue-200 dark:border-blue-800/60 font-semibold"
-      : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60"
+      ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] border-[#b8daf4] dark:border-[#254b68] font-bold"
+      : "border-transparent text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/40"
   }`;
 
   const moreItemStyle = (path: string) =>
     `flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors font-body ${
       pathname === path
-        ? "bg-blue-50 dark:bg-blue-950/60 text-[#0078d4] dark:text-[#04a4ec] font-semibold"
-        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60"
+        ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] font-bold"
+        : "text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#153147]/50"
     }`;
 
   return (
-    <nav className="bg-white/95 dark:bg-[#121212]/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 px-4 sm:px-6 py-3 font-body shadow-2xs">
+    <nav className="bg-[#f0f7fd]/95 dark:bg-[#0f2231]/95 backdrop-blur-md border-b border-[#d6e9f8] dark:border-[#1e3a52] sticky top-0 z-50 px-4 sm:px-6 py-3 font-body shadow-xs">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link
           to="/"
@@ -286,7 +286,7 @@ export const Navbar = () => {
         {/* Global Right Controls (Theme, Notifications, Hamburger) */}
         <div className="flex items-center space-x-2 sm:space-x-4">
           {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-5 pl-2">
+          <div className="hidden md:flex items-center space-x-4 pl-2">
             <Link to="/" className={getLinkStyle("/")}>
               Home
             </Link>
@@ -340,7 +340,7 @@ export const Navbar = () => {
                 </button>
 
                 {moreOpen && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-2 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
                     {currentUser.role === "student" && (
                       <Link
                         to="/explore"
@@ -403,7 +403,7 @@ export const Navbar = () => {
                     )}
 
                     {/* Divider + Logout */}
-                    <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                    <div className="my-1 border-t border-[#d6e9f8] dark:border-[#1e3a52]" />
                     <button
                       onClick={handleLogout}
                       className="flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
@@ -417,11 +417,11 @@ export const Navbar = () => {
             )}
 
             {currentUser ? (
-              <div className="flex items-center space-x-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3">
+              <div className="flex items-center space-x-1 ml-2 border-l border-[#d6e9f8] dark:border-[#1e3a52] pl-3">
                 <Link
                   to="/profile"
                   onClick={closeMore}
-                  className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300 hover:text-[#0078d4] dark:hover:text-[#04a4ec] font-medium transition pr-1 font-heading"
+                  className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] font-medium transition pr-1 font-heading"
                 >
                   {currentUser.role === "student" ? (
                     <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
@@ -435,7 +435,7 @@ export const Navbar = () => {
               <div className="flex items-center space-x-3 font-heading">
                 <Link
                   to="/login"
-                  className="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-3 py-2 transition-colors cursor-pointer"
+                  className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] px-3 py-2 transition-colors cursor-pointer"
                 >
                   Login
                 </Link>
@@ -472,7 +472,7 @@ export const Navbar = () => {
 
           <button
             onClick={() => openAccessibilityModal()}
-            className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+            className="relative p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             title="Special Needs & Accessibility Suite (Dyslexia font, color filters, TTS, reading ruler, exam multipliers)"
             aria-label="Open Special Needs and Accessibility Suite"
           >
@@ -484,7 +484,7 @@ export const Navbar = () => {
 
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+            className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             title="Toggle theme"
           >
             {theme === "dark" ? (
@@ -497,7 +497,7 @@ export const Navbar = () => {
           {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none md:hidden cursor-pointer"
+            className="p-2 rounded-lg bg-[#e2f0fb] dark:bg-[#1a384f] text-slate-700 dark:text-slate-200 hover:bg-[#d6e9f8] dark:hover:bg-[#204461] focus:outline-none md:hidden cursor-pointer"
             aria-label="Toggle mobile menu"
           >
             {mobileMenuOpen ? (
@@ -511,7 +511,7 @@ export const Navbar = () => {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-2 animate-in slide-in-from-top-2">
+        <div className="md:hidden mt-3 pt-3 border-t border-[#d6e9f8] dark:border-[#1e3a52] space-y-2 animate-in slide-in-from-top-2">
           <Link to="/" onClick={closeMenu} className={getMobileLinkStyle("/")}>
             Home
           </Link>
@@ -614,7 +614,7 @@ export const Navbar = () => {
             </Link>
           )}
 
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-700/60">
+          <div className="pt-4 border-t border-[#d6e9f8] dark:border-[#1e3a52]">
             {currentUser ? (
               <div className="flex items-center justify-between px-4 py-2">
                 <div className="flex items-center space-x-2 text-sm font-medium text-slate-800 dark:text-slate-200 font-heading">
@@ -640,7 +640,7 @@ export const Navbar = () => {
                 <Link
                   to="/login"
                   onClick={closeMenu}
-                  className="text-center py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  className="text-center py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-white dark:bg-[#132838] text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#1a384f] transition-colors"
                 >
                   Login
                 </Link>
@@ -654,13 +654,13 @@ export const Navbar = () => {
               </div>
             )}
           </div>
-          <div className="flex items-center justify-between px-2 pt-2 border-t border-slate-200 dark:border-slate-700/60">
+          <div className="flex items-center justify-between px-2 pt-2 border-t border-[#d6e9f8] dark:border-[#1e3a52]">
             <button
               onClick={() => {
                 closeMenu();
                 openAccessibilityModal();
               }}
-              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold transition font-heading cursor-pointer"
+              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold transition font-heading cursor-pointer"
             >
               <Accessibility className="w-4 h-4" />
               <span>Accessibility & Special Needs</span>
@@ -671,7 +671,7 @@ export const Navbar = () => {
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+              className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
               title="Toggle theme"
             >
               {theme === "dark" ? (
@@ -761,7 +761,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
     <div className="relative" ref={wrapperRef}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors relative cursor-pointer"
+        className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors relative cursor-pointer"
         title="Notifications & Push Alerts"
         aria-label="Notifications"
       >
@@ -775,9 +775,9 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[92vw] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150 font-body">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[92vw] bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150 font-body">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
+          <div className="flex items-center justify-between border-b border-[#d6e9f8] dark:border-[#1e3a52] pb-2.5">
             <div className="flex items-center space-x-2">
               <Bell className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
               <h4 className="font-bold text-sm text-slate-900 dark:text-white font-heading">
@@ -810,7 +810,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
           </div>
 
           {/* Browser Push Notification Permission Card */}
-          <div className="p-3 bg-[#f8fafd] dark:bg-slate-900/90 rounded-xl border border-[#d6e9f8] dark:border-slate-700 space-y-2">
+          <div className="p-3 bg-[#f0f7fd] dark:bg-[#132838] rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 dark:text-slate-200 font-heading">
                 <ShieldCheck className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
@@ -850,7 +850,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
               ) : (
                 <button
                   onClick={onSendTestPush}
-                  className="w-full py-1.5 px-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                  className="w-full py-1.5 px-3 bg-[#e2f0fb] dark:bg-[#1a384f] hover:bg-[#d6e9f8] dark:hover:bg-[#204461] text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5 text-[#0078d4] dark:text-[#04a4ec]" />
                   <span>Send Test Push Notification</span>
@@ -911,7 +911,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
           )}
 
           {/* In-App Notifications List */}
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1 divide-y divide-slate-100 dark:divide-slate-700/50">
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1 divide-y divide-[#d6e9f8]/60 dark:divide-[#1e3a52]/60">
             {userNotifications.length === 0 ? (
               <div className="text-center py-6 space-y-1">
                 <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
@@ -941,8 +941,8 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
                   }}
                   className={`pt-2 pb-2 px-2 rounded-xl transition cursor-pointer flex items-start space-x-2.5 ${
                     !notif.read
-                      ? "bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100/60 dark:border-blue-900/40"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                      ? "bg-[#e8f3fc] dark:bg-[#132838] border border-[#d6e9f8]/60 dark:border-[#1e3a52]/60"
+                      : "hover:bg-[#f0f7fd] dark:hover:bg-[#132838]/50"
                   }`}
                 >
                   <div className="mt-1">
