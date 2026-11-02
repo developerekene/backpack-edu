@@ -218,17 +218,17 @@ export const Navbar = () => {
   }, []);
 
   const getLinkStyle = (path: string) =>
-    `text-sm font-medium transition-colors ${
+    `text-sm font-medium transition-colors font-body px-2.5 py-1.5 rounded-lg ${
       pathname === path
-        ? "text-indigo-600 dark:text-indigo-400 font-semibold"
-        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+        ? "text-[#0078d4] dark:text-[#04a4ec] font-bold bg-[#d6e9f8]/60 dark:bg-[#1a384f]/60"
+        : "text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/40"
     }`;
 
   const getMobileLinkStyle = (path: string) =>
-    `block px-4 py-2.5 rounded-xl text-base font-medium transition-colors ${
+    `block px-4 py-2.5 rounded-xl text-base font-medium transition-colors font-body ${
       pathname === path
-        ? "bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-semibold"
-        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white dark:bg-slate-800"
+        ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] font-bold"
+        : "text-slate-700 dark:text-slate-200 hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/50"
     }`;
 
   const handleLogout = async () => {
@@ -248,21 +248,21 @@ export const Navbar = () => {
     pathname === "/onboard" ||
     pathname === "/events";
 
-  const moreTriggerStyle = `flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+  const moreTriggerStyle = `flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors font-heading border ${
     moreActive
-      ? "bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/60 font-semibold"
-      : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60"
+      ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] border-[#b8daf4] dark:border-[#254b68] font-bold"
+      : "border-transparent text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/40"
   }`;
 
   const moreItemStyle = (path: string) =>
-    `flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+    `flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors font-body ${
       pathname === path
-        ? "bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-semibold"
-        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60"
+        ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] font-bold"
+        : "text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#153147]/50"
     }`;
 
   return (
-    <nav className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700/60 sticky top-0 z-50 px-4 sm:px-6 py-3.5">
+    <nav className="bg-[#f0f7fd]/95 dark:bg-[#0f2231]/95 backdrop-blur-md border-b border-[#d6e9f8] dark:border-[#1e3a52] sticky top-0 z-50 px-4 sm:px-6 py-3 font-body shadow-xs">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link
           to="/"
@@ -274,10 +274,10 @@ export const Navbar = () => {
           </div>
 
           <div className="flex flex-col leading-tight">
-            <span className="text-xl font-extrabold tracking-wide text-slate-900 dark:text-white">
+            <span className="text-xl font-extrabold tracking-wide text-slate-900 dark:text-white font-heading">
               BACKPACK
             </span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400 font-bold">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-[#0078d4] dark:text-[#04a4ec] font-bold font-heading">
               Education Without Borders
             </span>
           </div>
@@ -286,7 +286,7 @@ export const Navbar = () => {
         {/* Global Right Controls (Theme, Notifications, Hamburger) */}
         <div className="flex items-center space-x-2 sm:space-x-4">
           {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-5 pl-2">
+          <div className="hidden md:flex items-center space-x-4 pl-2">
             <Link to="/" className={getLinkStyle("/")}>
               Home
             </Link>
@@ -340,7 +340,7 @@ export const Navbar = () => {
                 </button>
 
                 {moreOpen && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-2 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
                     {currentUser.role === "student" && (
                       <Link
                         to="/explore"
@@ -359,7 +359,7 @@ export const Navbar = () => {
                         onClick={closeMore}
                         className={moreItemStyle("/upload-course")}
                       >
-                        <Plus className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                        <Plus className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
                         <span>Add Course</span>
                       </Link>
                     )}
@@ -387,7 +387,7 @@ export const Navbar = () => {
                       onClick={closeMore}
                       className={moreItemStyle("/events")}
                     >
-                      <CalendarDays className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                      <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
                       <span>Events</span>
                     </Link>
 
@@ -403,7 +403,7 @@ export const Navbar = () => {
                     )}
 
                     {/* Divider + Logout */}
-                    <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                    <div className="my-1 border-t border-[#d6e9f8] dark:border-[#1e3a52]" />
                     <button
                       onClick={handleLogout}
                       className="flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
@@ -417,11 +417,11 @@ export const Navbar = () => {
             )}
 
             {currentUser ? (
-              <div className="flex items-center space-x-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3">
+              <div className="flex items-center space-x-1 ml-2 border-l border-[#d6e9f8] dark:border-[#1e3a52] pl-3">
                 <Link
                   to="/profile"
                   onClick={closeMore}
-                  className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition pr-1"
+                  className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] font-medium transition pr-1 font-heading"
                 >
                   {currentUser.role === "student" ? (
                     <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
@@ -432,16 +432,16 @@ export const Navbar = () => {
                 </Link>
               </div>
             ) : (
-              <div className="flex space-x-3">
+              <div className="flex items-center space-x-3 font-heading">
                 <Link
                   to="/login"
-                  className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 px-3 py-2"
+                  className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] px-3 py-2 transition-colors cursor-pointer"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition shadow-sm"
+                  className="px-4 py-2 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-sm font-semibold transition shadow-xs cursor-pointer flex items-center justify-center"
                 >
                   Sign Up
                 </Link>
@@ -472,11 +472,11 @@ export const Navbar = () => {
 
           <button
             onClick={() => openAccessibilityModal()}
-            className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+            className="relative p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             title="Special Needs & Accessibility Suite (Dyslexia font, color filters, TTS, reading ruler, exam multipliers)"
             aria-label="Open Special Needs and Accessibility Suite"
           >
-            <Accessibility className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <Accessibility className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
             {hasActiveFeatures && (
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800 animate-pulse" />
             )}
@@ -484,7 +484,7 @@ export const Navbar = () => {
 
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+            className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             title="Toggle theme"
           >
             {theme === "dark" ? (
@@ -497,7 +497,7 @@ export const Navbar = () => {
           {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none md:hidden"
+            className="p-2 rounded-lg bg-[#e2f0fb] dark:bg-[#1a384f] text-slate-700 dark:text-slate-200 hover:bg-[#d6e9f8] dark:hover:bg-[#204461] focus:outline-none md:hidden cursor-pointer"
             aria-label="Toggle mobile menu"
           >
             {mobileMenuOpen ? (
@@ -511,7 +511,7 @@ export const Navbar = () => {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 space-y-2 animate-in slide-in-from-top-2">
+        <div className="md:hidden mt-3 pt-3 border-t border-[#d6e9f8] dark:border-[#1e3a52] space-y-2 animate-in slide-in-from-top-2">
           <Link to="/" onClick={closeMenu} className={getMobileLinkStyle("/")}>
             Home
           </Link>
@@ -569,7 +569,7 @@ export const Navbar = () => {
                 onClick={closeMenu}
                 className={`${getMobileLinkStyle("/events")} flex items-center space-x-2`}
               >
-                <CalendarDays className="w-4 h-4 text-indigo-500" />
+                <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
                 <span>Events</span>
               </Link>
             </>
@@ -580,7 +580,7 @@ export const Navbar = () => {
             onClick={closeMenu}
             className={`${getMobileLinkStyle("/lunch")} flex items-center space-x-2`}
           >
-            <Rocket className="w-4 h-4 text-indigo-500" />
+            <Rocket className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
             <span>Launch Box</span>
           </Link>
 
@@ -589,7 +589,7 @@ export const Navbar = () => {
             onClick={closeMenu}
             className={`${getMobileLinkStyle("/about-us")} flex items-center space-x-2`}
           >
-            <Rocket className="w-4 h-4 text-indigo-500" />
+            <User className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
             <span>About Us</span>
           </Link>
 
@@ -599,7 +599,7 @@ export const Navbar = () => {
               onClick={closeMenu}
               className={`${getMobileLinkStyle("/events")} flex items-center space-x-2`}
             >
-              <CalendarDays className="w-4 h-4 text-indigo-500" />
+              <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
               <span>Events</span>
             </Link>
           )}
@@ -614,10 +614,10 @@ export const Navbar = () => {
             </Link>
           )}
 
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-700/60">
+          <div className="pt-4 border-t border-[#d6e9f8] dark:border-[#1e3a52]">
             {currentUser ? (
               <div className="flex items-center justify-between px-4 py-2">
-                <div className="flex items-center space-x-2 text-sm font-medium text-slate-800 dark:text-slate-200">
+                <div className="flex items-center space-x-2 text-sm font-medium text-slate-800 dark:text-slate-200 font-heading">
                   {currentUser.role === "student" ? (
                     <GraduationCap className="w-4 h-4 text-emerald-500" />
                   ) : (
@@ -629,38 +629,38 @@ export const Navbar = () => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition"
+                  className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition cursor-pointer font-heading"
                 >
                   <LogOut className="w-3.5 h-3.5 mr-1" />
                   <span>Logout</span>
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 px-2 pt-2">
+              <div className="grid grid-cols-2 gap-2 px-2 pt-2 font-heading">
                 <Link
                   to="/login"
                   onClick={closeMenu}
-                  className="text-center py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200"
+                  className="text-center py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-white dark:bg-[#132838] text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#1a384f] transition-colors"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
                   onClick={closeMenu}
-                  className="text-center py-2.5 rounded-xl bg-indigo-600 text-slate-900 dark:text-white text-sm font-medium shadow-sm"
+                  className="text-center py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold shadow-xs transition-colors"
                 >
                   Sign Up
                 </Link>
               </div>
             )}
           </div>
-          <div className="flex items-center justify-between px-2 pt-2 border-t border-slate-200 dark:border-slate-700/60">
+          <div className="flex items-center justify-between px-2 pt-2 border-t border-[#d6e9f8] dark:border-[#1e3a52]">
             <button
               onClick={() => {
                 closeMenu();
                 openAccessibilityModal();
               }}
-              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition"
+              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold transition font-heading cursor-pointer"
             >
               <Accessibility className="w-4 h-4" />
               <span>Accessibility & Special Needs</span>
@@ -671,7 +671,7 @@ export const Navbar = () => {
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+              className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
               title="Toggle theme"
             >
               {theme === "dark" ? (
@@ -761,11 +761,11 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
     <div className="relative" ref={wrapperRef}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors relative"
+        className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors relative cursor-pointer"
         title="Notifications & Push Alerts"
         aria-label="Notifications"
       >
-        <Bell className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+        <Bell className="w-5 h-5 text-[#0078d4] dark:text-[#04a4ec]" />
 
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white dark:border-slate-800 animate-pulse shadow-sm">
@@ -775,32 +775,32 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[92vw] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[92vw] bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150 font-body">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
+          <div className="flex items-center justify-between border-b border-[#d6e9f8] dark:border-[#1e3a52] pb-2.5">
             <div className="flex items-center space-x-2">
-              <Bell className="w-4 h-4 text-indigo-500" />
-              <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+              <Bell className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+              <h4 className="font-bold text-sm text-slate-900 dark:text-white font-heading">
                 Notifications
               </h4>
               {unreadCount > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#0078d4] dark:text-[#04a4ec] border border-blue-200 dark:border-blue-900 font-heading">
                   {unreadCount} unread
                 </span>
               )}
             </div>
             {userNotifications.length > 0 && (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 font-heading">
                 <button
                   onClick={onMarkAllRead}
-                  className="text-[11px] text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold flex items-center"
+                  className="text-[11px] text-slate-500 hover:text-[#0078d4] dark:hover:text-[#04a4ec] font-semibold flex items-center cursor-pointer"
                   title="Mark all as read"
                 >
                   <CheckCheck className="w-3.5 h-3.5 mr-0.5" /> Read
                 </button>
                 <button
                   onClick={onClearNotifications}
-                  className="text-[11px] text-slate-400 hover:text-red-500 font-semibold p-1"
+                  className="text-[11px] text-slate-400 hover:text-red-500 font-semibold p-1 cursor-pointer"
                   title="Clear all"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -810,14 +810,14 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
           </div>
 
           {/* Browser Push Notification Permission Card */}
-          <div className="p-3 bg-indigo-50/80 dark:bg-slate-900/80 rounded-xl border border-indigo-100 dark:border-slate-700 space-y-2">
+          <div className="p-3 bg-[#f0f7fd] dark:bg-[#132838] rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 dark:text-slate-200 font-heading">
+                <ShieldCheck className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
                 <span>Desktop Push Alerts</span>
               </div>
               <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-heading ${
                   pushPermission === "granted"
                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                     : pushPermission === "denied"
@@ -838,11 +838,11 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
               classes, enrollments, and grading updates.
             </p>
 
-            <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex items-center justify-between gap-2 pt-1 font-heading">
               {pushPermission !== "granted" ? (
                 <button
                   onClick={onRequestPush}
-                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center justify-center space-x-1.5"
+                  className="w-full py-2 px-3 bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <Bell className="w-3.5 h-3.5" />
                   <span>Enable Push Notifications</span>
@@ -850,9 +850,9 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
               ) : (
                 <button
                   onClick={onSendTestPush}
-                  className="w-full py-1.5 px-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition flex items-center justify-center space-x-1.5"
+                  className="w-full py-1.5 px-3 bg-[#e2f0fb] dark:bg-[#1a384f] hover:bg-[#d6e9f8] dark:hover:bg-[#204461] text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
-                  <Send className="w-3.5 h-3.5 text-indigo-500" />
+                  <Send className="w-3.5 h-3.5 text-[#0078d4] dark:text-[#04a4ec]" />
                   <span>Send Test Push Notification</span>
                 </button>
               )}
@@ -867,7 +867,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
 
           {/* Active Live Class Alerts */}
           {activeLiveCalls.length > 0 && (
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2 pt-1 font-heading">
               <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mr-1.5" />
                 Active Live Class ({activeLiveCalls.length})
@@ -888,7 +888,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
                           LIVE NOW
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300 truncate mt-0.5">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 truncate mt-0.5 font-body">
                         {course?.title || "Classroom Session"}
                       </p>
                     </div>
@@ -899,7 +899,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
                           onNavigate(`/course/${evt.courseId}?live=true&eventId=${evt.id}`);
                         }
                       }}
-                      className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1.5"
+                      className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
                       <Video className="w-3.5 h-3.5" />
                       <span>Join Live Class</span>
@@ -911,7 +911,7 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
           )}
 
           {/* In-App Notifications List */}
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1 divide-y divide-slate-100 dark:divide-slate-700/50">
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1 divide-y divide-[#d6e9f8]/60 dark:divide-[#1e3a52]/60">
             {userNotifications.length === 0 ? (
               <div className="text-center py-6 space-y-1">
                 <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
@@ -941,13 +941,13 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
                   }}
                   className={`pt-2 pb-2 px-2 rounded-xl transition cursor-pointer flex items-start space-x-2.5 ${
                     !notif.read
-                      ? "bg-indigo-50/70 dark:bg-indigo-950/40"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                      ? "bg-[#e8f3fc] dark:bg-[#132838] border border-[#d6e9f8]/60 dark:border-[#1e3a52]/60"
+                      : "hover:bg-[#f0f7fd] dark:hover:bg-[#132838]/50"
                   }`}
                 >
                   <div className="mt-1">
                     {!notif.read ? (
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 block" />
+                      <span className="w-2 h-2 rounded-full bg-[#0078d4] block" />
                     ) : (
                       <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 block" />
                     )}
@@ -955,11 +955,11 @@ const NotificationsBell: React.FC<NotificationsBellProps> = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h5
-                        className={`text-xs font-bold truncate ${!notif.read ? "text-indigo-950 dark:text-indigo-200" : "text-slate-800 dark:text-slate-200"}`}
+                        className={`text-xs font-bold truncate ${!notif.read ? "text-[#0078d4] dark:text-blue-300" : "text-slate-800 dark:text-slate-200"}`}
                       >
                         {notif.title}
                       </h5>
-                      <span className="text-[10px] text-slate-400 whitespace-nowrap ml-1">
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap ml-1 font-mono">
                         {notif.createdAt}
                       </span>
                     </div>

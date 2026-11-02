@@ -45,6 +45,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="max-w-7xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6 flex-1">
+    {children}
+  </div>
+);
+
 const Index: React.FC = () => {
   return (
     <ThemeProvider>
@@ -57,28 +63,29 @@ const Index: React.FC = () => {
                 <ColorFilterOverlay />
                 <ReadingFocusRuler />
                 <TTSFloatingController />
-                <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+                <div className="min-h-screen bg-[#f8fafd] dark:bg-[#0a1824] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
                   <Navbar />
                   <UniversalAccessibilityModal />
-                  <main className="flex-1 max-w-7xl w-full mx-auto p-6">
+                  <main className="flex-1 w-full flex flex-col">
                     <Routes>
+                      {/* Home has full-width layout capabilities with edge-to-edge Hero */}
                       <Route path="/" element={<Home />} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/signup" element={<Signup />} />
-                      <Route path="/about-us" element={<AboutUs />} />
+                      <Route path="/login" element={<PageWrapper><Login /></PageWrapper>} />
+                      <Route path="/signup" element={<PageWrapper><Signup /></PageWrapper>} />
+                      <Route path="/about-us" element={<PageWrapper><AboutUs /></PageWrapper>} />
                       <Route path="/donate" element={<Navigate to="/explore" replace />} />
                       <Route path="/donate/:courseId" element={<Navigate to="/explore" replace />} />
 
-                      <Route path="/privacy" element={<Policy />} />
-                      <Route path="/live" element={<LiveRoomPage />} />
-                      <Route path="/live/:roomName" element={<LiveRoomPage />} />
-                      <Route path="/explore" element={<ExploreOrgs />} />
-                      <Route path="/org/:orgId" element={<OrgProfile />} />
+                      <Route path="/privacy" element={<PageWrapper><Policy /></PageWrapper>} />
+                      <Route path="/live" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
+                      <Route path="/live/:roomName" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
+                      <Route path="/explore" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />
+                      <Route path="/org/:orgId" element={<PageWrapper><OrgProfile /></PageWrapper>} />
                       <Route
                         path="/dashboard"
                         element={
                           <ProtectedRoute>
-                            <Dashboard />
+                            <PageWrapper><Dashboard /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />
@@ -86,7 +93,7 @@ const Index: React.FC = () => {
                         path="/onboard"
                         element={
                           <ProtectedRoute>
-                            <Onboarding />
+                            <PageWrapper><Onboarding /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />
@@ -94,19 +101,19 @@ const Index: React.FC = () => {
                         path="/upload-course"
                         element={
                           <ProtectedRoute>
-                            <CourseUpload />
+                            <PageWrapper><CourseUpload /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />
                       <Route
                         path="/course/:courseId"
-                        element={<CourseDetails />}
+                        element={<PageWrapper><CourseDetails /></PageWrapper>}
                       />
                       <Route
                         path="/settings"
                         element={
                           <ProtectedRoute>
-                            <Settings />
+                            <PageWrapper><Settings /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />
@@ -114,7 +121,7 @@ const Index: React.FC = () => {
                         path="/profile"
                         element={
                           <ProtectedRoute>
-                            <Profile />
+                            <PageWrapper><Profile /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />
@@ -122,11 +129,11 @@ const Index: React.FC = () => {
                         path="/lunch"
                         element={
                           <ProtectedRoute>
-                            <Lunch />
+                            <PageWrapper><Lunch /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />
-                      <Route path="/events" element={<Events />} />
+                      <Route path="/events" element={<PageWrapper><Events /></PageWrapper>} />
                     </Routes>
                   </main>
                 </div>
