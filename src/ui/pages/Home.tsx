@@ -167,155 +167,93 @@ const Home: React.FC = () => {
   const currentSteps = activeStepTab === "students" ? studentSteps : creatorSteps;
 
   return (
-    <div className="space-y-20 sm:space-y-24 py-6 sm:py-10 text-slate-900 dark:text-slate-100">
+    <div className="w-full text-slate-900 dark:text-slate-100 flex flex-col">
       {/* ======================================================== */}
-      {/* 1. HERO SECTION (With Animated Floating Learning Icons)   */}
+      {/* 1. HERO SECTION (Full-Width with Flanking Floating Icons) */}
       {/* ======================================================== */}
-      <section className="relative overflow-hidden pt-6 pb-12 sm:pt-12 sm:pb-20 border-b border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-b from-[#f0f7fd]/90 via-white to-white dark:from-[#0f2231]/40 dark:via-background dark:to-background">
+      <section className="relative w-full overflow-hidden pt-8 pb-14 sm:pt-14 sm:pb-20 border-b border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-b from-[#f0f7fd]/90 via-white to-white dark:from-[#0f2231]/30 dark:via-[#0a1824] dark:to-[#0a1824]">
         {/* Ambient luminous glow backdrop */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none -z-10 overflow-hidden">
-          <div className="absolute top-[-15%] left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-gradient-to-b from-[#d6e9f8]/70 via-[#0078d4]/10 to-transparent dark:from-[#0078d4]/20 dark:via-[#0f2231]/30 dark:to-transparent rounded-full blur-3xl opacity-80" />
+          <div className="absolute top-[-15%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-[#d6e9f8]/70 via-[#0078d4]/10 to-transparent dark:from-[#0078d4]/20 dark:via-[#0f2231]/30 dark:to-transparent rounded-full blur-3xl opacity-80" />
         </div>
 
         {/* ======================================================== */}
-        {/* FLOATING ANIMATED TECH & E-LEARNING BADGES (Desktop)     */}
+        {/* FLOATING ANIMATED TECH BADGES (Outside text container)   */}
         {/* ======================================================== */}
-        {/* 1. Software Engineering (Top Left) */}
-        <Link
-          to="/explore"
-          className="hidden xl:flex absolute top-6 left-4 2xl:left-12 items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-[#d6e9f8] dark:border-[#1e3a52] shadow-lg shadow-blue-500/5 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-float-1 group z-20 cursor-pointer"
-          title="Browse Software Engineering Courses"
-        >
-          <div className="w-9 h-9 rounded-xl bg-[#d6e9f8]/70 dark:bg-[#1a384f]/80 border border-[#0078d4]/20 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] group-hover:rotate-6 transition-transform">
-            <Code2 className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading flex items-center gap-1.5">
-              <span>Software Engineering</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        {/* Left Side: 2 clean floating badges in outer screen space */}
+        <div className="hidden 2xl:flex flex-col gap-10 absolute left-8 top-16 z-20 pointer-events-auto">
+          {/* Software Engineering */}
+          <Link
+            to="/explore"
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-[#d6e9f8] dark:border-[#1e3a52] shadow-xl hover:scale-105 hover:border-[#0078d4]/40 transition-all duration-300 animate-float-1 group cursor-pointer"
+            title="Browse Software Engineering Courses"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#d6e9f8]/70 dark:bg-[#1a384f]/80 border border-[#0078d4]/20 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] group-hover:rotate-6 transition-transform">
+              <Code2 className="w-5 h-5" />
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Python • React • Node</div>
-          </div>
-        </Link>
-
-        {/* 2. AI & Machine Learning (Top Right) */}
-        <Link
-          to="/explore"
-          className="hidden xl:flex absolute top-8 right-4 2xl:right-12 items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-purple-200/80 dark:border-purple-900/60 shadow-lg shadow-purple-500/5 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-float-2 group z-20 cursor-pointer"
-          title="Browse AI & Data Science Courses"
-        >
-          <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-[#201533] border border-purple-200/60 dark:border-purple-800/60 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:rotate-6 transition-transform">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading flex items-center gap-1.5">
-              <span>AI & Data Science</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+            <div className="text-left">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading flex items-center gap-1.5">
+                <span>Software Engineering</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Python • React • Node</div>
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Prompt Eng • PyTorch</div>
-          </div>
-        </Link>
+          </Link>
 
-        {/* 3. Product & UI/UX Design (Mid Left) */}
-        <Link
-          to="/explore"
-          className="hidden lg:flex absolute top-40 left-2 xl:left-6 items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-rose-200/80 dark:border-rose-900/60 shadow-lg shadow-rose-500/5 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-float-3 group z-20 cursor-pointer"
-          title="Browse UI/UX & Design Courses"
-        >
-          <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-[#2b141d] border border-rose-200/60 dark:border-rose-800/60 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:rotate-6 transition-transform">
-            <Palette className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Product & UI/UX</div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Figma • Systems • UX</div>
-          </div>
-        </Link>
-
-        {/* 4. Cloud & DevOps (Mid Right) */}
-        <Link
-          to="/explore"
-          className="hidden lg:flex absolute top-40 right-2 xl:right-6 items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-cyan-200/80 dark:border-cyan-900/60 shadow-lg shadow-cyan-500/5 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-float-4 group z-20 cursor-pointer"
-          title="Browse Cloud & DevOps Courses"
-        >
-          <div className="w-9 h-9 rounded-xl bg-cyan-50 dark:bg-[#0b242e] border border-cyan-200/60 dark:border-cyan-800/60 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover:rotate-6 transition-transform">
-            <Cloud className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Cloud & DevOps</div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">AWS • Docker • CI/CD</div>
-          </div>
-        </Link>
-
-        {/* 5. Cybersecurity (Lower Left) */}
-        <Link
-          to="/explore"
-          className="hidden xl:flex absolute bottom-36 left-4 2xl:left-14 items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-900/60 shadow-lg shadow-emerald-500/5 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-float-5 group z-20 cursor-pointer"
-          title="Browse Cybersecurity Courses"
-        >
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-[#0d2618] border border-emerald-200/60 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:rotate-6 transition-transform">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Cybersecurity</div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Ethical Hacking • Defense</div>
-          </div>
-        </Link>
-
-        {/* 6. Vocational & Diplomas (Lower Right) */}
-        <Link
-          to="/explore"
-          className="hidden xl:flex absolute bottom-36 right-4 2xl:right-14 items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-amber-200/80 dark:border-amber-900/60 shadow-lg shadow-amber-500/5 hover:shadow-xl hover:scale-105 transition-all duration-300 animate-float-6 group z-20 cursor-pointer"
-          title="Browse Vocational & Degree Programs"
-        >
-          <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-[#261e0e] border border-amber-200/60 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:rotate-6 transition-transform">
-            <GraduationCap className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Accredited Diplomas</div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Vocational & Degrees</div>
-          </div>
-        </Link>
-
-        {/* Ambient Floating Micro-Orbs (Desktop) */}
-        <div className="hidden lg:block absolute top-20 left-1/4 animate-float-orb-1 pointer-events-none z-10" title="Computing Hardware">
-          <div className="w-9 h-9 rounded-full bg-white/85 dark:bg-[#132838]/85 backdrop-blur-md border border-[#d6e9f8] dark:border-[#1e3a52] shadow-sm flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec]">
-            <Cpu className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="hidden lg:block absolute top-24 right-1/4 animate-float-orb-2 pointer-events-none z-10" title="Terminal & CLI">
-          <div className="w-9 h-9 rounded-full bg-white/85 dark:bg-[#132838]/85 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-900/80 shadow-sm flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-            <Terminal className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="hidden lg:block absolute bottom-48 left-[27%] animate-float-orb-3 pointer-events-none z-10" title="Pan-African Network">
-          <div className="w-9 h-9 rounded-full bg-white/85 dark:bg-[#132838]/85 backdrop-blur-md border border-teal-200/80 dark:border-teal-900/80 shadow-sm flex items-center justify-center text-teal-600 dark:text-teal-400">
-            <Globe className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="hidden lg:block absolute bottom-52 right-[27%] animate-float-orb-1 pointer-events-none z-10" title="Growth Telemetry">
-          <div className="w-9 h-9 rounded-full bg-white/85 dark:bg-[#132838]/85 backdrop-blur-md border border-indigo-200/80 dark:border-indigo-900/80 shadow-sm flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-            <TrendingUp className="w-4 h-4" />
-          </div>
+          {/* Product & UI/UX */}
+          <Link
+            to="/explore"
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-rose-200/80 dark:border-rose-900/60 shadow-xl hover:scale-105 hover:border-rose-400/40 transition-all duration-300 animate-float-3 group cursor-pointer"
+            title="Browse UI/UX & Design Courses"
+          >
+            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-[#2b141d] border border-rose-200/60 dark:border-rose-800/60 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:rotate-6 transition-transform">
+              <Palette className="w-5 h-5" />
+            </div>
+            <div className="text-left">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Product & UI/UX</div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Figma • Systems • UX</div>
+            </div>
+          </Link>
         </div>
 
-        {/* Hero Content Container */}
-        <div className="max-w-5xl mx-auto text-center space-y-6 sm:space-y-8 px-2 sm:px-4 relative z-10">
-          {/* Mobile Animated Floating Chips Row */}
-          <div className="flex md:hidden justify-center items-center gap-2 px-2 pb-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/95 dark:bg-[#0f2231]/95 border border-[#d6e9f8] dark:border-[#1e3a52] text-xs font-bold text-[#0078d4] dark:text-[#04a4ec] shadow-xs animate-float-1">
-              <Code2 className="w-3.5 h-3.5" />
-              <span>Software Dev</span>
+        {/* Right Side: 2 clean floating badges in outer screen space */}
+        <div className="hidden 2xl:flex flex-col gap-10 absolute right-8 top-16 z-20 pointer-events-auto">
+          {/* AI & Data Science */}
+          <Link
+            to="/explore"
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-purple-200/80 dark:border-purple-900/60 shadow-xl hover:scale-105 hover:border-purple-400/40 transition-all duration-300 animate-float-2 group cursor-pointer"
+            title="Browse AI & Data Science Courses"
+          >
+            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-[#201533] border border-purple-200/60 dark:border-purple-800/60 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:rotate-6 transition-transform">
+              <Sparkles className="w-5 h-5" />
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/95 dark:bg-[#0f2231]/95 border border-purple-200 dark:border-purple-800 text-xs font-bold text-purple-600 dark:text-purple-400 shadow-xs animate-float-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI Tech</span>
+            <div className="text-left">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading flex items-center gap-1.5">
+                <span>AI & Data Science</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">Prompt Eng • PyTorch</div>
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/95 dark:bg-[#0f2231]/95 border border-cyan-200 dark:border-cyan-800 text-xs font-bold text-cyan-600 dark:text-cyan-400 shadow-xs animate-float-3">
-              <Cloud className="w-3.5 h-3.5" />
-              <span>Cloud</span>
-            </div>
-          </div>
+          </Link>
 
+          {/* Cloud & DevOps */}
+          <Link
+            to="/explore"
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/95 dark:bg-[#0f2231]/95 backdrop-blur-md border border-cyan-200/80 dark:border-cyan-900/60 shadow-xl hover:scale-105 hover:border-cyan-400/40 transition-all duration-300 animate-float-4 group cursor-pointer"
+            title="Browse Cloud & DevOps Courses"
+          >
+            <div className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-[#0b242e] border border-cyan-200/60 dark:border-cyan-800/60 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover:rotate-6 transition-transform">
+              <Cloud className="w-5 h-5" />
+            </div>
+            <div className="text-left">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-heading">Cloud & DevOps</div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-body">AWS • Docker • CI/CD</div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Hero Content Container (Completely unobstructed, spacious, clean) */}
+        <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8 px-4 relative z-10">
           {/* Network Badge */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#d6e9f8]/70 dark:bg-[#1a384f]/70 border border-[#0078d4]/20 dark:border-[#04a4ec]/30 text-[#0078d4] dark:text-[#04a4ec] text-xs font-semibold font-heading shadow-xs">
             <span className="flex h-2 w-2 relative">
@@ -326,7 +264,7 @@ const Home: React.FC = () => {
           </div>
 
           {/* Main Title */}
-          <div className="space-y-4 sm:space-y-5 max-w-4xl mx-auto">
+          <div className="space-y-4 sm:space-y-5">
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-slate-900 dark:text-white leading-[1.15] sm:leading-[1.12] break-words">
               Education Without Borders.
               <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-1.5 sm:mt-3">
@@ -334,7 +272,7 @@ const Home: React.FC = () => {
               </span>
             </h1>
 
-            <p className="text-sm sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto font-normal font-body px-2">
+            <p className="text-sm sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto font-normal font-body px-2">
               Backpack connects students, secondary schools, universities, and vocational academies. 
               Attend live HD video classes, manage comprehensive student telemetry, and settle tuition in regional African currencies.
             </p>
@@ -408,6 +346,9 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Main page content wrapped in standard container */}
+      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 w-full space-y-20 sm:space-y-24 py-12">
 
       {/* ======================================================== */}
       {/* 2. CORE CAPABILITIES (3-Card Pillar Structure)           */}
@@ -1726,6 +1667,7 @@ const Home: React.FC = () => {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 };
