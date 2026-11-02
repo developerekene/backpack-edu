@@ -165,42 +165,42 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       {/* 1. HERO SECTION (Coursera + Microsoft Learn Aesthetic)    */}
       {/* ======================================================== */}
-      <section className="relative overflow-hidden pt-6 pb-12 sm:pt-10 sm:pb-16 border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-5xl mx-auto text-center space-y-8 px-4">
+      <section className="relative overflow-hidden pt-4 pb-10 sm:pt-10 sm:pb-16 border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-5xl mx-auto text-center space-y-6 sm:space-y-8 px-2 sm:px-4">
           {/* Main Title */}
-          <div className="space-y-5 max-w-4xl mx-auto">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-slate-900 dark:text-white leading-[1.12]">
+          <div className="space-y-4 sm:space-y-5 max-w-4xl mx-auto">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-slate-900 dark:text-white leading-[1.15] sm:leading-[1.12] break-words">
               Education Without Borders.
-              <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-2 sm:mt-3">
+              <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-1.5 sm:mt-3">
                 Learn, Teach, and Scale Across Africa.
               </span>
             </h1>
 
-            <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto font-normal font-body">
+            <p className="text-sm sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto font-normal font-body px-2">
               Backpack connects students, secondary schools, universities, and vocational academies. 
               Attend live HD video classes, manage comprehensive student telemetry, and settle tuition in regional African currencies.
             </p>
           </div>
 
           {/* Action Link Group */}
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2 text-sm font-heading">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 pt-2 text-sm font-heading max-w-md sm:max-w-none mx-auto w-full">
             <Link
               to="/explore"
-              className="px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow-md flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Explore Catalog</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/signup"
-              className="px-6 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Get Started Free</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/onboard"
-              className="px-6 py-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-semibold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
             >
               <Building2 className="w-4 h-4 text-[#0078d4]" />
               <span>Register an Institution</span>
@@ -208,22 +208,22 @@ const Home: React.FC = () => {
           </div>
 
           {/* Proof Bar (Microsoft / Coursera Metric Tiles) */}
-          <div className="pt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto">
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
-              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">100+</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Partner Academies</div>
+          <div className="pt-6 sm:pt-8 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 max-w-4xl mx-auto w-full">
+            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">100+</div>
+              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Partner Academies</div>
             </div>
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
-              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-[#0078d4] tracking-tight">15+</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Regional Currencies</div>
+            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-[#0078d4] tracking-tight">15+</div>
+              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Regional Currencies</div>
             </div>
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
-              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-emerald-600 dark:text-emerald-400 tracking-tight">100%</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Direct Bank Settlement</div>
+            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-emerald-600 dark:text-emerald-400 tracking-tight">100%</div>
+              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Direct Bank Settlement</div>
             </div>
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
-              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">HD Live</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Interactive Classrooms</div>
+            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">HD Live</div>
+              <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body leading-tight">Interactive Classrooms</div>
             </div>
           </div>
         </div>
@@ -299,14 +299,14 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       {/* 3. USE BACKPACK TODAY (Institutional Partnership Banner)  */}
       {/* ======================================================== */}
-      <section className="bg-[#f8fafd] dark:bg-slate-800/50 rounded-2xl p-8 sm:p-12 border border-[#d6e9f8] dark:border-slate-700 shadow-xs">
+      <section className="bg-[#f8fafd] dark:bg-slate-800/50 rounded-2xl p-5 sm:p-8 md:p-12 border border-[#d6e9f8] dark:border-slate-700 shadow-xs">
         <div className="max-w-4xl space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-100 dark:bg-blue-900/60 text-[#0078d4] dark:text-blue-300 text-xs font-bold uppercase tracking-wider font-heading">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Institutional Partnership</span>
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Institutional Partnership</span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight leading-snug break-words">
             Use Backpack Today — Take Education Out of the Four Walls
           </h2>
 
@@ -333,7 +333,7 @@ const Home: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 font-heading">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-4 font-heading w-full">
             <Link
               to="/signup"
               className="w-full sm:w-auto px-7 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl font-semibold text-sm transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
@@ -355,11 +355,11 @@ const Home: React.FC = () => {
       {/* 4. TRADITIONAL CLASSROOM VS BACKPACK ONLINE CLASSROOM    */}
       {/* ======================================================== */}
       <section className="space-y-8">
-        <div className="text-center max-w-3xl mx-auto space-y-3">
+        <div className="text-center max-w-3xl mx-auto space-y-3 px-2">
           <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider font-heading">
             Rethinking the Learning Space
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
             Traditional Classroom vs. Backpack Online Classroom
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base leading-relaxed font-body">
@@ -368,33 +368,33 @@ const Home: React.FC = () => {
         </div>
 
         {/* Side-by-Side Comparison Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-stretch">
           {/* Traditional Classroom Card */}
-          <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-xs">
+          <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 sm:p-8 flex flex-col justify-between shadow-xs">
             <div className="space-y-6">
-              <div className="flex items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-700">
-                <div className="space-y-1">
+              <div className="flex items-start justify-between gap-3 sm:gap-4 pb-5 border-b border-slate-200 dark:border-slate-700">
+                <div className="space-y-1 min-w-0">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold uppercase tracking-wider font-heading">
-                    <Building2 className="w-3.5 h-3.5" />
-                    Physical Bounds
+                    <Building2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Physical Bounds</span>
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white">
+                  <h3 className="text-lg sm:text-2xl font-bold font-heading text-slate-900 dark:text-white break-words">
                     The Traditional Classroom
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-body">
                     Confined to 4 brick walls, fixed physical desks, and manual paper workflows.
                   </p>
                 </div>
-                <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200 dark:border-amber-800">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200 dark:border-amber-800">
                   <School className="w-5 h-5" />
                 </div>
               </div>
 
               {/* In-Session Snapshot */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
-                <div className="flex items-center justify-between font-semibold font-heading text-slate-500 uppercase tracking-wider text-[11px]">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 font-semibold font-heading text-slate-500 uppercase tracking-wider text-[10px] sm:text-[11px]">
                   <span>Physical Hall In Session</span>
-                  <span className="text-amber-600 dark:text-amber-400">Capacity Capped: 45 / 45 Desks</span>
+                  <span className="text-amber-600 dark:text-amber-400 shrink-0">Capacity Capped: 45 / 45 Desks</span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs italic leading-relaxed font-body">
                   "Teacher is writing rapidly on the chalkboard. Students in the back struggle to read small text. Late arrivals occur due to commuter traffic."
@@ -453,41 +453,41 @@ const Home: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500 font-heading">
+            <div className="mt-6 sm:mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-500 font-heading">
               <span>District: Local physical radius</span>
-              <span className="font-semibold text-amber-700 dark:text-amber-400">Fixed Hall Capacity</span>
+              <span className="font-semibold text-amber-700 dark:text-amber-400 shrink-0">Fixed Hall Capacity</span>
             </div>
           </div>
 
           {/* Backpack Online Classroom Card */}
-          <div className="bg-white dark:bg-slate-800/80 border-2 border-[#0078d4] dark:border-[#04a4ec] rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-sm relative">
+          <div className="bg-white dark:bg-slate-800/80 border-2 border-[#0078d4] dark:border-[#04a4ec] rounded-2xl p-5 sm:p-8 flex flex-col justify-between shadow-sm relative">
             <div className="space-y-6">
-              <div className="flex items-start justify-between gap-4 pb-5 border-b border-blue-100 dark:border-slate-700">
-                <div className="space-y-1">
+              <div className="flex items-start justify-between gap-3 sm:gap-4 pb-5 border-b border-blue-100 dark:border-slate-700">
+                <div className="space-y-1 min-w-0">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0078d4] text-white text-xs font-bold uppercase tracking-wider font-heading">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Borderless & Real-Time
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Borderless & Real-Time</span>
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white">
+                  <h3 className="text-lg sm:text-2xl font-bold font-heading text-slate-900 dark:text-white break-words">
                     Backpack Online Classroom
                   </h3>
                   <p className="text-xs sm:text-sm text-[#0078d4] dark:text-[#04a4ec] font-medium font-body">
                     Live HD video rooms, 24/7 cloud recordings, instant automated telemetry, and connected guardians.
                   </p>
                 </div>
-                <div className="w-11 h-11 rounded-xl bg-[#0078d4] text-white flex items-center justify-center shrink-0 shadow-sm">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#0078d4] text-white flex items-center justify-center shrink-0 shadow-sm">
                   <Laptop className="w-5 h-5" />
                 </div>
               </div>
 
               {/* In-Session Snapshot */}
-              <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-slate-900/60 border border-blue-200 dark:border-blue-900 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
-                <div className="flex items-center justify-between font-semibold font-heading text-[#0078d4] uppercase tracking-wider text-[11px]">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-blue-50/60 dark:bg-slate-900/60 border border-blue-200 dark:border-blue-900 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 font-semibold font-heading text-[#0078d4] uppercase tracking-wider text-[10px] sm:text-[11px]">
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Live Virtual Room · LiveKit HD
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="truncate">Live Virtual Room · LiveKit HD</span>
                   </span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">128 Students Active</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold shrink-0">128 Students Active</span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs italic leading-relaxed font-body">
                   "Instructor shares interactive slides in 1080p. Students in Lagos, Nairobi, and Kigali ask questions in live chat; lecture automatically recorded."
@@ -546,37 +546,37 @@ const Home: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-blue-100 dark:border-slate-700 flex items-center justify-between text-xs text-[#0078d4] font-heading">
+            <div className="mt-6 sm:mt-8 pt-4 border-t border-blue-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-[#0078d4] font-heading">
               <span className="font-medium">Scale: Unlimited concurrent cohorts</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">100% Cloud Archiving</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">100% Cloud Archiving</span>
             </div>
           </div>
         </div>
 
         {/* Quick Comparison Metrics Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-2">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
             <span className="text-xs text-slate-500 font-medium block font-body">Commute Time</span>
             <div className="text-xs text-rose-500 line-through font-body">1–2 Hours in Traffic</div>
-            <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-heading">0 Mins · 1-Click Entry</div>
+            <div className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 font-heading">0 Mins · 1-Click Entry</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
             <span className="text-xs text-slate-500 font-medium block font-body">Class Capacity</span>
             <div className="text-xs text-amber-600 font-body">Max 45 Physical Desks</div>
-            <div className="text-sm font-bold text-[#0078d4] font-heading">Unlimited Cohort Size</div>
+            <div className="text-xs sm:text-sm font-bold text-[#0078d4] font-heading">Unlimited Cohort Size</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
             <span className="text-xs text-slate-500 font-medium block font-body">Lecture Retention</span>
             <div className="text-xs text-rose-500 font-body">Erased from Board</div>
-            <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-heading">Permanent Cloud Replays</div>
+            <div className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 font-heading">Permanent Cloud Replays</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
             <span className="text-xs text-slate-500 font-medium block font-body">Guardian Visibility</span>
             <div className="text-xs text-amber-600 font-body">Termly Paper Card</div>
-            <div className="text-sm font-bold text-[#0078d4] font-heading">24/7 Real-Time Portal</div>
+            <div className="text-xs sm:text-sm font-bold text-[#0078d4] font-heading">24/7 Real-Time Portal</div>
           </div>
         </div>
       </section>
@@ -584,15 +584,15 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       {/* 5. SECONDARY SCHOOL STUDENT TRACKING SUITE (Light Mode)  */}
       {/* ======================================================== */}
-      <section className="bg-white dark:bg-slate-800/90 rounded-2xl p-6 sm:p-10 border border-slate-200 dark:border-slate-700 space-y-8 shadow-xs">
+      <section className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 sm:p-8 md:p-10 border border-slate-200 dark:border-slate-700 space-y-6 sm:space-y-8 shadow-xs">
         {/* Section Header */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-slate-200 dark:border-slate-700 pb-6">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[#0078d4] dark:text-blue-300 text-xs font-semibold font-heading">
-              <School className="w-3.5 h-3.5" />
+              <School className="w-3.5 h-3.5 shrink-0" />
               <span>Secondary School Administration & Student Tracking</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
               Complete Student, Gradebook & Guardian Management
             </h2>
             <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-body">
@@ -600,17 +600,17 @@ const Home: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0 font-heading">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full lg:w-auto shrink-0 font-heading">
             <Link
               to="/onboard"
-              className="px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>Register Secondary School</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/about-us"
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-200 dark:border-slate-600 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-200 dark:border-slate-600 flex items-center justify-center cursor-pointer"
             >
               Learn More
             </Link>
@@ -619,11 +619,11 @@ const Home: React.FC = () => {
 
         {/* Interactive Feature Tabs */}
         <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-heading">
+          <div className="flex overflow-x-auto no-scrollbar sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-1.5 sm:gap-2 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-heading">
             <button
               type="button"
               onClick={() => setActiveSchoolTab("signin_signout")}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap sm:whitespace-normal shrink-0 sm:shrink ${
                 activeSchoolTab === "signin_signout"
                   ? "bg-white dark:bg-slate-800 text-[#0078d4] shadow-xs font-bold"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -636,7 +636,7 @@ const Home: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveSchoolTab("grades")}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap sm:whitespace-normal shrink-0 sm:shrink ${
                 activeSchoolTab === "grades"
                   ? "bg-white dark:bg-slate-800 text-[#0078d4] shadow-xs font-bold"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -649,7 +649,7 @@ const Home: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveSchoolTab("performance")}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap sm:whitespace-normal shrink-0 sm:shrink ${
                 activeSchoolTab === "performance"
                   ? "bg-white dark:bg-slate-800 text-[#0078d4] shadow-xs font-bold"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -662,7 +662,7 @@ const Home: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveSchoolTab("parents")}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap sm:whitespace-normal shrink-0 sm:shrink ${
                 activeSchoolTab === "parents"
                   ? "bg-white dark:bg-slate-800 text-[#0078d4] shadow-xs font-bold"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -678,18 +678,18 @@ const Home: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch pt-2">
               <div className="lg:col-span-5 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
-                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
                     Module 01 · Real-Time Attendance
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white break-words">
                     Automated Daily Sign-In & Sign-Out Tracking
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-body">
                     Track student arrival at school gates or morning homerooms with verified timestamps, instant late flags, and automated guardian SMS notifications.
                   </p>
                 </div>
 
-                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2">
+                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2 font-body">
                   <div className="flex items-start gap-2">
                     <UserCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span><strong>Exact Timestamps:</strong> Millisecond arrival and departure records.</span>
@@ -711,90 +711,90 @@ const Home: React.FC = () => {
 
               {/* Table Preview */}
               <div className="lg:col-span-7 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="font-semibold text-slate-900 dark:text-white">Gate Terminal · SS2 Science Cohort</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="font-semibold text-slate-900 dark:text-white truncate font-heading">Gate Terminal · SS2 Science Cohort</span>
                   </div>
-                  <span className="text-slate-500 font-mono">Today, 07:30 – 08:30 AM</span>
+                  <span className="text-slate-500 font-mono text-[11px] shrink-0">Today, 07:30 – 08:30 AM</span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="text-slate-500 text-[10px]">Enrolled</div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">42</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                  <div className="bg-white dark:bg-slate-800 p-2 sm:p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs">
+                    <div className="text-slate-500 text-[10px] truncate">Enrolled</div>
+                    <div className="text-sm font-bold font-heading text-slate-900 dark:text-white">42</div>
                   </div>
-                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="text-slate-500 text-[10px]">Signed In</div>
-                    <div className="text-sm font-bold text-emerald-600">39 (93%)</div>
+                  <div className="bg-white dark:bg-slate-800 p-2 sm:p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs">
+                    <div className="text-slate-500 text-[10px] truncate">Signed In</div>
+                    <div className="text-sm font-bold font-heading text-emerald-600">39 (93%)</div>
                   </div>
-                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="text-slate-500 text-[10px]">Late Arrival</div>
-                    <div className="text-sm font-bold text-amber-600">2</div>
+                  <div className="bg-white dark:bg-slate-800 p-2 sm:p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs">
+                    <div className="text-slate-500 text-[10px] truncate">Late Arrival</div>
+                    <div className="text-sm font-bold font-heading text-amber-600">2</div>
                   </div>
-                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="text-slate-500 text-[10px]">Unexcused</div>
-                    <div className="text-sm font-bold text-rose-600">1</div>
+                  <div className="bg-white dark:bg-slate-800 p-2 sm:p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs">
+                    <div className="text-slate-500 text-[10px] truncate">Unexcused</div>
+                    <div className="text-sm font-bold font-heading text-rose-600">1</div>
                   </div>
                 </div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 shadow-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-[11px] shrink-0 font-heading">
                         AY
                       </div>
-                      <div>
-                        <div className="font-semibold text-slate-900 dark:text-white">Amina Yusuf</div>
-                        <div className="text-[10px] text-slate-500">Gate 1 Terminal · 07:38 AM</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 dark:text-white truncate">Amina Yusuf</div>
+                        <div className="text-[10px] text-slate-500 truncate">Gate 1 Terminal · 07:38 AM</div>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 text-emerald-700 font-bold text-[10px] shrink-0 whitespace-nowrap">
                       Present (On Time)
                     </span>
                   </div>
 
-                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-950 text-[#0078d4] flex items-center justify-center font-bold text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 shadow-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-950 text-[#0078d4] flex items-center justify-center font-bold text-[11px] shrink-0 font-heading">
                         CO
                       </div>
-                      <div>
-                        <div className="font-semibold text-slate-900 dark:text-white">Chidi Okeke</div>
-                        <div className="text-[10px] text-slate-500">Gate 1 Terminal · 07:44 AM</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 dark:text-white truncate">Chidi Okeke</div>
+                        <div className="text-[10px] text-slate-500 truncate">Gate 1 Terminal · 07:44 AM</div>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 text-emerald-700 font-bold text-[10px] shrink-0 whitespace-nowrap">
                       Present (On Time)
                     </span>
                   </div>
 
-                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 flex items-center justify-center font-bold text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 shadow-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 flex items-center justify-center font-bold text-[11px] shrink-0 font-heading">
                         KM
                       </div>
-                      <div>
-                        <div className="font-semibold text-slate-900 dark:text-white">Kofi Mensah</div>
-                        <div className="text-[10px] text-slate-500">Gate 2 Terminal · 08:14 AM</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 dark:text-white truncate">Kofi Mensah</div>
+                        <div className="text-[10px] text-slate-500 truncate">Gate 2 Terminal · 08:14 AM</div>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/70 border border-amber-200 text-amber-700 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/70 border border-amber-200 text-amber-700 font-bold text-[10px] shrink-0 whitespace-nowrap">
                       Late (14m Late)
                     </span>
                   </div>
 
-                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 flex items-center justify-center font-bold text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 shadow-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 flex items-center justify-center font-bold text-[11px] shrink-0 font-heading">
                         TB
                       </div>
-                      <div>
-                        <div className="font-semibold text-slate-900 dark:text-white">Tunde Bakare</div>
-                        <div className="text-[10px] text-slate-500">No Check-in Recorded</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 dark:text-white truncate">Tunde Bakare</div>
+                        <div className="text-[10px] text-slate-500 truncate">No Check-in Recorded</div>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/70 border border-rose-200 text-rose-700 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/70 border border-rose-200 text-rose-700 font-bold text-[10px] shrink-0 whitespace-nowrap">
                       Absent (Unexcused)
                     </span>
                   </div>
@@ -808,18 +808,18 @@ const Home: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch pt-2">
               <div className="lg:col-span-5 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
-                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
                     Module 02 · Academic Evaluation
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white break-words">
                     Continuous Assessment & Term Gradebook
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-body">
                     Record assignments, quizzes, practical labs, and terminal examinations with automatic weighted formulas (e.g. 30% Continuous Assessment + 70% Terminal Exam).
                   </p>
                 </div>
 
-                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2">
+                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2 font-body">
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span><strong>WAEC / NECO Standards:</strong> Built-in 9-point grading scale (A1 to F9) and custom rubrics.</span>
@@ -836,76 +836,78 @@ const Home: React.FC = () => {
               </div>
 
               {/* Mock Gradebook Table */}
-              <div className="lg:col-span-7 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4 overflow-x-auto">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-[#0078d4]" />
-                    <span className="font-semibold text-slate-900 dark:text-white">SS2 Term 2 Gradebook · Physics & Math</span>
+              <div className="lg:col-span-7 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileSpreadsheet className="w-4 h-4 text-[#0078d4] shrink-0" />
+                    <span className="font-semibold text-slate-900 dark:text-white truncate font-heading">SS2 Term 2 Gradebook · Physics & Math</span>
                   </div>
-                  <span className="text-emerald-700 dark:text-emerald-400 font-mono text-[11px] font-semibold">
+                  <span className="text-emerald-700 dark:text-emerald-400 font-mono text-[11px] font-semibold shrink-0">
                     Weighting: 30% CA + 70% Exam
                   </span>
                 </div>
 
-                <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider">
-                      <th className="pb-2">Student</th>
-                      <th className="pb-2 text-center">CA (30)</th>
-                      <th className="pb-2 text-center">Exam (70)</th>
-                      <th className="pb-2 text-center">Total (100)</th>
-                      <th className="pb-2 text-right">Grade</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                    <tr>
-                      <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">Chiamaka Nnamdi</td>
-                      <td className="py-2.5 text-center">28.5</td>
-                      <td className="py-2.5 text-center">64.0</td>
-                      <td className="py-2.5 text-center font-bold text-emerald-600">92.5%</td>
-                      <td className="py-2.5 text-right font-sans">
-                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
-                          A1 Distinction
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">Ibrahim Sani</td>
-                      <td className="py-2.5 text-center">26.0</td>
-                      <td className="py-2.5 text-center">58.0</td>
-                      <td className="py-2.5 text-center font-bold text-[#0078d4]">84.0%</td>
-                      <td className="py-2.5 text-right font-sans">
-                        <span className="px-2 py-0.5 rounded bg-blue-50 text-[#0078d4] border border-blue-200 font-bold text-[10px]">
-                          B2 Very Good
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">Favour Johnson</td>
-                      <td className="py-2.5 text-center">23.0</td>
-                      <td className="py-2.5 text-center">52.5</td>
-                      <td className="py-2.5 text-center font-bold text-[#0078d4]">75.5%</td>
-                      <td className="py-2.5 text-right font-sans">
-                        <span className="px-2 py-0.5 rounded bg-blue-50 text-[#0078d4] border border-blue-200 font-bold text-[10px]">
-                          B3 Good
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">David Adeleke</td>
-                      <td className="py-2.5 text-center">19.5</td>
-                      <td className="py-2.5 text-center">45.0</td>
-                      <td className="py-2.5 text-center font-bold text-amber-600">64.5%</td>
-                      <td className="py-2.5 text-right font-sans">
-                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[10px]">
-                          C4 Credit
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto -mx-1 sm:mx-0">
+                  <table className="w-full min-w-[500px] text-left text-xs text-slate-700 dark:text-slate-300">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider font-heading">
+                        <th className="pb-2">Student</th>
+                        <th className="pb-2 text-center">CA (30)</th>
+                        <th className="pb-2 text-center">Exam (70)</th>
+                        <th className="pb-2 text-center">Total (100)</th>
+                        <th className="pb-2 text-right">Grade</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
+                      <tr>
+                        <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">Chiamaka Nnamdi</td>
+                        <td className="py-2.5 text-center">28.5</td>
+                        <td className="py-2.5 text-center">64.0</td>
+                        <td className="py-2.5 text-center font-bold text-emerald-600">92.5%</td>
+                        <td className="py-2.5 text-right font-sans">
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
+                            A1 Distinction
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">Ibrahim Sani</td>
+                        <td className="py-2.5 text-center">26.0</td>
+                        <td className="py-2.5 text-center">58.0</td>
+                        <td className="py-2.5 text-center font-bold text-[#0078d4]">84.0%</td>
+                        <td className="py-2.5 text-right font-sans">
+                          <span className="px-2 py-0.5 rounded bg-blue-50 text-[#0078d4] border border-blue-200 font-bold text-[10px]">
+                            B2 Very Good
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">Favour Johnson</td>
+                        <td className="py-2.5 text-center">23.0</td>
+                        <td className="py-2.5 text-center">52.5</td>
+                        <td className="py-2.5 text-center font-bold text-[#0078d4]">75.5%</td>
+                        <td className="py-2.5 text-right font-sans">
+                          <span className="px-2 py-0.5 rounded bg-blue-50 text-[#0078d4] border border-blue-200 font-bold text-[10px]">
+                            B3 Good
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">David Adeleke</td>
+                        <td className="py-2.5 text-center">19.5</td>
+                        <td className="py-2.5 text-center">45.0</td>
+                        <td className="py-2.5 text-center font-bold text-amber-600">64.5%</td>
+                        <td className="py-2.5 text-right font-sans">
+                          <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[10px]">
+                            C4 Credit
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-slate-600 dark:text-slate-400">
                   <span>Class Average: <strong className="text-slate-900 dark:text-white">79.1% (B3)</strong></span>
                   <span className="text-emerald-600 font-semibold">Published to Guardian Portal</span>
                 </div>
@@ -918,18 +920,18 @@ const Home: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch pt-2">
               <div className="lg:col-span-5 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
-                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
                     Module 03 · Academic Telemetry
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white break-words">
                     Student Performance & Growth Curves
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-body">
                     Track cognitive strengths across STEM, Humanities, and Vocational subjects with automated growth curves and early-warning alerts for struggling students.
                   </p>
                 </div>
 
-                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2">
+                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2 font-body">
                   <div className="flex items-start gap-2">
                     <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span><strong>Term-over-Term Growth:</strong> View progress trajectories across test cycles.</span>
@@ -947,26 +949,26 @@ const Home: React.FC = () => {
 
               {/* Performance Card */}
               <div className="lg:col-span-7 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-[#0078d4] text-white flex items-center justify-center font-bold text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-[#0078d4] text-white flex items-center justify-center font-bold text-xs shrink-0 font-heading">
                       CN
                     </div>
-                    <div>
-                      <div className="font-semibold text-slate-900 dark:text-white">Chiamaka Nnamdi · ID #BP-SS-2024</div>
-                      <div className="text-[10px] text-slate-500">Rank: #1 of 42 (SS2 Science Cohort)</div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900 dark:text-white truncate">Chiamaka Nnamdi · ID #BP-SS-2024</div>
+                      <div className="text-[10px] text-slate-500 truncate">Rank: #1 of 42 (SS2 Science Cohort)</div>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[11px] font-bold">
+                  <span className="px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[11px] font-bold shrink-0 self-start sm:self-auto">
                     GPA: 4.88 / 5.0
                   </span>
                 </div>
 
                 <div className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                      <span>Further Mathematics & Calculus</span>
-                      <span className="font-mono text-emerald-600 font-bold">94% · High Mastery</span>
+                    <div className="flex items-center justify-between gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="truncate">Further Mathematics & Calculus</span>
+                      <span className="font-mono text-emerald-600 font-bold shrink-0 text-[11px] sm:text-xs">94% · High Mastery</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                       <div className="h-full bg-emerald-500 rounded-full" style={{ width: "94%" }} />
@@ -974,9 +976,9 @@ const Home: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                      <span>Physics & Laboratory Mechanics</span>
-                      <span className="font-mono text-[#0078d4] font-bold">89% · High Mastery</span>
+                    <div className="flex items-center justify-between gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="truncate">Physics & Laboratory Mechanics</span>
+                      <span className="font-mono text-[#0078d4] font-bold shrink-0 text-[11px] sm:text-xs">89% · High Mastery</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                       <div className="h-full bg-[#0078d4] rounded-full" style={{ width: "89%" }} />
@@ -984,9 +986,9 @@ const Home: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                      <span>Chemistry & Stoichiometry</span>
-                      <span className="font-mono text-[#0078d4] font-bold">84% · Proficient</span>
+                    <div className="flex items-center justify-between gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="truncate">Chemistry & Stoichiometry</span>
+                      <span className="font-mono text-[#0078d4] font-bold shrink-0 text-[11px] sm:text-xs">84% · Proficient</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                       <div className="h-full bg-[#0078d4] rounded-full" style={{ width: "84%" }} />
@@ -994,9 +996,9 @@ const Home: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                      <span>English Language & Essay Writing</span>
-                      <span className="font-mono text-amber-600 font-bold">78% · Developing</span>
+                    <div className="flex items-center justify-between gap-2 text-slate-700 dark:text-slate-300">
+                      <span className="truncate">English Language & Essay Writing</span>
+                      <span className="font-mono text-amber-600 font-bold shrink-0 text-[11px] sm:text-xs">78% · Developing</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                       <div className="h-full bg-amber-500 rounded-full" style={{ width: "78%" }} />
@@ -1019,18 +1021,18 @@ const Home: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch pt-2">
               <div className="lg:col-span-5 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
-                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
                     Module 04 · Guardian Connectivity
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white break-words">
                     Dedicated Parent & Guardian Portal
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-body">
                     Keep parents actively involved. Guardians log in to view real-time gate entry times, test results, teacher remarks, and term fee balances.
                   </p>
                 </div>
 
-                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2">
+                <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 pt-2 font-body">
                   <div className="flex items-start gap-2">
                     <Smartphone className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span><strong>24/7 Mobile Access:</strong> Accessible on any smartphone across Africa and diaspora.</span>
@@ -1048,12 +1050,12 @@ const Home: React.FC = () => {
 
               {/* Guardian Preview Card */}
               <div className="lg:col-span-7 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-[#0078d4]" />
-                    <span className="font-semibold text-slate-900 dark:text-white">Guardian Portal · Welcome, Mrs. Folake Adeleke</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-3 border-b border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Users className="w-4 h-4 text-[#0078d4] shrink-0" />
+                    <span className="font-semibold text-slate-900 dark:text-white truncate font-heading">Guardian Portal · Welcome, Mrs. Folake Adeleke</span>
                   </div>
-                  <span className="text-slate-500 text-[10px]">Ward: David Adeleke (SS2)</span>
+                  <span className="text-slate-500 text-[10px] shrink-0">Ward: David Adeleke (SS2)</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -1062,9 +1064,9 @@ const Home: React.FC = () => {
                       <span>Today's Campus Status</span>
                       <span className="text-emerald-600 font-bold">On Campus</span>
                     </div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-emerald-600" />
-                      Signed in at 07:41 AM
+                    <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-heading">
+                      <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Signed in at 07:41 AM</span>
                     </div>
                     <p className="text-[10px] text-slate-500">Gate 1 Terminal verified. 5 periods attended.</p>
                   </div>
@@ -1074,23 +1076,23 @@ const Home: React.FC = () => {
                       <span>Term 2 Tuition Balance</span>
                       <span className="text-emerald-600 font-bold">100% Cleared</span>
                     </div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-[#0078d4]" />
-                      ₦0.00 Outstanding
+                    <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-heading">
+                      <CreditCard className="w-4 h-4 text-[#0078d4] shrink-0" />
+                      <span>₦0.00 Outstanding</span>
                     </div>
                     <p className="text-[10px] text-slate-500">Receipt #BP-8841 generated on 15 Feb.</p>
                   </div>
                 </div>
 
                 <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2 text-xs shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-[#0078d4]" />
-                      Teacher's Mid-Term Remark
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5 truncate font-heading">
+                      <FileText className="w-3.5 h-3.5 text-[#0078d4] shrink-0" />
+                      <span className="truncate">Teacher's Mid-Term Remark</span>
                     </span>
-                    <span className="text-[10px] text-slate-400">Yesterday, 4:15 PM</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">Yesterday, 4:15 PM</span>
                   </div>
-                  <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed italic bg-slate-50 dark:bg-slate-900 p-2.5 rounded border border-slate-100 dark:border-slate-800">
+                  <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed italic bg-slate-50 dark:bg-slate-900 p-2.5 rounded border border-slate-100 dark:border-slate-800 font-body">
                     "David demonstrated notable enthusiasm during the solar energy physics practical today. We encourage him to maintain this focus as mid-term exams approach." — Mr. O. Balogun (Physics Faculty)
                   </p>
                 </div>
@@ -1108,7 +1110,7 @@ const Home: React.FC = () => {
           <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
             How It Works
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
             How to Use Backpack in 4 Simple Steps
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base leading-relaxed font-body">
@@ -1116,30 +1118,30 @@ const Home: React.FC = () => {
           </p>
 
           {/* Interactive Role Switcher Tabs */}
-          <div className="pt-2 flex justify-center">
-            <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs font-heading">
+          <div className="pt-2 flex justify-center w-full">
+            <div className="flex flex-col sm:inline-flex sm:flex-row p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs font-heading w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setActiveStepTab("students")}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer w-full sm:w-auto ${
                   activeStepTab === "students"
                     ? "bg-[#0078d4] text-white shadow-xs font-bold"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                <GraduationCap className="w-4 h-4" />
+                <GraduationCap className="w-4 h-4 shrink-0" />
                 <span>For Students & Learners</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveStepTab("creators")}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer w-full sm:w-auto ${
                   activeStepTab === "creators"
                     ? "bg-[#0078d4] text-white shadow-xs font-bold"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                <Building2 className="w-4 h-4" />
+                <Building2 className="w-4 h-4 shrink-0" />
                 <span>For Instructors & Academies</span>
               </button>
             </div>
@@ -1192,7 +1194,7 @@ const Home: React.FC = () => {
         </div>
 
         {/* Workflow Bottom CTA Banner */}
-        <div className="bg-[#f8fafd] dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border border-[#d6e9f8] dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xs">
+        <div className="bg-[#f8fafd] dark:bg-slate-800 rounded-2xl p-5 sm:p-8 border border-[#d6e9f8] dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xs">
           <div className="space-y-1 text-center sm:text-left">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#0078d4] font-heading">
               {activeStepTab === "students" ? "Student Pathway" : "Institution Workspace"}
@@ -1211,7 +1213,7 @@ const Home: React.FC = () => {
 
           <Link
             to={activeStepTab === "students" ? "/explore" : "/onboard"}
-            className="px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold font-heading text-sm rounded-xl transition shadow-xs inline-flex items-center gap-2 shrink-0 cursor-pointer"
+            className="w-full sm:w-auto px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold font-heading text-sm rounded-xl transition shadow-xs flex items-center justify-center gap-2 shrink-0 cursor-pointer"
           >
             <span>{activeStepTab === "students" ? "Explore Catalog" : "Register Academy"}</span>
             <ArrowRight className="w-4 h-4" />
@@ -1229,7 +1231,7 @@ const Home: React.FC = () => {
               <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block mb-1 font-heading">
                 Curated Catalog
               </span>
-              <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
                 Featured Programs
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-body">
@@ -1252,9 +1254,9 @@ const Home: React.FC = () => {
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-[#0078d4]" />
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Popular Courses</h3>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white font-heading">Popular Courses</h3>
                 </div>
-                <span className="text-xs text-slate-500">High-demand pathways</span>
+                <span className="text-xs text-slate-500 font-body">High-demand pathways</span>
               </div>
 
               <div className="space-y-4">
@@ -1270,32 +1272,32 @@ const Home: React.FC = () => {
                       key={course.id}
                       className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] transition shadow-xs space-y-3"
                     >
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-[#0078d4] bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-semibold text-[#0078d4] bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900 truncate">
                           {org?.name || "Verified Academy"}
                         </span>
-                        <span className="text-slate-500">{(course as any).category || "Academic"}</span>
+                        <span className="text-slate-500 shrink-0">{(course as any).category || "Academic"}</span>
                       </div>
 
                       <Link to={`/course/${course.id}`}>
-                        <h4 className="font-bold text-base text-slate-900 dark:text-white hover:text-[#0078d4] transition line-clamp-1">
+                        <h4 className="font-bold text-base font-heading text-slate-900 dark:text-white hover:text-[#0078d4] transition line-clamp-1">
                           {course.title}
                         </h4>
                       </Link>
 
-                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed font-body">
                         {course.description}
                       </p>
 
-                      <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-900 dark:text-white text-sm">
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap text-xs">
+                        <span className="font-bold font-heading text-slate-900 dark:text-white text-sm">
                           {course.price > 0
                             ? `${course.currency || "NGN"} ${formatPriceWithDecimals(getEffectivePrice(course.price))}`
                             : "Free Enrollment"}
                         </span>
                         <Link
                           to={`/course/${course.id}`}
-                          className="font-bold text-[#0078d4] hover:underline inline-flex items-center gap-1"
+                          className="font-bold font-heading text-[#0078d4] hover:underline inline-flex items-center gap-1 shrink-0"
                         >
                           <span>Enroll Now</span>
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -1312,9 +1314,9 @@ const Home: React.FC = () => {
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
                 <div className="flex items-center gap-2">
                   <Award className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Non-Profit Courses</h3>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white font-heading">Non-Profit Courses</h3>
                 </div>
-                <span className="text-xs text-slate-500">Donation-funded vocational training</span>
+                <span className="text-xs text-slate-500 font-body">Donation-funded vocational training</span>
               </div>
 
               {displayNonProfit.length > 0 ? (
@@ -1332,33 +1334,33 @@ const Home: React.FC = () => {
                         key={course.id}
                         className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition shadow-xs space-y-3 relative overflow-hidden"
                       >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-600 dark:text-slate-400">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="font-semibold text-slate-600 dark:text-slate-400 truncate">
                             {org?.name || "Non-Profit Academy"}
                           </span>
-                          <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold text-[10px]">
+                          <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold text-[10px] shrink-0">
                             100% Tuition Waiver
                           </span>
                         </div>
 
                         <Link to={`/course/${course.id}`}>
-                          <h4 className="font-bold text-base text-slate-900 dark:text-white hover:text-emerald-600 transition line-clamp-1">
+                          <h4 className="font-bold text-base font-heading text-slate-900 dark:text-white hover:text-emerald-600 transition line-clamp-1">
                             {course.title}
                           </h4>
                         </Link>
 
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed font-body">
                           {course.description}
                         </p>
 
                         <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-emerald-600 text-sm">
+                          <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                            <span className="font-bold font-heading text-emerald-600 text-sm">
                               Sponsored by Donors
                             </span>
                             <Link
                               to={`/course/${course.id}`}
-                              className="font-bold text-slate-700 dark:text-slate-300 hover:underline inline-flex items-center gap-1"
+                              className="font-bold font-heading text-slate-700 dark:text-slate-300 hover:underline inline-flex items-center gap-1 shrink-0"
                             >
                               <span>View Course</span>
                               <ArrowRight className="w-3.5 h-3.5" />
@@ -1368,7 +1370,7 @@ const Home: React.FC = () => {
                           {canDonate && (
                             <button
                               onClick={() => setDonatingCourse(course)}
-                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold font-heading text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                             >
                               <HeartHandshake className="w-4 h-4" />
                               <span>Sponsor a Student</span>
@@ -1384,18 +1386,18 @@ const Home: React.FC = () => {
                   <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                     <HeartHandshake className="w-5 h-5" />
                   </div>
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                  <h4 className="font-bold font-heading text-slate-900 dark:text-white text-sm">
                     Donation-Funded Vocational Programs
                   </h4>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed font-body">
                     Accredited institutes can list tuition-waived programs supported by philanthropic sponsors and donors.
                   </p>
                   <Link
                     to="/explore"
-                    className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline pt-1"
+                    className="inline-flex items-center gap-1 text-xs font-bold font-heading text-emerald-600 hover:underline pt-1"
                   >
                     <span>Browse All Available Courses</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
               )}
@@ -1420,7 +1422,7 @@ const Home: React.FC = () => {
           <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
             Community Voices
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
             Trusted by Educators & Students
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base font-body">
@@ -1429,7 +1431,7 @@ const Home: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
             <div className="flex items-center gap-1 text-amber-500">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star key={star} className="w-4 h-4 fill-current" />
@@ -1439,17 +1441,17 @@ const Home: React.FC = () => {
               "Backpack makes organizing courses and tracking cohorts straightforward. Having attendance telemetry and live rooms in one platform saves our school hours."
             </p>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0078d4] font-bold font-heading text-xs flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0078d4] font-bold font-heading text-xs flex items-center justify-center shrink-0">
                 AO
               </div>
-              <div>
-                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white">Amaka Okafor</h4>
-                <p className="text-[11px] text-slate-500 font-body">Instructor · Lagos Tech Academy</p>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white truncate">Amaka Okafor</h4>
+                <p className="text-[11px] text-slate-500 font-body truncate">Instructor · Lagos Tech Academy</p>
               </div>
             </div>
           </article>
 
-          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
             <div className="flex items-center gap-1 text-amber-500">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star key={star} className="w-4 h-4 fill-current" />
@@ -1459,17 +1461,17 @@ const Home: React.FC = () => {
               "I love having my live classes, assignment submissions, and progress gradebook in one spot. The cloud recordings make exam revision so convenient."
             </p>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold font-heading text-xs flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold font-heading text-xs flex items-center justify-center shrink-0">
                 CN
               </div>
-              <div>
-                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white">Chinedu Nwosu</h4>
-                <p className="text-[11px] text-slate-500 font-body">Computer Science Student</p>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white truncate">Chinedu Nwosu</h4>
+                <p className="text-[11px] text-slate-500 font-body truncate">Computer Science Student</p>
               </div>
             </div>
           </article>
 
-          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
             <div className="flex items-center gap-1 text-amber-500">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star key={star} className="w-4 h-4 fill-current" />
@@ -1479,12 +1481,12 @@ const Home: React.FC = () => {
               "The automatic split payout with Paystack is a gamechanger. Tuition lands directly into our school bank account with no reconciliation friction."
             </p>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 font-bold font-heading text-xs flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 font-bold font-heading text-xs flex items-center justify-center shrink-0">
                 EJ
               </div>
-              <div>
-                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white">Esther James</h4>
-                <p className="text-[11px] text-slate-500 font-body">School Administrator · Accra</p>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white truncate">Esther James</h4>
+                <p className="text-[11px] text-slate-500 font-body truncate">School Administrator · Accra</p>
               </div>
             </div>
           </article>
@@ -1495,7 +1497,7 @@ const Home: React.FC = () => {
       {/* 9. FOOTER (Clean Microsoft / Coursera Navigation)        */}
       {/* ======================================================== */}
       <footer className="pt-12 border-t border-slate-200 dark:border-slate-700 font-body">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10 text-xs">
           <div className="space-y-3">
             <h3 className="text-base font-bold font-heading text-slate-900 dark:text-white">Backpack</h3>
             <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -1532,9 +1534,9 @@ const Home: React.FC = () => {
           </div>
         </div>
 
-        <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+        <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 text-center sm:text-left">
           <p>© {new Date().getFullYear()} Backpack Education Inc. All rights reserved.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <Link to="/privacy" className="hover:text-[#0078d4]">Privacy</Link>
             <Link to="/privacy" className="hover:text-[#0078d4]">Terms</Link>
             <Link to="/events" className="hover:text-[#0078d4]">Events</Link>

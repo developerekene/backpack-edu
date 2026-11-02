@@ -60,7 +60,7 @@ const Index: React.FC = () => {
                 <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
                   <Navbar />
                   <UniversalAccessibilityModal />
-                  <main className="flex-1 max-w-7xl w-full mx-auto p-6">
+                  <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6">
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/login" element={<Login />} />
