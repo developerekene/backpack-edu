@@ -218,14 +218,14 @@ export const Navbar = () => {
   }, []);
 
   const getLinkStyle = (path: string) =>
-    `text-sm font-medium transition-colors font-body px-2.5 py-1.5 rounded-lg ${
+    `text-xs lg:text-sm font-medium transition-colors font-body px-2 lg:px-2.5 py-1.5 rounded-lg whitespace-nowrap ${
       pathname === path
         ? "text-[#0078d4] dark:text-[#04a4ec] font-bold bg-[#d6e9f8]/60 dark:bg-[#1a384f]/60"
         : "text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/40"
     }`;
 
   const getMobileLinkStyle = (path: string) =>
-    `block px-4 py-2.5 rounded-xl text-base font-medium transition-colors font-body ${
+    `flex items-center min-h-[44px] px-4 py-2.5 rounded-xl text-base font-medium transition-colors font-body ${
       pathname === path
         ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] font-bold"
         : "text-slate-700 dark:text-slate-200 hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/50"
@@ -248,45 +248,45 @@ export const Navbar = () => {
     pathname === "/onboard" ||
     pathname === "/events";
 
-  const moreTriggerStyle = `flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors font-heading border ${
+  const moreTriggerStyle = `flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-colors font-heading border whitespace-nowrap ${
     moreActive
       ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] border-[#b8daf4] dark:border-[#254b68] font-bold"
       : "border-transparent text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-[#e2f0fb] dark:hover:bg-[#153147]/40"
   }`;
 
   const moreItemStyle = (path: string) =>
-    `flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors font-body ${
+    `flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-medium transition-colors font-body ${
       pathname === path
         ? "bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] font-bold"
         : "text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#153147]/50"
     }`;
 
   return (
-    <nav className="bg-[#f0f7fd]/95 dark:bg-[#0f2231]/95 backdrop-blur-md border-b border-[#d6e9f8] dark:border-[#1e3a52] sticky top-0 z-50 px-4 sm:px-6 py-3 font-body shadow-xs">
+    <nav className="bg-[#f0f7fd]/95 dark:bg-[#0f2231]/95 backdrop-blur-md border-b border-[#d6e9f8] dark:border-[#1e3a52] sticky top-0 z-50 px-3 sm:px-6 py-3 font-body shadow-xs">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link
           to="/"
           onClick={closeMenu}
-          className="flex items-center space-x-3 group"
+          className="flex items-center space-x-2 sm:space-x-3 group shrink-0"
         >
-          <div className="flex items-center justify-center transition-transform group-hover:scale-105">
-            <BlueBackpack3DIcon className="h-10 w-10 drop-shadow-md" />
+          <div className="flex items-center justify-center transition-transform group-hover:scale-105 shrink-0">
+            <BlueBackpack3DIcon className="h-8 w-8 sm:h-10 sm:w-10 drop-shadow-md" />
           </div>
 
-          <div className="flex flex-col leading-tight">
-            <span className="text-xl font-extrabold tracking-wide text-slate-900 dark:text-white font-heading">
+          <div className="flex flex-col leading-tight shrink-0">
+            <span className="text-sm sm:text-xl font-extrabold tracking-wide text-slate-900 dark:text-white font-heading whitespace-nowrap">
               BACKPACK
             </span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[#0078d4] dark:text-[#04a4ec] font-bold font-heading">
+            <span className="text-[8px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] text-[#0078d4] dark:text-[#04a4ec] font-bold font-heading whitespace-nowrap">
               Education Without Borders
             </span>
           </div>
         </Link>
 
         {/* Global Right Controls (Theme, Notifications, Hamburger) */}
-        <div className="flex items-center space-x-2 sm:space-x-4">
+        <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
           {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-4 pl-2">
+          <div className="hidden md:flex items-center space-x-1.5 lg:space-x-3 pl-2">
             <Link to="/" className={getLinkStyle("/")}>
               Home
             </Link>
@@ -313,6 +313,18 @@ export const Navbar = () => {
               <span>About Us</span>
             </Link>
 
+            {(currentUser?.email?.toLowerCase() === "ekenehq@gmail.com" ||
+              currentUser?.role === "super_admin") && (
+              <Link
+                to="/admin"
+                title="Super Admin Portal"
+                aria-label="Super Admin Portal"
+                className="flex items-center justify-center p-2 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-all shadow-xs shrink-0"
+              >
+                <ShieldCheck className="w-4 h-4 text-amber-500" />
+              </Link>
+            )}
+
             {!currentUser && (
               <Link
                 to="/events"
@@ -323,125 +335,180 @@ export const Navbar = () => {
               </Link>
             )}
 
-            {currentUser && (
-              <div className="relative" ref={moreRef}>
-                <button
-                  onClick={() => setMoreOpen((o) => !o)}
-                  className={moreTriggerStyle}
-                  title="More options"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                  <span>More</span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                      moreOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
+            {/* More Dropdown (Contains User Profile & All Secondary Options) */}
+            <div className="relative" ref={moreRef}>
+              <button
+                onClick={() => setMoreOpen((o) => !o)}
+                className={moreTriggerStyle}
+                title="More options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+                <span>More</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    moreOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
 
-                {moreOpen && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-2 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
-                    {currentUser.role === "student" && (
+              {moreOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-2.5 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                  {/* User Profile Header Card inside Dropdown */}
+                  {currentUser ? (
+                    <>
                       <Link
-                        to="/explore"
+                        to={
+                          currentUser.role === "super_admin" ||
+                          currentUser.email?.toLowerCase() === "ekenehq@gmail.com"
+                            ? "/admin"
+                            : "/profile"
+                        }
                         onClick={closeMore}
-                        className={moreItemStyle("/explore")}
+                        className="flex items-center space-x-2.5 p-2 rounded-xl bg-[#f0f7fd] dark:bg-[#132838] hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] border border-[#d6e9f8] dark:border-[#1e3a52] transition mb-1 group cursor-pointer"
                       >
-                        <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                        <span>Explore Orgs</span>
+                        <div className="w-8 h-8 rounded-full bg-[#0078d4]/10 dark:bg-[#04a4ec]/20 flex items-center justify-center shrink-0">
+                          {currentUser.role === "super_admin" ||
+                          currentUser.email?.toLowerCase() === "ekenehq@gmail.com" ? (
+                            <ShieldCheck className="w-4 h-4 text-amber-500" />
+                          ) : currentUser.role === "student" ? (
+                            <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                          ) : (
+                            <Briefcase className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white truncate font-heading group-hover:text-[#0078d4] dark:group-hover:text-[#04a4ec]">
+                            {currentUser.name}
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 capitalize truncate">
+                            {currentUser.role.replace("_", " ")}
+                          </span>
+                        </div>
                       </Link>
-                    )}
 
-                    {(currentUser.role === "organization" ||
-                      currentUser.role === "instructor") && (
+                      <div className="border-t border-[#d6e9f8] dark:border-[#1e3a52] my-1" />
+
                       <Link
-                        to="/upload-course"
+                        to="/profile"
                         onClick={closeMore}
-                        className={moreItemStyle("/upload-course")}
+                        className={moreItemStyle("/profile")}
                       >
-                        <Plus className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
-                        <span>Add Course</span>
+                        <User className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                        <span>Profile</span>
                       </Link>
-                    )}
 
-                    <Link
-                      to="/profile"
-                      onClick={closeMore}
-                      className={moreItemStyle("/profile")}
-                    >
-                      <User className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      <span>Profile</span>
-                    </Link>
-
-                    <Link
-                      to="/settings"
-                      onClick={closeMore}
-                      className={moreItemStyle("/settings")}
-                    >
-                      <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      <span>Settings</span>
-                    </Link>
-
-                    <Link
-                      to="/events"
-                      onClick={closeMore}
-                      className={moreItemStyle("/events")}
-                    >
-                      <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
-                      <span>Events</span>
-                    </Link>
-
-                    {currentUser.role === "organization" && (
                       <Link
-                        to="/onboard"
+                        to="/settings"
                         onClick={closeMore}
-                        className={moreItemStyle("/onboard")}
+                        className={moreItemStyle("/settings")}
                       >
-                        <Briefcase className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                        <span>Organization Setup</span>
+                        <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                        <span>Settings</span>
                       </Link>
-                    )}
 
-                    {/* Divider + Logout */}
-                    <div className="my-1 border-t border-[#d6e9f8] dark:border-[#1e3a52]" />
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Logout</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                      {currentUser.role === "student" && (
+                        <Link
+                          to="/explore"
+                          onClick={closeMore}
+                          className={moreItemStyle("/explore")}
+                        >
+                          <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                          <span>Explore Orgs</span>
+                        </Link>
+                      )}
 
-            {currentUser ? (
-              <div className="flex items-center space-x-1 ml-2 border-l border-[#d6e9f8] dark:border-[#1e3a52] pl-3">
-                <Link
-                  to="/profile"
-                  onClick={closeMore}
-                  className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] font-medium transition pr-1 font-heading"
-                >
-                  {currentUser.role === "student" ? (
-                    <GraduationCap className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                      {(currentUser.role === "organization" ||
+                        currentUser.role === "instructor" ||
+                        currentUser.role === "super_admin" ||
+                        currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
+                        <Link
+                          to="/upload-course"
+                          onClick={closeMore}
+                          className={moreItemStyle("/upload-course")}
+                        >
+                          <Plus className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                          <span>Add Course</span>
+                        </Link>
+                      )}
+
+                      <Link
+                        to="/events"
+                        onClick={closeMore}
+                        className={moreItemStyle("/events")}
+                      >
+                        <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Events</span>
+                      </Link>
+
+                      {currentUser.role === "organization" &&
+                        currentUser.role !== "super_admin" &&
+                        currentUser.email?.toLowerCase() !== "ekenehq@gmail.com" && (
+                          <Link
+                            to="/onboard"
+                            onClick={closeMore}
+                            className={moreItemStyle("/onboard")}
+                          >
+                            <Briefcase className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                            <span>Organization Setup</span>
+                          </Link>
+                        )}
+
+                      {(currentUser.email?.toLowerCase() === "ekenehq@gmail.com" ||
+                        currentUser.role === "super_admin") && (
+                        <Link
+                          to="/admin"
+                          onClick={closeMore}
+                          className={moreItemStyle("/admin")}
+                        >
+                          <ShieldCheck className="w-4 h-4 text-amber-500" />
+                          <span>Super Admin Portal</span>
+                        </Link>
+                      )}
+
+                      {/* Divider + Logout */}
+                      <div className="my-1 border-t border-[#d6e9f8] dark:border-[#1e3a52]" />
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
+                      </button>
+                    </>
                   ) : (
-                    <Briefcase className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                    <>
+                      <Link
+                        to="/login"
+                        onClick={closeMore}
+                        className={moreItemStyle("/login")}
+                      >
+                        <User className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Login</span>
+                      </Link>
+                      <Link
+                        to="/signup"
+                        onClick={closeMore}
+                        className="flex items-center justify-center w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-bold bg-[#0078d4] text-white hover:bg-[#006cbd] transition-colors mt-1"
+                      >
+                        <span>Sign Up</span>
+                      </Link>
+                    </>
                   )}
-                  <span>{currentUser.name}</span>
-                </Link>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-3 font-heading">
+                </div>
+              )}
+            </div>
+
+            {!currentUser && (
+              <div className="flex items-center space-x-2 font-heading">
                 <Link
                   to="/login"
-                  className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] px-3 py-2 transition-colors cursor-pointer"
+                  className="text-xs lg:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] px-2 py-1.5 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="px-4 py-2 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-sm font-semibold transition shadow-xs cursor-pointer flex items-center justify-center"
+                  className="px-3 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs lg:text-sm font-semibold transition shadow-xs cursor-pointer flex items-center justify-center whitespace-nowrap"
                 >
                   Sign Up
                 </Link>
@@ -449,59 +516,63 @@ export const Navbar = () => {
             )}
           </div>
 
-          {/* Top Navbar Notification Bell for logged in users */}
+          {/* Top Navbar Notification Bell for logged in users (Desktop Only) */}
           {currentUser && (
-            <NotificationsBell
-              unreadCount={unreadCount}
-              userNotifications={userNotifications}
-              pushPermission={pushPermission}
-              testPushStatus={testPushStatus}
-              activeLiveCalls={activeLiveCalls}
-              courses={courses}
-              onRequestPush={handleRequestPush}
-              onSendTestPush={handleSendTestPush}
-              onMarkAllRead={markAllNotificationsRead}
-              onClearNotifications={clearNotifications}
-              onMarkRead={markNotificationRead}
-              onNavigate={(to) => {
-                setMobileMenuOpen(false);
-                navigate(to);
-              }}
-            />
+            <div className="hidden md:block">
+              <NotificationsBell
+                unreadCount={unreadCount}
+                userNotifications={userNotifications}
+                pushPermission={pushPermission}
+                testPushStatus={testPushStatus}
+                activeLiveCalls={activeLiveCalls}
+                courses={courses}
+                onRequestPush={handleRequestPush}
+                onSendTestPush={handleSendTestPush}
+                onMarkAllRead={markAllNotificationsRead}
+                onClearNotifications={clearNotifications}
+                onMarkRead={markNotificationRead}
+                onNavigate={(to) => {
+                  setMobileMenuOpen(false);
+                  navigate(to);
+                }}
+              />
+            </div>
           )}
 
+          {/* Accessibility Suite Button — Visible on Desktop view */}
           <button
             onClick={() => openAccessibilityModal()}
-            className="relative p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            className="hidden md:flex relative min-h-[40px] min-w-[40px] items-center justify-center p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             title="Special Needs & Accessibility Suite (Dyslexia font, color filters, TTS, reading ruler, exam multipliers)"
             aria-label="Open Special Needs and Accessibility Suite"
           >
-            <Accessibility className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+            <Accessibility className="w-4.5 h-4.5 text-[#0078d4] dark:text-[#04a4ec]" />
             {hasActiveFeatures && (
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800 animate-pulse" />
             )}
           </button>
 
+          {/* Theme Toggle Button — Visible on Desktop view */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            className="hidden md:flex min-h-[40px] min-w-[40px] items-center justify-center p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             title="Toggle theme"
           >
             {theme === "dark" ? (
-              <Sun className="w-4 h-4" />
+              <Sun className="w-4.5 h-4.5 text-amber-400" />
             ) : (
-              <Moon className="w-4 h-4" />
+              <Moon className="w-4.5 h-4.5 text-slate-700" />
             )}
           </button>
 
           {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-[#e2f0fb] dark:bg-[#1a384f] text-slate-700 dark:text-slate-200 hover:bg-[#d6e9f8] dark:hover:bg-[#204461] focus:outline-none md:hidden cursor-pointer"
+            className="min-h-[40px] min-w-[40px] flex items-center justify-center p-2 rounded-xl bg-[#e2f0fb] dark:bg-[#1a384f] text-slate-700 dark:text-slate-200 hover:bg-[#d6e9f8] dark:hover:bg-[#204461] focus:outline-none md:hidden cursor-pointer"
             aria-label="Toggle mobile menu"
           >
             {mobileMenuOpen ? (
-              <X className="w-6 h-6" />
+              <X className="w-6 h-6 text-[#0078d4] dark:text-[#04a4ec]" />
             ) : (
               <Menu className="w-6 h-6" />
             )}
@@ -511,7 +582,7 @@ export const Navbar = () => {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-[#d6e9f8] dark:border-[#1e3a52] space-y-2 animate-in slide-in-from-top-2">
+        <div className="md:hidden mt-3 pt-3 border-t border-[#d6e9f8] dark:border-[#1e3a52] space-y-1.5 animate-in slide-in-from-top-2 max-h-[82vh] overflow-y-auto pb-6 px-1">
           <Link to="/" onClick={closeMenu} className={getMobileLinkStyle("/")}>
             Home
           </Link>
@@ -523,6 +594,18 @@ export const Navbar = () => {
               className={getMobileLinkStyle("/dashboard")}
             >
               Dashboard
+            </Link>
+          )}
+
+          {(currentUser?.email?.toLowerCase() === "ekenehq@gmail.com" ||
+            currentUser?.role === "super_admin") && (
+            <Link
+              to="/admin"
+              onClick={closeMenu}
+              className={`${getMobileLinkStyle("/admin")} text-amber-700 dark:text-amber-300 font-bold bg-amber-500/10 border border-amber-500/30`}
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-500 mr-2 shrink-0" />
+              <span>Super Admin Portal</span>
             </Link>
           )}
 
@@ -538,7 +621,9 @@ export const Navbar = () => {
 
           {currentUser &&
             (currentUser.role === "organization" ||
-              currentUser.role === "instructor") && (
+              currentUser.role === "instructor" ||
+              currentUser.role === "super_admin" ||
+              currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
               <Link
                 to="/upload-course"
                 onClick={closeMenu}
@@ -564,23 +649,24 @@ export const Navbar = () => {
               >
                 Settings
               </Link>
-              <Link
-                to="/events"
-                onClick={closeMenu}
-                className={`${getMobileLinkStyle("/events")} flex items-center space-x-2`}
-              >
-                <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
-                <span>Events</span>
-              </Link>
             </>
           )}
+
+          <Link
+            to="/events"
+            onClick={closeMenu}
+            className={`${getMobileLinkStyle("/events")} flex items-center space-x-2`}
+          >
+            <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
+            <span>Events</span>
+          </Link>
 
           <Link
             to="/lunch"
             onClick={closeMenu}
             className={`${getMobileLinkStyle("/lunch")} flex items-center space-x-2`}
           >
-            <Rocket className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+            <Rocket className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
             <span>Launch Box</span>
           </Link>
 
@@ -589,20 +675,9 @@ export const Navbar = () => {
             onClick={closeMenu}
             className={`${getMobileLinkStyle("/about-us")} flex items-center space-x-2`}
           >
-            <User className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+            <User className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
             <span>About Us</span>
           </Link>
-
-          {!currentUser && (
-            <Link
-              to="/events"
-              onClick={closeMenu}
-              className={`${getMobileLinkStyle("/events")} flex items-center space-x-2`}
-            >
-              <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
-              <span>Events</span>
-            </Link>
-          )}
 
           {currentUser && currentUser.role === "organization" && (
             <Link
@@ -614,72 +689,112 @@ export const Navbar = () => {
             </Link>
           )}
 
-          <div className="pt-4 border-t border-[#d6e9f8] dark:border-[#1e3a52]">
+          {/* Notifications inside Mobile Drawer */}
+          {currentUser && (
+            <div className="flex items-center justify-between min-h-[44px] px-4 py-2 rounded-xl bg-[#e2f0fb]/60 dark:bg-[#1a384f]/60 text-slate-700 dark:text-slate-200">
+              <span className="text-sm font-semibold font-heading flex items-center space-x-2">
+                <Bell className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-extrabold">
+                    {unreadCount}
+                  </span>
+                )}
+              </span>
+              <NotificationsBell
+                unreadCount={unreadCount}
+                userNotifications={userNotifications}
+                pushPermission={pushPermission}
+                testPushStatus={testPushStatus}
+                activeLiveCalls={activeLiveCalls}
+                courses={courses}
+                onRequestPush={handleRequestPush}
+                onSendTestPush={handleSendTestPush}
+                onMarkAllRead={markAllNotificationsRead}
+                onClearNotifications={clearNotifications}
+                onMarkRead={markNotificationRead}
+                onNavigate={(to) => {
+                  setMobileMenuOpen(false);
+                  navigate(to);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Accessibility & Special Needs Suite inside Mobile Drawer */}
+          <button
+            onClick={() => {
+              closeMenu();
+              openAccessibilityModal();
+            }}
+            className="flex items-center space-x-2.5 w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] text-sm font-bold transition font-heading cursor-pointer"
+          >
+            <Accessibility className="w-5 h-5 shrink-0" />
+            <span>Accessibility & Special Needs</span>
+            {hasActiveFeatures && (
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0 ml-auto" />
+            )}
+          </button>
+
+          {/* Theme Toggle inside Mobile Drawer */}
+          <button
+            onClick={() => {
+              toggleTheme();
+            }}
+            className="flex items-center justify-between w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#e2f0fb] dark:bg-[#1a384f] text-slate-700 dark:text-slate-200 text-sm font-medium transition font-heading cursor-pointer"
+          >
+            <div className="flex items-center space-x-2.5">
+              {theme === "dark" ? (
+                <Sun className="w-5 h-5 text-amber-400 shrink-0" />
+              ) : (
+                <Moon className="w-5 h-5 text-slate-700 dark:text-slate-200 shrink-0" />
+              )}
+              <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+            </div>
+            <span className="text-xs font-semibold text-[#0078d4] dark:text-[#04a4ec]">
+              {theme === "dark" ? "Switch to Light" : "Switch to Dark"}
+            </span>
+          </button>
+
+          <div className="pt-3 border-t border-[#d6e9f8] dark:border-[#1e3a52]">
             {currentUser ? (
-              <div className="flex items-center justify-between px-4 py-2">
-                <div className="flex items-center space-x-2 text-sm font-medium text-slate-800 dark:text-slate-200 font-heading">
+              <div className="flex flex-col space-y-2.5 p-3 bg-white/60 dark:bg-[#132838]/80 rounded-2xl border border-[#d6e9f8] dark:border-[#1e3a52]">
+                <div className="flex items-center space-x-2 text-sm font-medium text-slate-800 dark:text-slate-200 font-heading min-w-0">
                   {currentUser.role === "student" ? (
-                    <GraduationCap className="w-4 h-4 text-emerald-500" />
+                    <GraduationCap className="w-4 h-4 text-emerald-500 shrink-0" />
                   ) : (
-                    <Briefcase className="w-4 h-4 text-amber-500" />
+                    <Briefcase className="w-4 h-4 text-amber-500 shrink-0" />
                   )}
-                  <span>
+                  <span className="truncate">
                     {currentUser.name} ({currentUser.role})
                   </span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition cursor-pointer font-heading"
+                  className="flex items-center justify-center min-h-[44px] w-full px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition cursor-pointer font-heading"
                 >
-                  <LogOut className="w-3.5 h-3.5 mr-1" />
+                  <LogOut className="w-4 h-4 mr-1.5" />
                   <span>Logout</span>
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 px-2 pt-2 font-heading">
+              <div className="grid grid-cols-2 gap-2 pt-1 font-heading">
                 <Link
                   to="/login"
                   onClick={closeMenu}
-                  className="text-center py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-white dark:bg-[#132838] text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#1a384f] transition-colors"
+                  className="flex items-center justify-center min-h-[44px] text-center py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-white dark:bg-[#132838] text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#1a384f] transition-colors"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
                   onClick={closeMenu}
-                  className="text-center py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold shadow-xs transition-colors"
+                  className="flex items-center justify-center min-h-[44px] text-center py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold shadow-xs transition-colors"
                 >
                   Sign Up
                 </Link>
               </div>
             )}
-          </div>
-          <div className="flex items-center justify-between px-2 pt-2 border-t border-[#d6e9f8] dark:border-[#1e3a52]">
-            <button
-              onClick={() => {
-                closeMenu();
-                openAccessibilityModal();
-              }}
-              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-[#d6e9f8] dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold transition font-heading cursor-pointer"
-            >
-              <Accessibility className="w-4 h-4" />
-              <span>Accessibility & Special Needs</span>
-              {hasActiveFeatures && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              )}
-            </button>
-
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
-              title="Toggle theme"
-            >
-              {theme === "dark" ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
-              )}
-            </button>
           </div>
         </div>
       )}

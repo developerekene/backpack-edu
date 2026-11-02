@@ -162,9 +162,15 @@ const CourseUpload = () => {
   const [showSubaccountModal, setShowSubaccountModal] = useState(false);
   const [bypassSubaccount, setBypassSubaccount] = useState(false);
 
+  const isSuperAdmin =
+    currentUser?.role === "super_admin" ||
+    currentUser?.email?.toLowerCase() === "ekenehq@gmail.com";
+
   if (
     !currentUser ||
-    (currentUser.role !== "organization" && currentUser.role !== "instructor")
+    (currentUser.role !== "organization" &&
+      currentUser.role !== "instructor" &&
+      !isSuperAdmin)
   ) {
     return (
       <div className="max-w-2xl mx-auto py-16 text-center space-y-6">
@@ -196,25 +202,29 @@ const CourseUpload = () => {
             (m) => m.orgId === org.id || m.orgId === org.ownerId,
           ),
         )
-      : [];
+      : organizations;
 
   const currentOrgIdToUse =
-    currentUser.role === "organization" ? currentUser.id : selectedOrgId;
+    currentUser.role === "organization"
+      ? currentUser.id
+      : selectedOrgId || (isSuperAdmin ? "org_backpack_global" : "");
   const activeOrg = organizations.find(
     (o) =>
       o.id === currentOrgIdToUse ||
       o.id === `org_${currentOrgIdToUse}` ||
       o.ownerId === currentOrgIdToUse,
   );
-  const isHigherEduOrg = activeOrg?.orgType === "higher";
+  const isHigherEduOrg = activeOrg?.orgType === "higher" || isSuperAdmin;
   const isVocationalOrg = activeOrg?.orgType === "vocational";
 
   const activeSubaccount =
     activeOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
-  const hasSubaccount = Boolean(
-    activeSubaccount?.subaccount_code &&
-      activeSubaccount.subaccount_code.startsWith("ACCT_"),
-  );
+  const hasSubaccount =
+    isSuperAdmin ||
+    Boolean(
+      activeSubaccount?.subaccount_code &&
+        activeSubaccount.subaccount_code.startsWith("ACCT_"),
+    );
 
   // Organization existing courses and tier check (free accounts limited to 15 courses)
   const orgExistingCourses = courses.filter((c) => {
@@ -829,29 +839,38 @@ const CourseUpload = () => {
             Institutional Sponsorship & Course Overview
           </h2>
 
-          {currentUser.role === "instructor" && (
+          {(currentUser.role === "instructor" || isSuperAdmin) && (
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Sponsoring Organization <span className="text-red-500">*</span>
+                Sponsoring Organization {isSuperAdmin ? "(Super Admin Override)" : ""}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <select
                 required
-                value={selectedOrgId}
+                value={selectedOrgId || (isSuperAdmin ? "org_backpack_global" : "")}
                 onChange={(e) => setSelectedOrgId(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
               >
-                <option value="" disabled>
-                  Select an approved organization with instructor permission
-                </option>
-                {approvedOrgs.map((org) => (
+                {isSuperAdmin && (
+                  <option value="org_backpack_global">
+                    🌐 Backpack Central Global Academy (Platform Default)
+                  </option>
+                )}
+                {!isSuperAdmin && (
+                  <option value="" disabled>
+                    Select an approved organization with instructor permission
+                  </option>
+                )}
+                {organizations.map((org) => (
                   <option key={org.id} value={org.id}>
-                    {org.name}
+                    🏛️ {org.name} ({org.orgType || "Organization"})
                   </option>
                 ))}
               </select>
               <p className="text-xs text-slate-400 mt-1">
-                Instructors can only publish courses under authorized partner
-                organizations.
+                {isSuperAdmin
+                  ? "As Super Admin, you can publish courses on behalf of any organization or as Backpack Central Academy."
+                  : "Instructors can only publish courses under authorized partner organizations."}
               </p>
             </div>
           )}

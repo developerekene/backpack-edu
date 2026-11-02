@@ -11,13 +11,19 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+        request.auth.token.email != null && 
+        request.auth.token.email.toLowerCase() == 'ekenehq@gmail.com';
+    }
+
+    // Main user documents collection
     match /backpack/{userId} {
       allow read: if true;
       allow create: if true;
-      allow delete: if isOwner(userId);
-      allow update: if isOwner(userId) || (
-        // Allow updating shared fields (courseDonations, enrollmentRequests, submissions, etc.)
-        // as long as sensitive personalInformation is not modified
+      allow delete: if isOwner(userId) || isSuperAdmin();
+      allow update: if isOwner(userId) || isSuperAdmin() || (
+        // Allow updating shared fields (course enrollments, ratings, etc.)
         !('user' in request.resource.data) ||
         !('user' in resource.data) ||
         !('personalInformation' in resource.data.user) ||
@@ -25,13 +31,15 @@ service cloud.firestore {
       );
     }
 
+    // All subcollections (courses, events, enrollments, submissions, notifications, etc.)
     match /backpack/{userId}/{document=**} {
       allow read: if true;
       allow write: if true;
     }
 
+    // Catch-all rule: Super Admin has global access to all documents
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isSuperAdmin();
     }
   }
 }

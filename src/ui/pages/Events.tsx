@@ -83,7 +83,10 @@ const Events: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<AppEvent | null>(null);
   const [detailsEvent, setDetailsEvent] = useState<AppEvent | null>(null);
 
-  const isOrganization = currentUser?.role === "organization";
+  const isOrganization =
+    currentUser?.role === "organization" ||
+    currentUser?.role === "super_admin" ||
+    currentUser?.email?.toLowerCase() === "ekenehq@gmail.com";
 
   /**
    * Course events are limited to that course's students, level events to

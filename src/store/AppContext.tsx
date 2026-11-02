@@ -184,6 +184,18 @@ interface AppState {
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   clearNotifications: () => void;
+
+  allUsers: User[];
+  suspendUser: (userId: string, reason?: string) => Promise<void>;
+  reactivateUser: (userId: string) => Promise<void>;
+  deleteUserAccount: (userId: string) => Promise<void>;
+  sendDirectNotification: (
+    targetUserId: string | "all",
+    title: string,
+    message: string,
+    type?: "live_class" | "enrollment" | "grade" | "material" | "info",
+    linkUrl?: string,
+  ) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -282,6 +294,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     loadCache("notifications", []),
+  );
+  const [allUsers, setAllUsers] = useState<User[]>(() =>
+    loadCache("allUsers", []),
   );
 
   // Helper to update personalInformation within the user object of a backpack document
@@ -429,6 +444,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       const backpackSnap = await getDocs(collection(db, "backpack"));
 
+      const allUsersList: User[] = [];
       const allOrganizations: Organization[] = [];
       const allCourses: Course[] = [];
       const allEnrollmentRequests: EnrollmentRequest[] = [];
@@ -447,9 +463,60 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const data = docSnap.data();
         const userObj = getUserData(data);
 
-        // Extract organization data
         const personalInfo =
           (userObj.personalInformation as Record<string, unknown>) || {};
+        const uEmail = (personalInfo.email as string) || "";
+        const isSuperAdminEmail = uEmail.toLowerCase() === "ekenehq@gmail.com";
+
+        // Extract user record for super admin user list
+        if (personalInfo.email || personalInfo.fullname || personalInfo.name) {
+          allUsersList.push({
+            id: (personalInfo.id as string) || docSnap.id,
+            name:
+              (personalInfo.fullname as string) ||
+              (personalInfo.name as string) ||
+              "Unnamed User",
+            email: uEmail,
+            role: isSuperAdminEmail
+              ? "super_admin"
+              : ((personalInfo.role as Role) || "student"),
+            createdAt:
+              (personalInfo.createdAt as string) || new Date().toISOString(),
+            headline: personalInfo.headline as string | undefined,
+            bio: personalInfo.bio as string | undefined,
+            cvUrl: personalInfo.cvUrl as string | undefined,
+            kycVerified: (personalInfo.kycVerified as boolean) ?? false,
+            kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
+            userDocuments: personalInfo.userDocuments as User["userDocuments"],
+            paystackSubaccount:
+              personalInfo.paystackSubaccount as User["paystackSubaccount"],
+            isSuspended: (personalInfo.isSuspended as boolean) ?? false,
+            suspendedAt: personalInfo.suspendedAt as string | undefined,
+            suspendedReason: personalInfo.suspendedReason as string | undefined,
+            description: personalInfo.description as string | undefined,
+            address: personalInfo.address as string | undefined,
+            location: personalInfo.location as string | undefined,
+            baseCurrency: personalInfo.baseCurrency as string | undefined,
+            orgType: personalInfo.orgType as any,
+            registrationId: personalInfo.registrationId as string | undefined,
+            isAccredited: personalInfo.isAccredited as boolean | undefined,
+            accreditingBody: personalInfo.accreditingBody as string | undefined,
+            accreditationStatus: personalInfo.accreditationStatus as any,
+            accreditationDocUrl: personalInfo.accreditationDocUrl as
+              | string
+              | undefined,
+            ownerId: personalInfo.ownerId as string | undefined,
+            logoUrl: personalInfo.logoUrl as string | undefined,
+            motto: personalInfo.motto as string | undefined,
+            phone: personalInfo.phone as string | undefined,
+            website: personalInfo.website as string | undefined,
+            themeColor: personalInfo.themeColor as string | undefined,
+            academicHighlights: personalInfo.academicHighlights as
+              | string[]
+              | undefined,
+            isDeleted: (personalInfo.isDeleted as boolean) ?? false,
+          });
+        }
         if (
           personalInfo.role === "organization" ||
           personalInfo.orgType ||
@@ -661,12 +728,105 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setOrgMembers,
       );
       updateAndCache("course.messages", dedupeById(allMessages), setMessages);
-    } catch (err) {
-      console.error("loadAllBackpackData failed:", err);
+      updateAndCache("allUsers", dedupeById(allUsersList), setAllUsers);
+    } catch (err: any) {
+      console.warn("Backpack data load notice:", err?.message || err);
     } finally {
       setIsLoadingApp(false);
     }
   }, [currentUser?.id]);
+
+  // Super Admin Management Functions
+  const suspendUser = async (userId: string, reason?: string) => {
+    const suspendedAt = new Date().toISOString();
+    const suspendedReason = reason || "Account suspended by Super Admin.";
+    await updateBackpackPersonalInfo(userId, {
+      isSuspended: true,
+      suspendedAt,
+      suspendedReason,
+    });
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, isSuspended: true, suspendedAt, suspendedReason }
+          : u,
+      ),
+    );
+  };
+
+  const reactivateUser = async (userId: string) => {
+    await updateBackpackPersonalInfo(userId, {
+      isSuspended: false,
+      suspendedAt: null,
+      suspendedReason: null,
+    });
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              isSuspended: false,
+              suspendedAt: undefined,
+              suspendedReason: undefined,
+            }
+          : u,
+      ),
+    );
+  };
+
+  const deleteUserAccount = async (userId: string) => {
+    await updateBackpackPersonalInfo(userId, {
+      isDeleted: true,
+      isSuspended: true,
+      suspendedReason: "Account deleted by Super Admin.",
+    });
+    setAllUsers((prev) => prev.filter((u) => u.id !== userId));
+  };
+
+  const sendDirectNotification = async (
+    targetUserId: string | "all",
+    title: string,
+    message: string,
+    type: "live_class" | "enrollment" | "grade" | "material" | "info" = "info",
+    linkUrl?: string,
+  ) => {
+    const newNotif: AppNotification = {
+      id: `notif_admin_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title,
+      message,
+      type,
+      read: false,
+      createdAt: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      linkUrl,
+    };
+
+    if (targetUserId === "all") {
+      const targets = allUsers.filter((u) => !u.isDeleted);
+      for (const u of targets) {
+        updateBackpackUserField<AppNotification>(
+          u.id,
+          "notifications",
+          (list) => [{ ...newNotif, userId: u.id }, ...list],
+        ).catch(console.error);
+      }
+      if (currentUser) {
+        setNotifications((prev) => [{ ...newNotif, userId: currentUser.id }, ...prev]);
+      }
+    } else {
+      updateBackpackUserField<AppNotification>(
+        targetUserId,
+        "notifications",
+        (list) => [{ ...newNotif, userId: targetUserId }, ...list],
+      ).catch(console.error);
+
+      if (targetUserId === currentUser?.id) {
+        setNotifications((prev) => [{ ...newNotif, userId: currentUser.id }, ...prev]);
+      }
+    }
+  };
 
   useEffect(() => {
     loadAllBackpackData();
@@ -2161,6 +2321,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         markNotificationRead,
         markAllNotificationsRead,
         clearNotifications,
+        allUsers,
+        suspendUser,
+        reactivateUser,
+        deleteUserAccount,
+        sendDirectNotification,
       }}
     >
       {children}

@@ -1,4 +1,4 @@
-export type Role = "student" | "organization" | "instructor";
+export type Role = "student" | "organization" | "instructor" | "super_admin";
 
 export interface PaystackSubaccount {
   subaccount_code: string;
@@ -78,6 +78,9 @@ export interface User {
   paystackSubaccount?: PaystackSubaccount;
   createdAt?: string;
   accommodations?: SpecialNeedsAccommodations;
+  isSuspended?: boolean;
+  suspendedAt?: string;
+  suspendedReason?: string;
 
   // Organization attributes stored directly in personalInformation map
   description?: string;

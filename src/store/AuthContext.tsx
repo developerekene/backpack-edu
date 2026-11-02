@@ -107,12 +107,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
 
+    const effectiveRole: Role = cleanEmail === "ekenehq@gmail.com" ? "super_admin" : role;
+
     const personalInformation = {
       id: user.uid,
       fullname: name,
       name: name,
       email: email,
-      role: role,
+      role: effectiveRole,
       createdAt: new Date().toISOString(),
       ownerId: user.uid,
       kycVerified: false,
@@ -144,7 +146,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       id: user.uid,
       name: name,
       email: email,
-      role: role,
+      role: effectiveRole,
       createdAt: personalInformation.createdAt,
       kycVerified: false,
       ownerId: user.uid,
@@ -154,7 +156,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setFirebaseUser(user);
     setLoading(false);
 
-    return { user, role };
+    return { user, role: effectiveRole };
   };
 
   const login = async (email: string, password: string) => {
@@ -169,15 +171,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     );
     const user = userCredential.user;
 
-    let userRole: Role = "student";
+    let userRole: Role = cleanEmail === "ekenehq@gmail.com" ? "super_admin" : "student";
     try {
       const docSnap = await getDoc(doc(db, "backpack", user.uid));
       if (docSnap.exists()) {
         const data = docSnap.data();
         const userObj = Array.isArray(data.user) ? data.user[0] : data.user;
-        userRole = userObj?.personalInformation?.role || "student";
+        const personalInfo = userObj?.personalInformation;
+
+        if (personalInfo?.isSuspended) {
+          await signOut(auth);
+          throw new Error(
+            `Account Suspended: ${personalInfo.suspendedReason || "Your account has been suspended by an administrator."}`,
+          );
+        }
+
+        if (cleanEmail === "ekenehq@gmail.com") {
+          userRole = "super_admin";
+        } else {
+          userRole = personalInfo?.role || "student";
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e.message?.includes("Account Suspended")) {
+        throw e;
+      }
       console.warn("Could not pre-fetch role on login", e);
     }
 
@@ -266,6 +284,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           updatedPersonalInfo.academicHighlights = updates.academicHighlights;
         if (updates.isDeleted !== undefined)
           updatedPersonalInfo.isDeleted = updates.isDeleted;
+        if (updates.isSuspended !== undefined)
+          updatedPersonalInfo.isSuspended = updates.isSuspended;
+        if (updates.suspendedAt !== undefined)
+          updatedPersonalInfo.suspendedAt = updates.suspendedAt;
+        if (updates.suspendedReason !== undefined)
+          updatedPersonalInfo.suspendedReason = updates.suspendedReason;
 
         // Remove undefined keys so Firestore doesn't fail
         const sanitizedPersonalInfo = Object.fromEntries(
@@ -308,6 +332,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 const personalInfo = userObj?.personalInformation;
 
                 if (personalInfo) {
+                  const userEmail = personalInfo.email || user.email || "";
+                  const isSuperAdminEmail = userEmail.toLowerCase() === "ekenehq@gmail.com";
+
                   setCurrentUser({
                     id: user.uid,
                     name:
@@ -315,8 +342,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                       personalInfo.name ||
                       user.displayName ||
                       user.email?.split("@")[0],
-                    email: personalInfo.email || user.email || "",
-                    role: personalInfo.role || "student",
+                    email: userEmail,
+                    role: isSuperAdminEmail ? "super_admin" : (personalInfo.role || "student"),
                     createdAt:
                       personalInfo.createdAt || new Date().toISOString(),
                     headline: personalInfo.headline,
@@ -344,13 +371,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     themeColor: personalInfo.themeColor,
                     academicHighlights: personalInfo.academicHighlights,
                     isDeleted: personalInfo.isDeleted,
+                    isSuspended: personalInfo.isSuspended,
+                    suspendedAt: personalInfo.suspendedAt,
+                    suspendedReason: personalInfo.suspendedReason,
                   } as User);
                 }
               }
               setLoading(false);
             },
             (error: any) => {
-              console.error("Error fetching user data", error);
+              console.warn("User data listener notice:", error?.message || error);
               setLoading(false);
             },
           );

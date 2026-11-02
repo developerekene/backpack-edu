@@ -34,6 +34,7 @@ import { AdmissionSessionManagerModal } from "../components/AdmissionSessionMana
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
+import { SuperAdmin } from "./SuperAdmin";
 import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
 import { AssessmentsOverview } from "../components/courseAssesment/AssessmentOverview";
@@ -76,6 +77,13 @@ const Dashboard = () => {
 
   if (!currentUser)
     return <div className="p-8 text-center text-slate-500">Please login.</div>;
+
+  if (
+    currentUser.role === "super_admin" ||
+    currentUser.email?.toLowerCase() === "ekenehq@gmail.com"
+  ) {
+    return <SuperAdmin />;
+  }
 
   const handleConfirmCancel = async (id: string) => {
     setCancelling(true);

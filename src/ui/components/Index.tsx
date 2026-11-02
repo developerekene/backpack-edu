@@ -27,6 +27,7 @@ import AboutUs from "../pages/AboutUs";
 import Policy from "../pages/Policy";
 import { LiveRoomPage } from "../pages/LiveRoomPage";
 import { GlobalLoader } from "./GlobalLoader";
+import SuperAdmin from "../pages/SuperAdmin";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, firebaseUser, loading } = useAuth();
@@ -130,6 +131,22 @@ const Index: React.FC = () => {
                         element={
                           <ProtectedRoute>
                             <PageWrapper><Lunch /></PageWrapper>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin"
+                        element={
+                          <ProtectedRoute>
+                            <PageWrapper><SuperAdmin /></PageWrapper>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/super-admin"
+                        element={
+                          <ProtectedRoute>
+                            <PageWrapper><SuperAdmin /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />
