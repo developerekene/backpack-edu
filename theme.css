@@ -35,7 +35,9 @@
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #e2e2e2;
   --sidebar-ring: #0078d4;
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", segoeui, "Helvetica Neue", helvetica, arial, sans-serif, ui-sans-serif, system-ui;
+  --font-sans: "Plus Jakarta Sans", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-heading: "Outfit", "Plus Jakarta Sans", sans-serif;
+  --font-body: "Inter", "Plus Jakarta Sans", sans-serif;
   --font-serif: ui-serif, Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --radius: 0.5rem;
