@@ -14,6 +14,12 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Google AdSense verification ads.txt endpoint
+app.get("/ads.txt", (_req, res) => {
+  res.type("text/plain");
+  res.send("google.com, pub-5528750606185925, DIRECT, f08c47fec0942fa0\n");
+});
+
 // Paystack Secret Keys - Dynamic Vault Sync + Environment initialization
 let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "";
 let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";

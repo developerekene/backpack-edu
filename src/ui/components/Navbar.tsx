@@ -27,6 +27,7 @@ import {
   Accessibility,
   LogIn,
   UserPlus,
+  LayoutDashboard,
 } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { useAccessibility } from "../../store/AccessibilityContext";
@@ -243,12 +244,13 @@ export const Navbar = () => {
   const closeMore = () => setMoreOpen(false);
 
   const moreActive =
+    pathname === "/dashboard" ||
+    pathname === "/lunch" ||
     pathname === "/explore" ||
-    pathname === "/upload-course" ||
     pathname === "/profile" ||
     pathname === "/settings" ||
     pathname === "/onboard" ||
-    pathname === "/events";
+    pathname === "/admin";
 
   const moreTriggerStyle = `flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-colors font-heading border whitespace-nowrap ${
     moreActive
@@ -285,7 +287,7 @@ export const Navbar = () => {
           </div>
         </Link>
 
-        {/* Global Right Controls (Theme, Notifications, Hamburger) */}
+        {/* Global Right Controls */}
         <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-1.5 lg:space-x-3 pl-2">
@@ -293,51 +295,48 @@ export const Navbar = () => {
               Home
             </Link>
 
+            <Link to="/about-us" className={getLinkStyle("/about-us")}>
+              About Us
+            </Link>
+
+            <Link to="/events" className={getLinkStyle("/events")}>
+              Events
+            </Link>
+
+            {/* User-Specific: Add Course button */}
+            {currentUser &&
+              (currentUser.role === "organization" ||
+                currentUser.role === "instructor" ||
+                currentUser.role === "super_admin" ||
+                currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
+                <Link
+                  to="/upload-course"
+                  className={`${getLinkStyle("/upload-course")} flex items-center space-x-1.5`}
+                >
+                  <Plus className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                  <span>Add Course</span>
+                </Link>
+              )}
+
+            {/* User-Specific: Notifications Bell with live unread counter and push notification management */}
             {currentUser && (
-              <Link to="/dashboard" className={getLinkStyle("/dashboard")}>
-                Dashboard
-              </Link>
+              <NotificationsBell
+                unreadCount={unreadCount}
+                userNotifications={userNotifications}
+                pushPermission={pushPermission}
+                testPushStatus={testPushStatus}
+                activeLiveCalls={activeLiveCalls}
+                courses={courses}
+                onRequestPush={handleRequestPush}
+                onSendTestPush={handleSendTestPush}
+                onMarkAllRead={markAllNotificationsRead}
+                onClearNotifications={clearNotifications}
+                onMarkRead={markNotificationRead}
+                onNavigate={(to) => navigate(to)}
+              />
             )}
 
-            <Link
-              to="/lunch"
-              className={`${getLinkStyle("/lunch")} flex items-center space-x-1`}
-            >
-              <Rocket className="w-3.5 h-3.5" />
-              <span>Launch Box</span>
-            </Link>
-
-            <Link
-              to="/about-us"
-              className={`${getLinkStyle("/about-us")} flex items-center space-x-1`}
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>About Us</span>
-            </Link>
-
-            {(currentUser?.email?.toLowerCase() === "ekenehq@gmail.com" ||
-              currentUser?.role === "super_admin") && (
-              <Link
-                to="/admin"
-                title="Super Admin Portal"
-                aria-label="Super Admin Portal"
-                className="flex items-center justify-center p-2 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-all shadow-xs shrink-0"
-              >
-                <ShieldCheck className="w-4 h-4 text-amber-500" />
-              </Link>
-            )}
-
-            {!currentUser && (
-              <Link
-                to="/events"
-                className={`${getLinkStyle("/events")} flex items-center space-x-1`}
-              >
-                <CalendarDays className="w-3.5 h-3.5" />
-                <span>Events</span>
-              </Link>
-            )}
-
-            {/* More Dropdown (Contains User Profile & All Secondary Options) */}
+            {/* More Dropdown (Contains User Profile & All Other Navigation/Icon Options) */}
             <div className="relative" ref={moreRef}>
               <button
                 onClick={() => setMoreOpen((o) => !o)}
@@ -346,6 +345,9 @@ export const Navbar = () => {
               >
                 <MoreHorizontal className="w-4 h-4" />
                 <span>More</span>
+                {hasActiveFeatures && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                )}
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
                     moreOpen ? "rotate-180" : ""
@@ -354,7 +356,7 @@ export const Navbar = () => {
               </button>
 
               {moreOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-2.5 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#0f2231] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-2xl shadow-xl z-50 p-2.5 space-y-1 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] overflow-y-auto">
                   {/* User Profile Header Card inside Dropdown */}
                   {currentUser ? (
                     <>
@@ -390,6 +392,27 @@ export const Navbar = () => {
 
                       <div className="border-t border-[#d6e9f8] dark:border-[#1e3a52] my-1" />
 
+                      {/* Dashboard */}
+                      <Link
+                        to="/dashboard"
+                        onClick={closeMore}
+                        className={moreItemStyle("/dashboard")}
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Dashboard</span>
+                      </Link>
+
+                      {/* Launch Box */}
+                      <Link
+                        to="/lunch"
+                        onClick={closeMore}
+                        className={moreItemStyle("/lunch")}
+                      >
+                        <Rocket className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Launch Box</span>
+                      </Link>
+
+                      {/* Profile */}
                       <Link
                         to="/profile"
                         onClick={closeMore}
@@ -399,6 +422,7 @@ export const Navbar = () => {
                         <span>Profile</span>
                       </Link>
 
+                      {/* Settings */}
                       <Link
                         to="/settings"
                         onClick={closeMore}
@@ -418,29 +442,6 @@ export const Navbar = () => {
                           <span>Explore Orgs</span>
                         </Link>
                       )}
-
-                      {(currentUser.role === "organization" ||
-                        currentUser.role === "instructor" ||
-                        currentUser.role === "super_admin" ||
-                        currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
-                        <Link
-                          to="/upload-course"
-                          onClick={closeMore}
-                          className={moreItemStyle("/upload-course")}
-                        >
-                          <Plus className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
-                          <span>Add Course</span>
-                        </Link>
-                      )}
-
-                      <Link
-                        to="/events"
-                        onClick={closeMore}
-                        className={moreItemStyle("/events")}
-                      >
-                        <CalendarDays className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
-                        <span>Events</span>
-                      </Link>
 
                       {currentUser.role === "organization" &&
                         currentUser.role !== "super_admin" &&
@@ -467,6 +468,43 @@ export const Navbar = () => {
                         </Link>
                       )}
 
+                      <div className="border-t border-[#d6e9f8] dark:border-[#1e3a52] my-1" />
+
+                      {/* Accessibility & Special Needs Suite */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMore();
+                          openAccessibilityModal();
+                        }}
+                        className="flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#153147]/50 transition-colors cursor-pointer"
+                      >
+                        <Accessibility className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Accessibility & Special Needs</span>
+                        {hasActiveFeatures && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-auto" />
+                        )}
+                      </button>
+
+                      {/* Theme Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#153147]/50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          {theme === "dark" ? (
+                            <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                          ) : (
+                            <Moon className="w-4 h-4 text-slate-700 dark:text-slate-200 shrink-0" />
+                          )}
+                          <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-[#0078d4] dark:text-[#04a4ec]">
+                          {theme === "dark" ? "Switch to Light" : "Switch to Dark"}
+                        </span>
+                      </button>
+
                       {/* Divider + Logout */}
                       <div className="my-1 border-t border-[#d6e9f8] dark:border-[#1e3a52]" />
                       <button
@@ -479,6 +517,53 @@ export const Navbar = () => {
                     </>
                   ) : (
                     <>
+                      {/* Launch Box for guests */}
+                      <Link
+                        to="/lunch"
+                        onClick={closeMore}
+                        className={moreItemStyle("/lunch")}
+                      >
+                        <Rocket className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Launch Box</span>
+                      </Link>
+
+                      {/* Accessibility Suite Button for guests */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMore();
+                          openAccessibilityModal();
+                        }}
+                        className="flex items-center space-x-2.5 w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#153147]/50 transition-colors cursor-pointer"
+                      >
+                        <Accessibility className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Accessibility & Special Needs</span>
+                        {hasActiveFeatures && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-auto" />
+                        )}
+                      </button>
+
+                      {/* Theme Toggle Button for guests */}
+                      <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-[#f0f7fd] dark:hover:bg-[#153147]/50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          {theme === "dark" ? (
+                            <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                          ) : (
+                            <Moon className="w-4 h-4 text-slate-700 dark:text-slate-200 shrink-0" />
+                          )}
+                          <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-[#0078d4] dark:text-[#04a4ec]">
+                          {theme === "dark" ? "Switch to Light" : "Switch to Dark"}
+                        </span>
+                      </button>
+
+                      <div className="my-1 border-t border-[#d6e9f8] dark:border-[#1e3a52]" />
+
                       <Link
                         to="/login"
                         onClick={closeMore}
@@ -501,55 +586,6 @@ export const Navbar = () => {
               )}
             </div>
           </div>
-
-          {/* Top Navbar Notification Bell for logged in users (Desktop Only) */}
-          {currentUser && (
-            <div className="hidden md:block">
-              <NotificationsBell
-                unreadCount={unreadCount}
-                userNotifications={userNotifications}
-                pushPermission={pushPermission}
-                testPushStatus={testPushStatus}
-                activeLiveCalls={activeLiveCalls}
-                courses={courses}
-                onRequestPush={handleRequestPush}
-                onSendTestPush={handleSendTestPush}
-                onMarkAllRead={markAllNotificationsRead}
-                onClearNotifications={clearNotifications}
-                onMarkRead={markNotificationRead}
-                onNavigate={(to) => {
-                  setMobileMenuOpen(false);
-                  navigate(to);
-                }}
-              />
-            </div>
-          )}
-
-          {/* Accessibility Suite Button — Visible on Desktop view */}
-          <button
-            onClick={() => openAccessibilityModal()}
-            className="hidden md:flex relative min-h-[40px] min-w-[40px] items-center justify-center p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
-            title="Special Needs & Accessibility Suite (Dyslexia font, color filters, TTS, reading ruler, exam multipliers)"
-            aria-label="Open Special Needs and Accessibility Suite"
-          >
-            <Accessibility className="w-4.5 h-4.5 text-[#0078d4] dark:text-[#04a4ec]" />
-            {hasActiveFeatures && (
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800 animate-pulse" />
-            )}
-          </button>
-
-          {/* Theme Toggle Button — Visible on Desktop view */}
-          <button
-            onClick={toggleTheme}
-            className="hidden md:flex min-h-[40px] min-w-[40px] items-center justify-center p-2 rounded-full hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
-            title="Toggle theme"
-          >
-            {theme === "dark" ? (
-              <Sun className="w-4.5 h-4.5 text-amber-400" />
-            ) : (
-              <Moon className="w-4.5 h-4.5 text-slate-700" />
-            )}
-          </button>
 
           {/* Mobile Hamburger Button */}
           <button
