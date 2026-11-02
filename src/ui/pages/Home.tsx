@@ -1619,7 +1619,7 @@ const Home: React.FC = () => {
             <Link to="/privacy" className="hover:text-[#0078d4]">Terms</Link>
             <Link to="/events" className="hover:text-[#0078d4]">Events</Link>
             <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              v0.1.4
+              v0.1.5
             </span>
           </div>
         </div>
