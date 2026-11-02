@@ -31,3 +31,95 @@ body.reduced-motion-active * {
 body.high-contrast-mode {
   filter: contrast(130%) saturate(110%);
 }
+
+/* Animated Floating Elements for Hero Section */
+@keyframes float-subtle-1 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(1.5deg);
+  }
+}
+
+@keyframes float-subtle-2 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(-2deg);
+  }
+}
+
+@keyframes float-subtle-3 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+@keyframes float-subtle-4 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(-1.5deg);
+  }
+}
+
+@keyframes float-subtle-5 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-18px) rotate(2.5deg);
+  }
+}
+
+@keyframes float-subtle-6 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-11px) rotate(-2deg);
+  }
+}
+
+.animate-float-1 {
+  animation: float-subtle-1 5.2s ease-in-out infinite;
+}
+
+.animate-float-2 {
+  animation: float-subtle-2 6.5s ease-in-out infinite 0.6s;
+}
+
+.animate-float-3 {
+  animation: float-subtle-3 4.8s ease-in-out infinite 1.2s;
+}
+
+.animate-float-4 {
+  animation: float-subtle-4 5.9s ease-in-out infinite 0.3s;
+}
+
+.animate-float-5 {
+  animation: float-subtle-5 6.8s ease-in-out infinite 0.9s;
+}
+
+.animate-float-6 {
+  animation: float-subtle-6 5.1s ease-in-out infinite 1.5s;
+}
+
+.animate-float-orb-1 {
+  animation: float-subtle-1 4.2s ease-in-out infinite 0.2s;
+}
+
+.animate-float-orb-2 {
+  animation: float-subtle-3 5.5s ease-in-out infinite 1.8s;
+}
+
+.animate-float-orb-3 {
+  animation: float-subtle-5 6s ease-in-out infinite 0.7s;
+}
+
