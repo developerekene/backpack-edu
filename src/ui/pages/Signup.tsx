@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../store/AuthContext';
-import { Role } from '../../types';
-import { BlueBackpack3DIcon } from '../components/BlueBackpack3DIcon';
-import authBanner from '../../assets/images/auth_banner.jpg';
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../../store/AuthContext";
+import { Role } from "../../types";
+import { BlueBackpack3DIcon } from "../components/BlueBackpack3DIcon";
+import authBanner from "../../assets/images/auth_banner.jpg";
 import {
   Eye,
   EyeOff,
@@ -16,24 +16,23 @@ import {
   Banknote,
   Star,
   Loader2,
-  Sparkles,
   Building2,
   GraduationCap,
   UserCheck,
   AlertCircle,
-} from 'lucide-react';
+} from "lucide-react";
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 const Signup = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [role, setRole] = useState<Role>('student');
-  const [error, setError] = useState('');
+  const [role, setRole] = useState<Role>("student");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { signup, currentUser } = useAuth();
   const navigate = useNavigate();
@@ -41,55 +40,62 @@ const Signup = () => {
   // If already authenticated, redirect to appropriate page
   useEffect(() => {
     if (currentUser) {
-      if (currentUser.role === 'organization') {
-        navigate('/onboard', { replace: true });
+      if (currentUser.role === "organization") {
+        navigate("/onboard", { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate("/dashboard", { replace: true });
       }
     }
   }, [currentUser, navigate]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
-      setError('Please enter a valid email address (e.g. name@domain.com).');
+      setError("Please enter a valid email address (e.g. name@domain.com).");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match. Please ensure both passwords are identical.');
+      setError(
+        "Passwords do not match. Please ensure both passwords are identical.",
+      );
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      setError("Password must be at least 6 characters long.");
       return;
     }
 
     setLoading(true);
     try {
       const res = await signup(name.trim(), cleanEmail, password, role);
-      if (res.role === 'organization') {
-        navigate('/onboard', { replace: true });
+      if (res.role === "organization") {
+        navigate("/onboard", { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate("/dashboard", { replace: true });
       }
     } catch (err: unknown) {
-      const errorMessage = (err as Error)?.message || 'Failed to create account';
+      const errorMessage =
+        (err as Error)?.message || "Failed to create account";
       if (
-        errorMessage.toLowerCase().includes('permission') ||
-        errorMessage.toLowerCase().includes('missing or insufficient')
+        errorMessage.toLowerCase().includes("permission") ||
+        errorMessage.toLowerCase().includes("missing or insufficient")
       ) {
-        setError('Missing or insufficient permissions. Please check Firebase Firestore permissions.');
-      } else if (errorMessage.includes('email-already-in-use')) {
-        setError('This email address is already registered. Please sign in instead.');
-      } else if (errorMessage.includes('weak-password')) {
-        setError('Password should be at least 6 characters.');
-      } else if (errorMessage.includes('invalid-email')) {
-        setError('Please enter a valid actual email address.');
+        setError(
+          "Missing or insufficient permissions. Please check Firebase Firestore permissions.",
+        );
+      } else if (errorMessage.includes("email-already-in-use")) {
+        setError(
+          "This email address is already registered. Please sign in instead.",
+        );
+      } else if (errorMessage.includes("weak-password")) {
+        setError("Password should be at least 6 characters.");
+      } else if (errorMessage.includes("invalid-email")) {
+        setError("Please enter a valid actual email address.");
       } else {
         setError(errorMessage);
       }
@@ -131,15 +137,12 @@ const Signup = () => {
           {/* Center Pitch */}
           <div className="relative z-10 my-auto py-8 space-y-6">
             <div className="space-y-3">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-sky-100 font-heading border border-white/20">
-                <Sparkles className="w-3.5 h-3.5 text-sky-300" />
-                <span>Join Over 10,000+ African Learners</span>
-              </span>
               <h2 className="text-2xl xl:text-3xl font-extrabold font-heading leading-tight text-white">
                 Start Your Learning & Teaching Journey Today.
               </h2>
               <p className="text-xs sm:text-sm text-sky-100/90 leading-relaxed font-body">
-                Whether you are a student advancing your career, an educator sharing mastery, or an institution onboarding cohorts.
+                Whether you are a student advancing your career, an educator
+                sharing mastery, or an institution onboarding cohorts.
               </p>
             </div>
 
@@ -172,7 +175,9 @@ const Signup = () => {
               {[...Array(5)].map((_, i) => (
                 <Star key={i} className="w-3.5 h-3.5 fill-current" />
               ))}
-              <span className="text-xs font-bold text-white ml-1.5 font-heading">Verified Trust</span>
+              <span className="text-xs font-bold text-white ml-1.5 font-heading">
+                Verified Trust
+              </span>
             </div>
             <p className="text-[11px] text-sky-100 font-body">
               100% direct bank settlements and verified educational telemetry.
@@ -194,7 +199,8 @@ const Signup = () => {
               Create Your Account
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-body">
-              Join Backpack to discover accredited courses or publish institutional programs.
+              Join Backpack to discover accredited courses or publish
+              institutional programs.
             </p>
           </div>
 
@@ -215,9 +221,24 @@ const Signup = () => {
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { value: 'student', label: 'Student', icon: GraduationCap, desc: 'Learn' },
-                  { value: 'instructor', label: 'Instructor', icon: UserCheck, desc: 'Teach' },
-                  { value: 'organization', label: 'Academy', icon: Building2, desc: 'Institution' },
+                  {
+                    value: "student",
+                    label: "Student",
+                    icon: GraduationCap,
+                    desc: "Learn",
+                  },
+                  {
+                    value: "instructor",
+                    label: "Instructor",
+                    icon: UserCheck,
+                    desc: "Teach",
+                  },
+                  {
+                    value: "organization",
+                    label: "Academy",
+                    icon: Building2,
+                    desc: "Institution",
+                  },
                 ].map((item) => {
                   const Icon = item.icon;
                   const isSelected = role === item.value;
@@ -228,16 +249,20 @@ const Signup = () => {
                       onClick={() => setRole(item.value as Role)}
                       className={`p-2.5 sm:p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
                         isSelected
-                          ? 'bg-[#d6e9f8]/60 dark:bg-[#1a384f] border-[#0078d4] text-[#0078d4] dark:text-[#04a4ec] shadow-xs'
-                          : 'bg-[#f8fafd] dark:bg-[#132838] border-[#d6e9f8] dark:border-[#1e3a52] text-slate-600 dark:text-slate-400 hover:border-blue-200 dark:hover:border-blue-800'
+                          ? "bg-[#d6e9f8]/60 dark:bg-[#1a384f] border-[#0078d4] text-[#0078d4] dark:text-[#04a4ec] shadow-xs"
+                          : "bg-[#f8fafd] dark:bg-[#132838] border-[#d6e9f8] dark:border-[#1e3a52] text-slate-600 dark:text-slate-400 hover:border-blue-200 dark:hover:border-blue-800"
                       }`}
                     >
                       <Icon
                         className={`w-4 h-4 ${
-                          isSelected ? 'text-[#0078d4] dark:text-[#04a4ec]' : 'text-slate-400'
+                          isSelected
+                            ? "text-[#0078d4] dark:text-[#04a4ec]"
+                            : "text-slate-400"
                         }`}
                       />
-                      <span className="text-xs font-bold font-heading">{item.label}</span>
+                      <span className="text-xs font-bold font-heading">
+                        {item.label}
+                      </span>
                       <span className="text-[10px] text-slate-400 font-body hidden sm:inline">
                         {item.desc}
                       </span>
@@ -250,24 +275,28 @@ const Signup = () => {
             {/* Full Name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
-                {role === 'organization' ? 'Organization or Institution Name' : 'Full Name'}
+                {role === "organization"
+                  ? "Organization or Institution Name"
+                  : "Full Name"}
               </label>
               <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
-                {role === 'organization' ? (
-                  <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
-                ) : (
-                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
-                )}
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  {role === "organization" ? (
+                    <Building2 className="w-4.5 h-4.5" />
+                  ) : (
+                    <User className="w-4.5 h-4.5" />
+                  )}
+                </div>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
+                  className="w-full pl-11 pr-4 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
                   placeholder={
-                    role === 'organization'
-                      ? 'Lagos Technical Institute'
-                      : 'Ogochukwu Okoli'
+                    role === "organization"
+                      ? "Lagos Technical Institute"
+                      : "Ogochukwu Okoli"
                   }
                 />
               </div>
@@ -279,13 +308,15 @@ const Signup = () => {
                 Email Address
               </label>
               <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Mail className="w-4.5 h-4.5" />
+                </div>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
+                  className="w-full pl-11 pr-4 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
                   placeholder="name@example.com"
                 />
               </div>
@@ -299,23 +330,29 @@ const Signup = () => {
                   Password
                 </label>
                 <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4.5 h-4.5" />
+                  </div>
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     required
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
+                    className="w-full pl-11 pr-11 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
-                    title={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
+                    title={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? (
+                      <EyeOff className="w-4.5 h-4.5" />
+                    ) : (
+                      <Eye className="w-4.5 h-4.5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -326,26 +363,30 @@ const Signup = () => {
                   Confirm Password
                 </label>
                 <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4.5 h-4.5" />
+                  </div>
                   <input
-                    type={showConfirmPassword ? 'text' : 'password'}
+                    type={showConfirmPassword ? "text" : "password"}
                     required
                     minLength={6}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
+                    className="w-full pl-11 pr-11 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
-                    title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
+                    title={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
                   >
                     {showConfirmPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="w-4.5 h-4.5" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-4.5 h-4.5" />
                     )}
                   </button>
                 </div>
@@ -389,4 +430,3 @@ const Signup = () => {
 };
 
 export default Signup;
-
