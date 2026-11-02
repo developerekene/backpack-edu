@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Globe,
   ShieldCheck,
   ArrowRight,
-  BookOpen,
   BarChart3,
   GraduationCap,
   Star,
@@ -33,7 +32,6 @@ import {
   Bell,
   Laptop,
   Check,
-  Sparkles,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { Course } from "../../types";
@@ -42,9 +40,7 @@ import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 
 const Home: React.FC = () => {
   const { courses, organizations } = useAppContext();
-  const navigate = useNavigate();
   const [donatingCourse, setDonatingCourse] = useState<Course | null>(null);
-  const [heroSearchQuery, setHeroSearchQuery] = useState("");
 
   // Secondary school tracking suite interactive tab
   const [activeSchoolTab, setActiveSchoolTab] = useState<
@@ -75,15 +71,6 @@ const Home: React.FC = () => {
     popularCourses.length > 0 ? popularCourses.slice(0, 3) : courses.slice(0, 3);
   const displayNonProfit =
     nonProfitCourses.length > 0 ? nonProfitCourses.slice(0, 3) : [];
-
-  const handleHeroSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (heroSearchQuery.trim()) {
-      navigate(`/explore?search=${encodeURIComponent(heroSearchQuery.trim())}`);
-    } else {
-      navigate("/explore");
-    }
-  };
 
   const studentSteps = [
     {
@@ -178,65 +165,42 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       {/* 1. HERO SECTION (Coursera + Microsoft Learn Aesthetic)    */}
       {/* ======================================================== */}
-      <section className="relative overflow-hidden pt-4 pb-12 sm:pt-8 sm:pb-16 border-b border-slate-200 dark:border-slate-800">
+      <section className="relative overflow-hidden pt-6 pb-12 sm:pt-10 sm:pb-16 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-5xl mx-auto text-center space-y-8 px-4">
-          {/* Trust Accreditation Pill */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-[#0078d4] dark:text-blue-400 text-xs font-semibold shadow-xs">
-            <ShieldCheck className="w-4 h-4 text-[#0078d4]" />
-            <span>Accredited Pan-African Learning Platform</span>
-          </div>
-
           {/* Main Title */}
-          <div className="space-y-4 max-w-4xl mx-auto">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 dark:text-white leading-[1.15]">
+          <div className="space-y-5 max-w-4xl mx-auto">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-slate-900 dark:text-white leading-[1.12]">
               Education Without Borders.
-              <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-2">
+              <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-2 sm:mt-3">
                 Learn, Teach, and Scale Across Africa.
               </span>
             </h1>
 
-            <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto font-normal">
+            <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto font-normal font-body">
               Backpack connects students, secondary schools, universities, and vocational academies. 
               Attend live HD video classes, manage comprehensive student telemetry, and settle tuition in regional African currencies.
             </p>
           </div>
 
-          {/* Interactive Search Bar (Coursera / Udemy Signature Pattern) */}
-          <form
-            onSubmit={handleHeroSearch}
-            className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center gap-2 p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-[#0078d4] focus-within:border-[#0078d4] transition-all"
-          >
-            <div className="relative flex-1 w-full flex items-center px-3">
-              <Search className="w-5 h-5 text-slate-400 shrink-0 mr-3" />
-              <input
-                type="text"
-                value={heroSearchQuery}
-                onChange={(e) => setHeroSearchQuery(e.target.value)}
-                placeholder="What do you want to learn? (e.g. Software, STEM, Business)"
-                className="w-full py-2.5 bg-transparent text-sm sm:text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full sm:w-auto px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm shrink-0 cursor-pointer"
+          {/* Action Link Group */}
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2 text-sm font-heading">
+            <Link
+              to="/explore"
+              className="px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow-md flex items-center gap-2 cursor-pointer"
             >
               <span>Explore Catalog</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-
-          {/* Secondary Action Link Group */}
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-2 text-sm">
+            </Link>
             <Link
               to="/signup"
-              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition shadow-xs flex items-center gap-2"
+              className="px-6 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
             >
               <span>Get Started Free</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/onboard"
-              className="px-6 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-semibold rounded-xl transition shadow-xs flex items-center gap-2"
+              className="px-6 py-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-semibold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
             >
               <Building2 className="w-4 h-4 text-[#0078d4]" />
               <span>Register an Institution</span>
@@ -245,21 +209,21 @@ const Home: React.FC = () => {
 
           {/* Proof Bar (Microsoft / Coursera Metric Tiles) */}
           <div className="pt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto">
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs">
-              <div className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">100+</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Partner Academies</div>
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">100+</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Partner Academies</div>
             </div>
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs">
-              <div className="text-2xl sm:text-3xl font-bold text-[#0078d4]">15+</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Regional Currencies</div>
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-[#0078d4] tracking-tight">15+</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Regional Currencies</div>
             </div>
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs">
-              <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">100%</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Direct Bank Settlement</div>
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-emerald-600 dark:text-emerald-400 tracking-tight">100%</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Direct Bank Settlement</div>
             </div>
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs">
-              <div className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">HD Live</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Interactive Classrooms</div>
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-center shadow-xs hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+              <div className="text-3xl sm:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">HD Live</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-body">Interactive Classrooms</div>
             </div>
           </div>
         </div>
@@ -270,13 +234,13 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       <section className="space-y-8">
         <div className="text-center max-w-2xl mx-auto space-y-2">
-          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider">
+          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider font-heading">
             Why Choose Backpack
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
             Built for Real Academic Outcomes
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base">
+          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base font-body">
             Equipping African educators and learners with modern, dependable infrastructure.
           </p>
         </div>
@@ -286,13 +250,13 @@ const Home: React.FC = () => {
             <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/70 border border-blue-100 dark:border-blue-900 text-[#0078d4] flex items-center justify-center">
               <Globe className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+            <h3 className="text-xl font-bold font-heading text-slate-900 dark:text-white">
               Pan-African Reach
             </h3>
-            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-body">
               Empower students across Nigeria, Ghana, Kenya, and beyond with localized pricing, Paystack integration, and seamless cross-border course delivery.
             </p>
-            <div className="pt-2 text-xs font-semibold text-[#0078d4] flex items-center gap-1">
+            <div className="pt-2 text-xs font-semibold text-[#0078d4] flex items-center gap-1 font-heading">
               <span>Multi-currency support</span>
               <ChevronRight className="w-4 h-4" />
             </div>
@@ -302,13 +266,13 @@ const Home: React.FC = () => {
             <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-100 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <Video className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+            <h3 className="text-xl font-bold font-heading text-slate-900 dark:text-white">
               Live HD Classrooms
             </h3>
-            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-body">
               Deliver immersive video lectures powered by LiveKit HD. Screen sharing, real-time chat, collaborative workspaces, and automatic 24/7 cloud recording.
             </p>
-            <div className="pt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <div className="pt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-heading">
               <span>Interactive real-time rooms</span>
               <ChevronRight className="w-4 h-4" />
             </div>
@@ -318,13 +282,13 @@ const Home: React.FC = () => {
             <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-100 dark:border-amber-900 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <GraduationCap className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+            <h3 className="text-xl font-bold font-heading text-slate-900 dark:text-white">
               Academic Telemetry
             </h3>
-            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-body">
               Track student mastery with continuous assessment gradebooks, attendance check-ins, early remediation flags, and verifiable digital completion certificates.
             </p>
-            <div className="pt-2 text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <div className="pt-2 text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 font-heading">
               <span>Automated scorecards & transcripts</span>
               <ChevronRight className="w-4 h-4" />
             </div>
@@ -337,20 +301,20 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       <section className="bg-[#f8fafd] dark:bg-slate-800/50 rounded-2xl p-8 sm:p-12 border border-[#d6e9f8] dark:border-slate-700 shadow-xs">
         <div className="max-w-4xl space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-100 dark:bg-blue-900/60 text-[#0078d4] dark:text-blue-300 text-xs font-bold uppercase tracking-wider">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-100 dark:bg-blue-900/60 text-[#0078d4] dark:text-blue-300 text-xs font-bold uppercase tracking-wider font-heading">
             <Building2 className="w-3.5 h-3.5" />
             <span>Institutional Partnership</span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
             Use Backpack Today — Take Education Out of the Four Walls
           </h2>
 
-          <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed font-body">
             Whether you run a high school, a software coding academy, or a vocational training center, Backpack provides everything needed to host live classes, organize syllabuses, manage student rosters, and receive 100% direct bank settlements.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-sm text-slate-700 dark:text-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-sm text-slate-700 dark:text-slate-200 font-body">
             <div className="flex items-center gap-2.5">
               <Check className="w-4 h-4 text-emerald-600 shrink-0 font-bold" />
               <span>Live HD Video Rooms & Cloud Recording</span>
@@ -369,17 +333,17 @@ const Home: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 font-heading">
             <Link
               to="/signup"
-              className="w-full sm:w-auto px-7 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl font-semibold text-sm transition shadow-sm flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl font-semibold text-sm transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Get Started Free</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/explore"
-              className="w-full sm:w-auto px-7 py-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-sm transition shadow-xs flex items-center justify-center"
+              className="w-full sm:w-auto px-7 py-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-sm transition shadow-xs flex items-center justify-center cursor-pointer"
             >
               Explore Programs
             </Link>
@@ -392,13 +356,13 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       <section className="space-y-8">
         <div className="text-center max-w-3xl mx-auto space-y-3">
-          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider">
+          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider font-heading">
             Rethinking the Learning Space
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
             Traditional Classroom vs. Backpack Online Classroom
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base leading-relaxed font-body">
             Compare the limitations of physical brick walls with Backpack's borderless, real-time digital learning ecosystem.
           </p>
         </div>
@@ -410,14 +374,14 @@ const Home: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-700">
                 <div className="space-y-1">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold uppercase tracking-wider font-heading">
                     <Building2 className="w-3.5 h-3.5" />
                     Physical Bounds
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white">
                     The Traditional Classroom
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-body">
                     Confined to 4 brick walls, fixed physical desks, and manual paper workflows.
                   </p>
                 </div>
@@ -428,21 +392,21 @@ const Home: React.FC = () => {
 
               {/* In-Session Snapshot */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
-                <div className="flex items-center justify-between font-semibold text-slate-500 uppercase tracking-wider text-[11px]">
+                <div className="flex items-center justify-between font-semibold font-heading text-slate-500 uppercase tracking-wider text-[11px]">
                   <span>Physical Hall In Session</span>
                   <span className="text-amber-600 dark:text-amber-400">Capacity Capped: 45 / 45 Desks</span>
                 </div>
-                <p className="text-slate-600 dark:text-slate-400 text-xs italic leading-relaxed">
+                <p className="text-slate-600 dark:text-slate-400 text-xs italic leading-relaxed font-body">
                   "Teacher is writing rapidly on the chalkboard. Students in the back struggle to read small text. Late arrivals occur due to commuter traffic."
                 </p>
               </div>
 
               {/* Traditional Pain Points List */}
-              <div className="space-y-3.5 text-xs sm:text-sm">
+              <div className="space-y-3.5 text-xs sm:text-sm font-body">
                 <div className="flex items-start gap-3">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Location & Commute Bound
                     </strong>
                     <span className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
@@ -454,7 +418,7 @@ const Home: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Chalkboard Notes & Lost Explanations
                     </strong>
                     <span className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
@@ -466,7 +430,7 @@ const Home: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Manual Paper Roll-Calls
                     </strong>
                     <span className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
@@ -478,7 +442,7 @@ const Home: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Delayed Multi-Week Grading Cycles
                     </strong>
                     <span className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
@@ -489,7 +453,7 @@ const Home: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500">
+            <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500 font-heading">
               <span>District: Local physical radius</span>
               <span className="font-semibold text-amber-700 dark:text-amber-400">Fixed Hall Capacity</span>
             </div>
@@ -500,14 +464,14 @@ const Home: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-start justify-between gap-4 pb-5 border-b border-blue-100 dark:border-slate-700">
                 <div className="space-y-1">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0078d4] text-white text-xs font-bold uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0078d4] text-white text-xs font-bold uppercase tracking-wider font-heading">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Borderless & Real-Time
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white">
                     Backpack Online Classroom
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#0078d4] dark:text-[#04a4ec] font-medium">
+                  <p className="text-xs sm:text-sm text-[#0078d4] dark:text-[#04a4ec] font-medium font-body">
                     Live HD video rooms, 24/7 cloud recordings, instant automated telemetry, and connected guardians.
                   </p>
                 </div>
@@ -518,24 +482,24 @@ const Home: React.FC = () => {
 
               {/* In-Session Snapshot */}
               <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-slate-900/60 border border-blue-200 dark:border-blue-900 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
-                <div className="flex items-center justify-between font-semibold text-[#0078d4] uppercase tracking-wider text-[11px]">
+                <div className="flex items-center justify-between font-semibold font-heading text-[#0078d4] uppercase tracking-wider text-[11px]">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     Live Virtual Room · LiveKit HD
                   </span>
                   <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">128 Students Active</span>
                 </div>
-                <p className="text-slate-600 dark:text-slate-400 text-xs italic leading-relaxed">
+                <p className="text-slate-600 dark:text-slate-400 text-xs italic leading-relaxed font-body">
                   "Instructor shares interactive slides in 1080p. Students in Lagos, Nairobi, and Kigali ask questions in live chat; lecture automatically recorded."
                 </p>
               </div>
 
               {/* Backpack Breakthroughs List */}
-              <div className="space-y-3.5 text-xs sm:text-sm">
+              <div className="space-y-3.5 text-xs sm:text-sm font-body">
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Pan-African Borderless Reach
                     </strong>
                     <span className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
@@ -547,7 +511,7 @@ const Home: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Live HD Video & Permanent Cloud Replays
                     </strong>
                     <span className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
@@ -559,7 +523,7 @@ const Home: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Automated Sign-In Telemetry & Timestamps
                     </strong>
                     <span className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
@@ -571,7 +535,7 @@ const Home: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-900 dark:text-white block font-semibold">
+                    <strong className="text-slate-900 dark:text-white block font-semibold font-heading">
                       Instant Automated Assessments & Analytics
                     </strong>
                     <span className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
@@ -582,7 +546,7 @@ const Home: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-blue-100 dark:border-slate-700 flex items-center justify-between text-xs text-[#0078d4]">
+            <div className="mt-8 pt-4 border-t border-blue-100 dark:border-slate-700 flex items-center justify-between text-xs text-[#0078d4] font-heading">
               <span className="font-medium">Scale: Unlimited concurrent cohorts</span>
               <span className="font-bold text-emerald-600 dark:text-emerald-400">100% Cloud Archiving</span>
             </div>
@@ -592,27 +556,27 @@ const Home: React.FC = () => {
         {/* Quick Comparison Metrics Bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
           <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
-            <span className="text-xs text-slate-500 font-medium block">Commute Time</span>
-            <div className="text-xs text-rose-500 line-through">1–2 Hours in Traffic</div>
-            <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">0 Mins · 1-Click Entry</div>
+            <span className="text-xs text-slate-500 font-medium block font-body">Commute Time</span>
+            <div className="text-xs text-rose-500 line-through font-body">1–2 Hours in Traffic</div>
+            <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-heading">0 Mins · 1-Click Entry</div>
           </div>
 
           <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
-            <span className="text-xs text-slate-500 font-medium block">Class Capacity</span>
-            <div className="text-xs text-amber-600">Max 45 Physical Desks</div>
-            <div className="text-sm font-bold text-[#0078d4]">Unlimited Cohort Size</div>
+            <span className="text-xs text-slate-500 font-medium block font-body">Class Capacity</span>
+            <div className="text-xs text-amber-600 font-body">Max 45 Physical Desks</div>
+            <div className="text-sm font-bold text-[#0078d4] font-heading">Unlimited Cohort Size</div>
           </div>
 
           <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
-            <span className="text-xs text-slate-500 font-medium block">Lecture Retention</span>
-            <div className="text-xs text-rose-500">Erased from Board</div>
-            <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Permanent Cloud Replays</div>
+            <span className="text-xs text-slate-500 font-medium block font-body">Lecture Retention</span>
+            <div className="text-xs text-rose-500 font-body">Erased from Board</div>
+            <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-heading">Permanent Cloud Replays</div>
           </div>
 
           <div className="p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center space-y-1 shadow-xs">
-            <span className="text-xs text-slate-500 font-medium block">Guardian Visibility</span>
-            <div className="text-xs text-amber-600">Termly Paper Card</div>
-            <div className="text-sm font-bold text-[#0078d4]">24/7 Real-Time Portal</div>
+            <span className="text-xs text-slate-500 font-medium block font-body">Guardian Visibility</span>
+            <div className="text-xs text-amber-600 font-body">Termly Paper Card</div>
+            <div className="text-sm font-bold text-[#0078d4] font-heading">24/7 Real-Time Portal</div>
           </div>
         </div>
       </section>
@@ -624,29 +588,29 @@ const Home: React.FC = () => {
         {/* Section Header */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-slate-200 dark:border-slate-700 pb-6">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[#0078d4] dark:text-blue-300 text-xs font-semibold">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[#0078d4] dark:text-blue-300 text-xs font-semibold font-heading">
               <School className="w-3.5 h-3.5" />
               <span>Secondary School Administration & Student Tracking</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
               Complete Student, Gradebook & Guardian Management
             </h2>
-            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-body">
               Backpack gives school leaders, teachers, and parents unified control over student attendance, continuous assessment gradebooks, and performance telemetry.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-3 shrink-0 font-heading">
             <Link
               to="/onboard"
-              className="px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-xs flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               <span>Register Secondary School</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/about-us"
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-200 dark:border-slate-600"
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-200 dark:border-slate-600 cursor-pointer"
             >
               Learn More
             </Link>
@@ -655,7 +619,7 @@ const Home: React.FC = () => {
 
         {/* Interactive Feature Tabs */}
         <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-heading">
             <button
               type="button"
               onClick={() => setActiveSchoolTab("signin_signout")}
@@ -1141,19 +1105,19 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       <section className="space-y-10">
         <div className="text-center max-w-2xl mx-auto space-y-3">
-          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block">
+          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
             How It Works
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
             How to Use Backpack in 4 Simple Steps
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base leading-relaxed font-body">
             Whether you are a student leveling up your career or an institution building an academy, Backpack guides you from start to finish.
           </p>
 
           {/* Interactive Role Switcher Tabs */}
           <div className="pt-2 flex justify-center">
-            <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs">
+            <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs font-heading">
               <button
                 type="button"
                 onClick={() => setActiveStepTab("students")}
@@ -1196,27 +1160,27 @@ const Home: React.FC = () => {
                     <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/70 border border-blue-100 dark:border-blue-900 text-[#0078d4] flex items-center justify-center">
                       <IconComponent className="w-5 h-5" />
                     </div>
-                    <span className="font-mono text-sm font-bold text-slate-400">
+                    <span className="font-heading text-sm font-bold text-slate-400">
                       {item.step}
                     </span>
                   </div>
 
-                  <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white group-hover:text-[#0078d4] transition">
+                  <h3 className="mt-4 text-base font-bold font-heading text-slate-900 dark:text-white group-hover:text-[#0078d4] transition">
                     {item.title}
                   </h3>
 
-                  <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-body">
                     {item.description}
                   </p>
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs">
-                  <span className="text-[11px] font-semibold text-slate-500">
+                  <span className="text-[11px] font-semibold text-slate-500 font-body">
                     {item.feature}
                   </span>
                   <Link
                     to={item.to}
-                    className="font-bold text-[#0078d4] hover:underline inline-flex items-center gap-1"
+                    className="font-bold font-heading text-[#0078d4] hover:underline inline-flex items-center gap-1"
                   >
                     <span>{item.actionText}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1230,15 +1194,15 @@ const Home: React.FC = () => {
         {/* Workflow Bottom CTA Banner */}
         <div className="bg-[#f8fafd] dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border border-[#d6e9f8] dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xs">
           <div className="space-y-1 text-center sm:text-left">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#0078d4]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#0078d4] font-heading">
               {activeStepTab === "students" ? "Student Pathway" : "Institution Workspace"}
             </span>
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+            <h3 className="text-lg sm:text-xl font-bold font-heading text-slate-900 dark:text-white">
               {activeStepTab === "students"
                 ? "Ready to begin learning on Backpack?"
                 : "Ready to launch and scale your academy?"}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xl">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xl font-body">
               {activeStepTab === "students"
                 ? "Explore accredited programs from verified universities, tech academies, and vocational leaders."
                 : "Set up your workspace, publish courses, and receive automated tuition settlements directly to your bank account."}
@@ -1247,7 +1211,7 @@ const Home: React.FC = () => {
 
           <Link
             to={activeStepTab === "students" ? "/explore" : "/onboard"}
-            className="px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold text-sm rounded-xl transition shadow-xs inline-flex items-center gap-2 shrink-0 cursor-pointer"
+            className="px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold font-heading text-sm rounded-xl transition shadow-xs inline-flex items-center gap-2 shrink-0 cursor-pointer"
           >
             <span>{activeStepTab === "students" ? "Explore Catalog" : "Register Academy"}</span>
             <ArrowRight className="w-4 h-4" />
@@ -1262,19 +1226,19 @@ const Home: React.FC = () => {
         <section className="space-y-8">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
             <div>
-              <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block mb-1">
+              <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block mb-1 font-heading">
                 Curated Catalog
               </span>
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
                 Featured Programs
               </h2>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-body">
                 Explore academic courses and donation-funded non-profit vocational training.
               </p>
             </div>
             <Link
               to="/explore"
-              className="text-sm font-semibold text-[#0078d4] hover:underline inline-flex items-center gap-1 shrink-0"
+              className="text-sm font-semibold font-heading text-[#0078d4] hover:underline inline-flex items-center gap-1 shrink-0"
             >
               <span>View full catalog</span>
               <ArrowRight className="w-4 h-4" />
@@ -1453,13 +1417,13 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       <section className="space-y-10 py-6 border-t border-slate-200 dark:border-slate-800">
         <div className="text-center max-w-2xl mx-auto space-y-2">
-          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block">
+          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
             Community Voices
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
             Trusted by Educators & Students
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base">
+          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base font-body">
             See how educational communities across Africa are utilizing Backpack.
           </p>
         </div>
@@ -1471,16 +1435,16 @@ const Home: React.FC = () => {
                 <Star key={star} className="w-4 h-4 fill-current" />
               ))}
             </div>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-body">
               "Backpack makes organizing courses and tracking cohorts straightforward. Having attendance telemetry and live rooms in one platform saves our school hours."
             </p>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0078d4] font-bold text-xs flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0078d4] font-bold font-heading text-xs flex items-center justify-center">
                 AO
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Amaka Okafor</h4>
-                <p className="text-[11px] text-slate-500">Instructor · Lagos Tech Academy</p>
+                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white">Amaka Okafor</h4>
+                <p className="text-[11px] text-slate-500 font-body">Instructor · Lagos Tech Academy</p>
               </div>
             </div>
           </article>
@@ -1491,16 +1455,16 @@ const Home: React.FC = () => {
                 <Star key={star} className="w-4 h-4 fill-current" />
               ))}
             </div>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-body">
               "I love having my live classes, assignment submissions, and progress gradebook in one spot. The cloud recordings make exam revision so convenient."
             </p>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold font-heading text-xs flex items-center justify-center">
                 CN
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Chinedu Nwosu</h4>
-                <p className="text-[11px] text-slate-500">Computer Science Student</p>
+                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white">Chinedu Nwosu</h4>
+                <p className="text-[11px] text-slate-500 font-body">Computer Science Student</p>
               </div>
             </div>
           </article>
@@ -1511,16 +1475,16 @@ const Home: React.FC = () => {
                 <Star key={star} className="w-4 h-4 fill-current" />
               ))}
             </div>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-body">
               "The automatic split payout with Paystack is a gamechanger. Tuition lands directly into our school bank account with no reconciliation friction."
             </p>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 font-bold font-heading text-xs flex items-center justify-center">
                 EJ
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Esther James</h4>
-                <p className="text-[11px] text-slate-500">School Administrator · Accra</p>
+                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white">Esther James</h4>
+                <p className="text-[11px] text-slate-500 font-body">School Administrator · Accra</p>
               </div>
             </div>
           </article>
@@ -1530,17 +1494,17 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       {/* 9. FOOTER (Clean Microsoft / Coursera Navigation)        */}
       {/* ======================================================== */}
-      <footer className="pt-12 border-t border-slate-200 dark:border-slate-700">
+      <footer className="pt-12 border-t border-slate-200 dark:border-slate-700 font-body">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10 text-xs">
           <div className="space-y-3">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Backpack</h3>
+            <h3 className="text-base font-bold font-heading text-slate-900 dark:text-white">Backpack</h3>
             <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
               Empowering educational organizations and students across Africa through accessible, borderless digital learning.
             </p>
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">Platform</h4>
+            <h4 className="font-bold font-heading text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">Platform</h4>
             <ul className="space-y-1.5 text-slate-600 dark:text-slate-400">
               <li><Link to="/explore" className="hover:text-[#0078d4]">Explore Courses</Link></li>
               <li><Link to="/signup" className="hover:text-[#0078d4]">Create Account</Link></li>
@@ -1550,7 +1514,7 @@ const Home: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">Resources</h4>
+            <h4 className="font-bold font-heading text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">Resources</h4>
             <ul className="space-y-1.5 text-slate-600 dark:text-slate-400">
               <li><Link to="/about-us" className="hover:text-[#0078d4]">About Us</Link></li>
               <li><Link to="/privacy" className="hover:text-[#0078d4]">Privacy Policy</Link></li>
@@ -1560,7 +1524,7 @@ const Home: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">Support</h4>
+            <h4 className="font-bold font-heading text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">Support</h4>
             <p className="text-slate-600 dark:text-slate-400">Questions or institutional inquiries?</p>
             <a href="mailto:support@backpack-edu.com" className="text-[#0078d4] font-medium hover:underline block">
               support@backpack-edu.com
