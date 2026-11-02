@@ -26,15 +26,41 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
   const [selectedAppUserId, setSelectedAppUserId] = useState("");
 
   // Form State
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [department, setDepartment] = useState("");
+  const ONBOARDING_DRAFT_KEY = "bp_draft_org_onboarding";
+
+  const getOnboardingDraft = () => {
+    try {
+      const raw = localStorage.getItem(ONBOARDING_DRAFT_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data && typeof data === "object") return data;
+      }
+    } catch (e) {
+      console.error("Error reading onboarding draft", e);
+    }
+    return null;
+  };
+
+  const initialDraft = getOnboardingDraft();
+  const [name, setName] = useState(() => initialDraft?.name || "");
+  const [email, setEmail] = useState(() => initialDraft?.email || "");
+  const [department, setDepartment] = useState(() => initialDraft?.department || "");
   const [selectedCourseId, setSelectedCourseId] = useState(courseId || "");
   const [requiresPayment, setRequiresPayment] = useState(true);
   const [requiresDocuments, setRequiresDocuments] = useState(true);
-  const [inviteNote, setInviteNote] = useState("");
+  const [inviteNote, setInviteNote] = useState(() => initialDraft?.inviteNote || "");
   const [successMsg, setSuccessMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-save onboarding draft
+  useEffect(() => {
+    if (name.trim() || email.trim() || department.trim() || inviteNote.trim()) {
+      localStorage.setItem(
+        ONBOARDING_DRAFT_KEY,
+        JSON.stringify({ name, email, department, inviteNote }),
+      );
+    }
+  }, [name, email, department, inviteNote]);
 
   // Fetch registered users on Backpack from Firestore
   useEffect(() => {
@@ -152,6 +178,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       setSuccessMsg(
         `Successfully sent course invite to ${name} (${cleanEmail})!`
       );
+      localStorage.removeItem(ONBOARDING_DRAFT_KEY);
       setName("");
       setEmail("");
       setDepartment("");

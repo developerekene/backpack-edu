@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../store/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
     FileText, 
     Award, 
@@ -15,12 +15,14 @@ import {
     Calendar,
     Mail,
     Eye,
-    Accessibility
+    Accessibility,
+    ArrowLeft
 } from 'lucide-react';
 import { getNotificationPermission } from '../../lib/pushNotifications';
 import { useAccessibility } from '../../store/AccessibilityContext';
 
 export const Profile = () => {
+    const navigate = useNavigate();
     const { currentUser } = useAuth();
     const { openAccessibilityModal, examTimeMultiplier, dyslexicFont, colorFilter, ttsEnabled } = useAccessibility();
     const pushPermission = getNotificationPermission();
@@ -32,6 +34,17 @@ export const Profile = () => {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-12">
+            <div>
+                <button
+                    type="button"
+                    onClick={() => navigate(-1)}
+                    className="inline-flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 mb-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition cursor-pointer"
+                >
+                    <ArrowLeft className="w-4 h-4 text-indigo-500" />
+                    <span>Go Back</span>
+                </button>
+            </div>
+
             {/* Header Banner */}
             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-indigo-600 to-violet-600 opacity-90"></div>

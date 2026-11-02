@@ -32,15 +32,100 @@ import {
   Bell,
   Laptop,
   Check,
+  MessageSquarePlus,
+  X,
+  Send,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
+import { useAuth } from "../../store/AuthContext";
 import { Course } from "../../types";
 import { CourseDonationModal } from "../components/CourseDonationModal";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 
+interface TestimonialItem {
+  id: string;
+  name: string;
+  role: string;
+  rating: number;
+  message: string;
+  createdAt?: string;
+}
+
+const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
+  {
+    id: "t1",
+    name: "Amaka Okafor",
+    role: "Instructor · Lagos Tech Academy",
+    rating: 5,
+    message: "Backpack makes organizing courses and tracking cohorts straightforward. Having attendance telemetry and live rooms in one platform saves our school hours.",
+  },
+  {
+    id: "t2",
+    name: "Chinedu Nwosu",
+    role: "Computer Science Student",
+    rating: 5,
+    message: "I love having my live classes, assignment submissions, and progress gradebook in one spot. The cloud recordings make exam revision so convenient.",
+  },
+  {
+    id: "t3",
+    name: "Esther James",
+    role: "School Administrator · Accra",
+    rating: 5,
+    message: "The automatic split payout with Paystack is a gamechanger. Tuition lands directly into our school bank account with no reconciliation friction.",
+  },
+];
+
 const Home: React.FC = () => {
   const { courses, organizations } = useAppContext();
+  const { currentUser } = useAuth();
   const [donatingCourse, setDonatingCourse] = useState<Course | null>(null);
+
+  // Testimonials state
+  const [showTestimonialModal, setShowTestimonialModal] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newMessage, setNewMessage] = useState("");
+  const [newRoleTitle, setNewRoleTitle] = useState("");
+  const [testimonialSuccess, setTestimonialSuccess] = useState(false);
+
+  const [userTestimonials, setUserTestimonials] = useState<TestimonialItem[]>(() => {
+    try {
+      const saved = localStorage.getItem("bp_testimonials");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleAddTestimonial = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !currentUser) return;
+
+    const testimonial: TestimonialItem = {
+      id: `t_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: currentUser.name || "Backpack User",
+      role: newRoleTitle.trim() || (currentUser.role === "student" ? "Student" : currentUser.role === "instructor" ? "Instructor" : "Academy Administrator"),
+      rating: newRating,
+      message: newMessage.trim(),
+      createdAt: "Recently",
+    };
+
+    const updated = [testimonial, ...userTestimonials];
+    setUserTestimonials(updated);
+    try {
+      localStorage.setItem("bp_testimonials", JSON.stringify(updated));
+    } catch {
+      /* ignore */
+    }
+
+    setTestimonialSuccess(true);
+    setTimeout(() => {
+      setTestimonialSuccess(false);
+      setShowTestimonialModal(false);
+      setNewMessage("");
+      setNewRoleTitle("");
+      setNewRating(5);
+    }, 1200);
+  };
 
   // Secondary school tracking suite interactive tab
   const [activeSchoolTab, setActiveSchoolTab] = useState<
@@ -1493,83 +1578,210 @@ const Home: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* 8. TESTIMONIALS (Coursera Community Stories)             */}
+      {/* 8. TESTIMONIALS (Community Stories)                      */}
       {/* ======================================================== */}
-      <section className="space-y-10 py-6 border-t border-slate-200 dark:border-slate-800">
-        <div className="text-center max-w-2xl mx-auto space-y-2">
-          <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
-            Community Voices
-          </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
-            Trusted by Educators & Students
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base font-body">
-            See how educational communities across Africa are utilizing Backpack.
-          </p>
+      <section className="space-y-8 py-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-center sm:text-left space-y-1">
+            <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block font-heading">
+              Community Voices
+            </span>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
+              Trusted by Educators & Students
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm font-body">
+              See how educational communities across Africa are utilizing Backpack.
+            </p>
+          </div>
+
+          {currentUser ? (
+            <button
+              onClick={() => setShowTestimonialModal(true)}
+              className="px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs sm:text-sm font-bold font-heading transition shadow-xs flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <MessageSquarePlus className="w-4 h-4" />
+              <span>Add Your Testimonial</span>
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="px-4 py-2.5 bg-[#f0f7fd] dark:bg-[#132838] hover:bg-[#e2f0fb] dark:hover:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-xl text-xs sm:text-sm font-bold font-heading transition flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <MessageSquarePlus className="w-4 h-4" />
+              <span>Sign in to Share Review</span>
+            </Link>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-            <div className="flex items-center gap-1 text-amber-500">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star key={star} className="w-4 h-4 fill-current" />
-              ))}
-            </div>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-body">
-              "Backpack makes organizing courses and tracking cohorts straightforward. Having attendance telemetry and live rooms in one platform saves our school hours."
-            </p>
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0078d4] font-bold font-heading text-xs flex items-center justify-center shrink-0">
-                AO
+          {[...userTestimonials, ...DEFAULT_TESTIMONIALS].map((item) => (
+            <article
+              key={item.id}
+              className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4 flex flex-col justify-between"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-amber-500">
+                    {[...Array(item.rating || 5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-current" />
+                    ))}
+                  </div>
+                  {item.createdAt && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {item.createdAt}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-body">
+                  "{item.message}"
+                </p>
               </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white truncate">Amaka Okafor</h4>
-                <p className="text-[11px] text-slate-500 font-body truncate">Instructor · Lagos Tech Academy</p>
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#0078d4]/10 text-[#0078d4] font-bold font-heading text-xs flex items-center justify-center shrink-0">
+                  {item.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white truncate">
+                    {item.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-body truncate">
+                    {item.role}
+                  </p>
+                </div>
               </div>
-            </div>
-          </article>
-
-          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-            <div className="flex items-center gap-1 text-amber-500">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star key={star} className="w-4 h-4 fill-current" />
-              ))}
-            </div>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-body">
-              "I love having my live classes, assignment submissions, and progress gradebook in one spot. The cloud recordings make exam revision so convenient."
-            </p>
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold font-heading text-xs flex items-center justify-center shrink-0">
-                CN
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white truncate">Chinedu Nwosu</h4>
-                <p className="text-[11px] text-slate-500 font-body truncate">Computer Science Student</p>
-              </div>
-            </div>
-          </article>
-
-          <article className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-            <div className="flex items-center gap-1 text-amber-500">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star key={star} className="w-4 h-4 fill-current" />
-              ))}
-            </div>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-body">
-              "The automatic split payout with Paystack is a gamechanger. Tuition lands directly into our school bank account with no reconciliation friction."
-            </p>
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 font-bold font-heading text-xs flex items-center justify-center shrink-0">
-                EJ
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold font-heading text-slate-900 dark:text-white truncate">Esther James</h4>
-                <p className="text-[11px] text-slate-500 font-body truncate">School Administrator · Accra</p>
-              </div>
-            </div>
-          </article>
+            </article>
+          ))}
         </div>
       </section>
+
+      {/* Testimonial Submission Modal */}
+      {showTestimonialModal && currentUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0f2231] rounded-3xl max-w-lg w-full border border-[#d6e9f8] dark:border-[#1e3a52] shadow-2xl p-6 sm:p-8 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-[#d6e9f8]/60 dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] flex items-center justify-center">
+                  <MessageSquarePlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                    Add Your Testimonial
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-body">
+                    Share your experience with the Backpack learning community
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTestimonialModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {testimonialSuccess ? (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-700 dark:text-emerald-400 rounded-2xl text-center space-y-2">
+                <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500" />
+                <h4 className="font-bold text-sm font-heading">
+                  Testimonial Submitted!
+                </h4>
+                <p className="text-xs font-body">
+                  Thank you for contributing to the Backpack community.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleAddTestimonial} className="space-y-4 font-body">
+                {/* Rating Selector */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                    Rating
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setNewRating(star)}
+                        className="p-1 rounded-lg hover:scale-110 transition-transform cursor-pointer"
+                      >
+                        <Star
+                          className={`w-6 h-6 ${
+                            star <= newRating
+                              ? "text-amber-500 fill-amber-500"
+                              : "text-slate-300 dark:text-slate-600"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 font-heading ml-2">
+                      {newRating} / 5 Stars
+                    </span>
+                  </div>
+                </div>
+
+                {/* Role / Headline */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                    Your Title / Institution Role
+                  </label>
+                  <input
+                    type="text"
+                    value={newRoleTitle}
+                    onChange={(e) => setNewRoleTitle(e.target.value)}
+                    placeholder={
+                      currentUser.role === "student"
+                        ? "e.g. Science Student · Lagos State"
+                        : currentUser.role === "instructor"
+                        ? "e.g. Physics Lecturer · Academy"
+                        : "e.g. Administrator · High School"
+                    }
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs outline-none focus:ring-2 focus:ring-[#0078d4]/30 text-slate-900 dark:text-white font-body"
+                  />
+                </div>
+
+                {/* Feedback / Review Message */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                    Your Experience / Feedback
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="How has Backpack impacted your learning or teaching experience?"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs outline-none focus:ring-2 focus:ring-[#0078d4]/30 text-slate-900 dark:text-white font-body resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTestimonialModal(false)}
+                    className="flex-1 py-2.5 bg-[#e2f0fb] dark:bg-[#1a384f] hover:bg-[#d6e9f8] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition font-heading cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 font-heading shadow-xs cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1" />
+                    <span>Submit Review</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 9. FOOTER (Clean Microsoft / Coursera Navigation)        */}

@@ -25,6 +25,8 @@ import {
   Plus,
   CalendarDays,
   Accessibility,
+  LogIn,
+  UserPlus,
 } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { useAccessibility } from "../../store/AccessibilityContext";
@@ -482,14 +484,15 @@ export const Navbar = () => {
                         onClick={closeMore}
                         className={moreItemStyle("/login")}
                       >
-                        <User className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <LogIn className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
                         <span>Login</span>
                       </Link>
                       <Link
                         to="/signup"
                         onClick={closeMore}
-                        className="flex items-center justify-center w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-bold bg-[#0078d4] text-white hover:bg-[#006cbd] transition-colors mt-1"
+                        className="flex items-center space-x-2 w-full px-3 py-2 rounded-lg text-xs lg:text-sm font-bold bg-[#0078d4] text-white hover:bg-[#006cbd] transition-colors mt-1 justify-center shadow-xs cursor-pointer"
                       >
+                        <UserPlus className="w-4 h-4" />
                         <span>Sign Up</span>
                       </Link>
                     </>
@@ -497,23 +500,6 @@ export const Navbar = () => {
                 </div>
               )}
             </div>
-
-            {!currentUser && (
-              <div className="flex items-center space-x-2 font-heading">
-                <Link
-                  to="/login"
-                  className="text-xs lg:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0078d4] dark:hover:text-[#04a4ec] px-2 py-1.5 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/signup"
-                  className="px-3 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs lg:text-sm font-semibold transition shadow-xs cursor-pointer flex items-center justify-center whitespace-nowrap"
-                >
-                  Sign Up
-                </Link>
-              </div>
-            )}
           </div>
 
           {/* Top Navbar Notification Bell for logged in users (Desktop Only) */}

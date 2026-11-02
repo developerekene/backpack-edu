@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
@@ -19,6 +19,8 @@ import {
   Building2,
   ShieldAlert,
   ArrowRight,
+  ArrowLeft,
+  RotateCcw,
   Check,
   Link as LinkIcon,
   Trash2,
@@ -36,39 +38,56 @@ import {
 } from "lucide-react";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 
+const COURSE_UPLOAD_DRAFT_KEY = "bp_draft_course_upload";
+
+const getCourseUploadDraft = () => {
+  try {
+    const raw = localStorage.getItem(COURSE_UPLOAD_DRAFT_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && typeof data === "object") return data;
+    }
+  } catch (err) {
+    console.error("Failed to parse course upload draft", err);
+  }
+  return null;
+};
+
 const CourseUpload = () => {
   const navigate = useNavigate();
   const { addCourse, orgMembers, organizations, courses, updateOrgMember } = useAppContext();
   const { currentUser } = useAuth();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [currency, setCurrency] = useState("NGN");
+  const initialDraft = getCourseUploadDraft();
+
+  const [title, setTitle] = useState(() => initialDraft?.title || "");
+  const [description, setDescription] = useState(() => initialDraft?.description || "");
+  const [price, setPrice] = useState(() => initialDraft?.price || "");
+  const [currency, setCurrency] = useState(() => initialDraft?.currency || "NGN");
 
   // Payment terms tick box state (select one or both)
-  const [allowPayInFull, setAllowPayInFull] = useState(true);
-  const [allowInstallments, setAllowInstallments] = useState(true);
+  const [allowPayInFull, setAllowPayInFull] = useState(() => initialDraft?.allowPayInFull ?? true);
+  const [allowInstallments, setAllowInstallments] = useState(() => initialDraft?.allowInstallments ?? true);
   const [installmentInterval, setInstallmentInterval] = useState<
     "weekly" | "monthly" | "custom"
-  >("monthly");
-  const [customMilestonesText, setCustomMilestonesText] = useState("");
+  >(() => initialDraft?.installmentInterval || "monthly");
+  const [customMilestonesText, setCustomMilestonesText] = useState(() => initialDraft?.customMilestonesText || "");
 
   // Vocational Education Funding & Admission Model
   const [fundingModel, setFundingModel] = useState<
     "direct_tuition" | "donations_sponsorships"
-  >("direct_tuition");
-  const [tuitionCostPerStudent, setTuitionCostPerStudent] = useState("");
+  >(() => initialDraft?.fundingModel || "direct_tuition");
+  const [tuitionCostPerStudent, setTuitionCostPerStudent] = useState(() => initialDraft?.tuitionCostPerStudent || "");
 
   // Itemized Requirements State
-  const [studentReqList, setStudentReqList] = useState<string[]>([]);
+  const [studentReqList, setStudentReqList] = useState<string[]>(() => initialDraft?.studentReqList || []);
   const [newStudentReq, setNewStudentReq] = useState("");
 
-  const [requiredDocList, setRequiredDocList] = useState<string[]>([]);
+  const [requiredDocList, setRequiredDocList] = useState<string[]>(() => initialDraft?.requiredDocList || []);
   const [newDocName, setNewDocName] = useState("");
 
-  const [qualificationTitle, setQualificationTitle] = useState("");
+  const [qualificationTitle, setQualificationTitle] = useState(() => initialDraft?.qualificationTitle || "");
   const [qualificationType, setQualificationType] = useState<
     | "bachelors"
     | "masters"
@@ -77,90 +96,240 @@ const CourseUpload = () => {
     | "certificate"
     | "professional"
     | "other"
-  >("certificate");
+  >(() => initialDraft?.qualificationType || "certificate");
 
-  const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [selectedOrgId, setSelectedOrgId] = useState(() => initialDraft?.selectedOrgId || "");
   const [loading, setLoading] = useState(false);
 
   // Admission Session & Intake Controls
   const [initialAdmissionStatus, setInitialAdmissionStatus] = useState<
     "open" | "closed"
-  >("open");
+  >(() => initialDraft?.initialAdmissionStatus || "open");
   const [sessionName, setSessionName] = useState(() => {
+    if (initialDraft?.sessionName) return initialDraft.sessionName;
     const year = new Date().getFullYear();
     return `${year}/${year + 1} Academic Session`;
   });
-  const [applicationDeadline, setApplicationDeadline] = useState("");
+  const [applicationDeadline, setApplicationDeadline] = useState(() => initialDraft?.applicationDeadline || "");
 
   // Detailed Course Information & Public Showcase
-  const [subtitle, setSubtitle] = useState("");
-  const [whyItMatters, setWhyItMatters] = useState("");
+  const [subtitle, setSubtitle] = useState(() => initialDraft?.subtitle || "");
+  const [whyItMatters, setWhyItMatters] = useState(() => initialDraft?.whyItMatters || "");
   const [pacing, setPacing] = useState<
     "self-paced" | "live-online" | "blended"
-  >("blended");
-  const [durationWeeks, setDurationWeeks] = useState("8 Weeks");
-  const [timeCommitment, setTimeCommitment] = useState("6–8 hours / week");
-  const [totalHours, setTotalHours] = useState("48 Total Hours");
-  const [language, setLanguage] = useState("English");
-  const [subtitlesInput, setSubtitlesInput] = useState("English [CC]");
+  >(() => initialDraft?.pacing || "blended");
+  const [durationWeeks, setDurationWeeks] = useState(() => initialDraft?.durationWeeks || "8 Weeks");
+  const [timeCommitment, setTimeCommitment] = useState(() => initialDraft?.timeCommitment || "6–8 hours / week");
+  const [totalHours, setTotalHours] = useState(() => initialDraft?.totalHours || "48 Total Hours");
+  const [language, setLanguage] = useState(() => initialDraft?.language || "English");
+  const [subtitlesInput, setSubtitlesInput] = useState(() => initialDraft?.subtitlesInput || "English [CC]");
   const [accessDuration, setAccessDuration] = useState(
-    "Allows student removal once they graduate",
+    () => initialDraft?.accessDuration || "Allows student removal once they graduate",
   );
-  const [studentRemovalOnGraduation, setStudentRemovalOnGraduation] =
-    useState(true);
+  const [studentRemovalOnGraduation, setStudentRemovalOnGraduation] = useState(
+    () => initialDraft?.studentRemovalOnGraduation ?? true
+  );
 
   // Learning Objectives
-  const [learningObjectives, setLearningObjectives] = useState<string[]>([]);
+  const [learningObjectives, setLearningObjectives] = useState<string[]>(
+    () => initialDraft?.learningObjectives || []
+  );
   const [newObjective, setNewObjective] = useState("");
 
   // Instructor Information
   const [instructorName, setInstructorName] = useState(
-    currentUser?.role === "instructor" ? currentUser.name : "",
+    () => initialDraft?.instructorName || (currentUser?.role === "instructor" ? currentUser.name : "")
   );
-  const [selectedInstructorMemberId, setSelectedInstructorMemberId] = useState("");
-  const [instructorTitle, setInstructorTitle] = useState("");
-  const [instructorBio, setInstructorBio] = useState("");
+  const [selectedInstructorMemberId, setSelectedInstructorMemberId] = useState(
+    () => initialDraft?.selectedInstructorMemberId || ""
+  );
+  const [instructorTitle, setInstructorTitle] = useState(() => initialDraft?.instructorTitle || "");
+  const [instructorBio, setInstructorBio] = useState(() => initialDraft?.instructorBio || "");
 
   // Certification & Policy
-  const [certificationDetails, setCertificationDetails] = useState("");
-  const [refundPolicy, setRefundPolicy] = useState("");
+  const [certificationDetails, setCertificationDetails] = useState(() => initialDraft?.certificationDetails || "");
+  const [refundPolicy, setRefundPolicy] = useState(() => initialDraft?.refundPolicy || "");
 
   // FAQs
-  const [faqs, setFaqs] = useState<CourseFAQ[]>([]);
+  const [faqs, setFaqs] = useState<CourseFAQ[]>(() => initialDraft?.faqs || []);
   const [newFaqQ, setNewFaqQ] = useState("");
   const [newFaqA, setNewFaqA] = useState("");
 
   // Curriculum Structure (Modules, Sections, Lectures)
-  const [modules, setModules] = useState<CourseModule[]>(() => [
-    {
-      id: generateId("mod"),
-      title: "",
-      description: "",
-      learningGoals: "",
-      sections: [
-        {
-          id: generateId("sec"),
-          title: "",
-          description: "",
-          learningObjectives: "",
-          items: [
-            {
-              id: generateId("lec"),
-              title: "",
-              description: "",
-              learningOutcome: "",
-              type: "text",
-              formats: ["text"],
-            },
-          ],
-        },
-      ],
-      items: [],
-    },
-  ]);
+  const [modules, setModules] = useState<CourseModule[]>(() => {
+    if (Array.isArray(initialDraft?.modules) && initialDraft.modules.length > 0) {
+      return initialDraft.modules;
+    }
+    return [
+      {
+        id: generateId("mod"),
+        title: "",
+        description: "",
+        learningGoals: "",
+        sections: [
+          {
+            id: generateId("sec"),
+            title: "",
+            description: "",
+            learningObjectives: "",
+            items: [
+              {
+                id: generateId("lec"),
+                title: "",
+                description: "",
+                learningOutcome: "",
+                type: "text",
+                formats: ["text"],
+              },
+            ],
+          },
+        ],
+        items: [],
+      },
+    ];
+  });
 
   const [showSubaccountModal, setShowSubaccountModal] = useState(false);
   const [bypassSubaccount, setBypassSubaccount] = useState(false);
+  const [isDraftRestored, setIsDraftRestored] = useState(() => Boolean(initialDraft));
+
+  // Auto-save form draft whenever any field changes
+  useEffect(() => {
+    const draftData = {
+      title,
+      description,
+      price,
+      currency,
+      allowPayInFull,
+      allowInstallments,
+      installmentInterval,
+      customMilestonesText,
+      fundingModel,
+      tuitionCostPerStudent,
+      studentReqList,
+      requiredDocList,
+      qualificationTitle,
+      qualificationType,
+      selectedOrgId,
+      initialAdmissionStatus,
+      sessionName,
+      applicationDeadline,
+      subtitle,
+      whyItMatters,
+      pacing,
+      durationWeeks,
+      timeCommitment,
+      totalHours,
+      language,
+      subtitlesInput,
+      accessDuration,
+      studentRemovalOnGraduation,
+      learningObjectives,
+      instructorName,
+      selectedInstructorMemberId,
+      instructorTitle,
+      instructorBio,
+      certificationDetails,
+      refundPolicy,
+      faqs,
+      modules,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const isAnyFieldFilled =
+      Boolean(title.trim()) ||
+      Boolean(description.trim()) ||
+      Boolean(price) ||
+      Boolean(subtitle.trim()) ||
+      learningObjectives.length > 0 ||
+      studentReqList.length > 0;
+
+    if (isAnyFieldFilled) {
+      localStorage.setItem(COURSE_UPLOAD_DRAFT_KEY, JSON.stringify(draftData));
+    }
+  }, [
+    title,
+    description,
+    price,
+    currency,
+    allowPayInFull,
+    allowInstallments,
+    installmentInterval,
+    customMilestonesText,
+    fundingModel,
+    tuitionCostPerStudent,
+    studentReqList,
+    requiredDocList,
+    qualificationTitle,
+    qualificationType,
+    selectedOrgId,
+    initialAdmissionStatus,
+    sessionName,
+    applicationDeadline,
+    subtitle,
+    whyItMatters,
+    pacing,
+    durationWeeks,
+    timeCommitment,
+    totalHours,
+    language,
+    subtitlesInput,
+    accessDuration,
+    studentRemovalOnGraduation,
+    learningObjectives,
+    instructorName,
+    selectedInstructorMemberId,
+    instructorTitle,
+    instructorBio,
+    certificationDetails,
+    refundPolicy,
+    faqs,
+    modules,
+  ]);
+
+  const clearDraft = () => {
+    localStorage.removeItem(COURSE_UPLOAD_DRAFT_KEY);
+    setTitle("");
+    setDescription("");
+    setPrice("");
+    setSubtitle("");
+    setWhyItMatters("");
+    setStudentReqList([]);
+    setRequiredDocList([]);
+    setQualificationTitle("");
+    setLearningObjectives([]);
+    setCertificationDetails("");
+    setRefundPolicy("");
+    setFaqs([]);
+    setModules([
+      {
+        id: generateId("mod"),
+        title: "",
+        description: "",
+        learningGoals: "",
+        sections: [
+          {
+            id: generateId("sec"),
+            title: "",
+            description: "",
+            learningObjectives: "",
+            items: [
+              {
+                id: generateId("lec"),
+                title: "",
+                description: "",
+                learningOutcome: "",
+                type: "text",
+                formats: ["text"],
+              },
+            ],
+          },
+        ],
+        items: [],
+      },
+    ]);
+    setIsDraftRestored(false);
+  };
 
   const isSuperAdmin =
     currentUser?.role === "super_admin" ||
@@ -729,6 +898,7 @@ const CourseUpload = () => {
         }
       }
 
+      localStorage.removeItem(COURSE_UPLOAD_DRAFT_KEY);
       navigate("/dashboard");
     } catch (err) {
       console.error("Failed to upload course", err);
@@ -754,25 +924,21 @@ const CourseUpload = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-slate-900 dark:text-white text-sm">
-                  Course Limit Reached ({orgExistingCourses.length}/15 Courses on
-                  Free Plan)
+                  Course Limit Reached ({orgExistingCourses.length}/15 Courses on Free Plan)
                 </h3>
                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 uppercase">
                   Upgrade Required
                 </span>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                Free organizations are allowed to publish a maximum of 15
-                courses. To publish your 16th course and unlock unlimited
-                courses, please upgrade your organization account to
-                Organization Pro.
+                Free organizations are allowed to publish a maximum of 15 courses.
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setShowUpgradeModal(true)}
-            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
+            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
             <span>Upgrade Account</span>
@@ -780,46 +946,49 @@ const CourseUpload = () => {
         </div>
       )}
 
-      {/* Subaccount Prompt Banner */}
-      {!hasSubaccount && !bypassSubaccount && (
-        <div className="p-5 bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl space-y-3 shadow-xs">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-start space-x-3 text-amber-800 dark:text-amber-300">
-              <ShieldAlert className="w-6 h-6 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-              <div>
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                  Payout Settlement Subaccount Required Before Publishing
-                </h3>
-                <p className="text-slate-600 dark:text-slate-300 text-xs mt-1 leading-relaxed">
-                  To receive tuition payouts directly into your bank account (85% subaccount split / 15% platform split), your organization must create or link a settlement subaccount before publishing courses.
-                </p>
-              </div>
+      {/* Restored Draft Banner */}
+      {isDraftRestored && (
+        <div className="p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
             </div>
-            <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowSubaccountModal(true)}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs whitespace-nowrap transition shadow-sm cursor-pointer"
-              >
-                Set Up Subaccount Now
-              </button>
-              <button
-                type="button"
-                onClick={() => setBypassSubaccount(true)}
-                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs whitespace-nowrap transition shadow-sm cursor-pointer"
-              >
-                Set Up Subaccount Later
-              </button>
+            <div>
+              <p className="text-xs font-bold text-slate-900 dark:text-white">
+                Course Draft Restored!
+              </p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                We saved your unsubmitted course draft so you didn't lose any progress.
+              </p>
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 italic pt-1 border-t border-amber-500/20">
-            * Note: If you continue without a subaccount, tuition proceeds will be held securely in platform escrow until a verified settlement account is linked.
-          </p>
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              type="button"
+              onClick={clearDraft}
+              className="px-3 py-1.5 bg-red-100 dark:bg-red-950/50 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 text-xs font-bold rounded-xl transition flex items-center space-x-1 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Discard & Start Fresh</span>
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Header with Back Button */}
       <div className="flex items-center justify-between">
         <div>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 mb-3 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-indigo-500" />
+            <span>Go Back</span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold border-l border-slate-300 dark:border-slate-700 pl-2 ml-1">
+              ✓ Draft auto-saved
+            </span>
+          </button>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center">
             <UploadCloud className="w-8 h-8 mr-3 text-indigo-500" />
             Create Institutional Course

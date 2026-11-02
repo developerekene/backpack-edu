@@ -137,21 +137,67 @@ export const EventCreation: React.FC<EventCreationProps> = ({
   const { addEvent, updateEvent } = useEventContext();
 
   const isEditMode = Boolean(existingEvent);
+  const EVENT_DRAFT_KEY = "bp_draft_event_creation";
 
-  const [form, setForm] = useState({
-    title: existingEvent?.title ?? "",
-    subject: existingEvent?.subject ?? "",
-    description: existingEvent?.description ?? "",
-    date: existingEvent?.date ?? "",
-    time: existingEvent ? to24Hour(existingEvent.time) : "",
-    location: existingEvent?.location ?? "",
-    link: existingEvent?.link ?? "",
+  const getEventDraft = () => {
+    try {
+      const raw = localStorage.getItem(EVENT_DRAFT_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data && typeof data === "object") return data;
+      }
+    } catch (e) {
+      console.error("Error loading event draft", e);
+    }
+    return null;
+  };
+
+  const initialDraft = !isEditMode ? getEventDraft() : null;
+
+  const [form, setForm] = useState(() => ({
+    title: existingEvent?.title ?? initialDraft?.title ?? "",
+    subject: existingEvent?.subject ?? initialDraft?.subject ?? "",
+    description: existingEvent?.description ?? initialDraft?.description ?? "",
+    date: existingEvent?.date ?? initialDraft?.date ?? "",
+    time: existingEvent ? to24Hour(existingEvent.time) : (initialDraft?.time ?? ""),
+    location: existingEvent?.location ?? initialDraft?.location ?? "",
+    link: existingEvent?.link ?? initialDraft?.link ?? "",
     courseId: existingEvent?.courseType
       ? `${COURSE_TYPE_PREFIX}${existingEvent.courseType}`
-      : (existingEvent?.courseId ?? ""),
-  });
+      : (existingEvent?.courseId ?? initialDraft?.courseId ?? ""),
+  }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDraftRestored, setIsDraftRestored] = useState(() => Boolean(initialDraft));
+
+  // Auto-save event draft when user changes fields
+  useEffect(() => {
+    if (!isOpen || isEditMode) return;
+    const isAnyFieldFilled =
+      Boolean(form.title.trim()) ||
+      Boolean(form.subject.trim()) ||
+      Boolean(form.description.trim()) ||
+      Boolean(form.location.trim());
+
+    if (isAnyFieldFilled) {
+      localStorage.setItem(EVENT_DRAFT_KEY, JSON.stringify(form));
+    }
+  }, [isOpen, isEditMode, form]);
+
+  const clearEventDraft = () => {
+    localStorage.removeItem(EVENT_DRAFT_KEY);
+    setForm({
+      title: "",
+      subject: "",
+      description: "",
+      date: "",
+      time: "",
+      location: "",
+      link: "",
+      courseId: "",
+    });
+    setIsDraftRestored(false);
+  };
 
   /* Close on Escape + lock background scroll while open. */
   useEffect(() => {
@@ -294,6 +340,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
       onCreated?.(created);
     }
 
+    localStorage.removeItem(EVENT_DRAFT_KEY);
     setIsSubmitting(false);
     onClose();
   };
@@ -310,10 +357,17 @@ export const EventCreation: React.FC<EventCreationProps> = ({
         {/* ---------------- Header ---------------- */}
         <div className="flex justify-between items-start p-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-[10px] font-bold uppercase tracking-wider">
-              <Building2 className="w-3 h-3 mr-1" />
-              Organization Event
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-[10px] font-bold uppercase tracking-wider">
+                <Building2 className="w-3 h-3 mr-1" />
+                Organization Event
+              </span>
+              {!isEditMode && (
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  ✓ Draft auto-saved
+                </span>
+              )}
+            </div>
             <h3 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">
               {isEditMode ? "Edit Event" : "Create Event"}
             </h3>
@@ -324,13 +378,25 @@ export const EventCreation: React.FC<EventCreationProps> = ({
               </span>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {isDraftRestored && !isEditMode && (
+              <button
+                type="button"
+                onClick={clearEventDraft}
+                className="px-2.5 py-1 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition"
+                title="Discard draft and reset fields"
+              >
+                Clear Draft
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* ---------------- Body ---------------- */}

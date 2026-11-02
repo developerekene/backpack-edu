@@ -16,16 +16,18 @@ import {
     Building, 
     ExternalLink,
     Save,
-    Accessibility
+    Accessibility,
+    ArrowLeft
 } from 'lucide-react';
 import { FileUpload } from '../components/FileUpload';
 import { getNotificationPermission, requestPushPermission, sendPushNotification } from '../../lib/pushNotifications';
 import { UserDocument } from '../../types';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PaystackSubaccountOnboarding } from '../components/PaystackSubaccountOnboarding';
 import { useAccessibility } from '../../store/AccessibilityContext';
 
 export const Settings = () => {
+    const navigate = useNavigate();
     const { currentUser, updateCurrentUser } = useAuth();
     const { addNotification, organizations, updateOrganization } = useAppContext();
     const { openAccessibilityModal, examTimeMultiplier, dyslexicFont, colorFilter, ttsEnabled } = useAccessibility();
@@ -110,6 +112,16 @@ export const Settings = () => {
     if (currentUser.role === 'organization') {
         return (
             <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-16">
+                <div>
+                    <button
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="inline-flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 mb-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition cursor-pointer"
+                    >
+                        <ArrowLeft className="w-4 h-4 text-indigo-500" />
+                        <span>Go Back</span>
+                    </button>
+                </div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center space-x-2 mb-1">
@@ -451,6 +463,14 @@ export const Settings = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-12">
             <div>
+                <button
+                    type="button"
+                    onClick={() => navigate(-1)}
+                    className="inline-flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 mb-3 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition cursor-pointer"
+                >
+                    <ArrowLeft className="w-4 h-4 text-indigo-500" />
+                    <span>Go Back</span>
+                </button>
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Profile & Credentials</h1>
                 <p className="text-slate-500 dark:text-slate-400 mt-2">
                     Manage your personal profile, CV, certificates, and notification settings for seamless course onboarding.
