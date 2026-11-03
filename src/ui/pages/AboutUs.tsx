@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import {
   ArrowRight,
   GraduationCap,
@@ -6,632 +6,859 @@ import {
   Users,
   Sparkles,
   Lightbulb,
-  CheckCircle,
+  CheckCircle2,
   Monitor,
   Layout,
   Code2,
   ShieldCheck,
   Building2,
+  Video,
+  CreditCard,
+  BarChart3,
+  Globe,
+  Laptop,
+  Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
+interface DeveloperProfile {
+  name: string;
+  role: string;
+  number: string;
+  image: string;
+  initials: string;
+  bio: string;
+  focus: string;
+  icon: React.ElementType;
+}
+
+const DEVELOPERS: DeveloperProfile[] = [
+  {
+    name: "Ekenedilichukwu Okoli",
+    role: "Lead Software Engineer",
+    number: "01",
+    initials: "EO",
+    image:
+      "https://media.licdn.com/dms/image/v2/D4E03AQHiqi4YHQpQLA/profile-displayphoto-crop_800_800/B4EZywxwZxGYAM-/0/1772492361198?e=1789603200&v=beta&t=RDKpliGLTyAKSqD5XPvMqyu9zsLJ9YsvXSrLvXn-GJA",
+    bio: "Leading overall platform engineering, distributed system design, and secure cloud infrastructure.",
+    focus: "System Architecture",
+    icon: Code2,
+  },
+  {
+    name: "Ogochukwu Okoli",
+    role: "AI Developer",
+    number: "02",
+    initials: "OO",
+    image:
+      "https://media.licdn.com/dms/image/v2/D4E03AQEOPrCW2KTHrw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1729331170966?e=1789603200&v=beta&t=F83iBZgBuT6rjLGAyrkOEx9BOU-tRJaSRSVf7gHz5cg",
+    bio: "Engineering intelligent automated grading models, classroom telemetry, and conversational learning assistants.",
+    focus: "Intelligent Systems",
+    icon: Sparkles,
+  },
+  {
+    name: "Richard Onyekachi",
+    role: "Frontend Engineer",
+    number: "03",
+    initials: "RO",
+    image:
+      "https://media.licdn.com/dms/image/v2/D4D03AQEH8lBu1Lca3Q/profile-displayphoto-crop_800_800/B4DZvLtaH9KoAI-/0/1768649239267?e=1789603200&v=beta&t=PG20w_SbBQKSHfJhAhEBDx5zCTaf2A9t6BlFBN3VsUw",
+    bio: "Crafting intuitive web interfaces, reusable component design systems, and responsive user journeys.",
+    focus: "UI Architecture",
+    icon: Layout,
+  },
+  {
+    name: "Stella Eneh",
+    role: "Frontend Engineer",
+    number: "04",
+    initials: "SE",
+    image:
+      "https://media.licdn.com/dms/image/v2/D4D03AQG_Kk8suQsnyg/profile-displayphoto-crop_800_800/B4DZ21.xaHGcAI-/0/1776874637809?e=1789603200&v=beta&t=wVkJDQIBpe8hnfC7St_ugtX61jAWJ_n7VK8FBUzs3fo",
+    bio: "Translating educational product requirements into polished, accessible, and high-performance frontend interfaces.",
+    focus: "Accessibility & UX",
+    icon: Monitor,
+  },
+  {
+    name: "Ilonuba Chukwudi",
+    role: "Frontend Engineer",
+    number: "05",
+    initials: "IC",
+    image:
+      "https://media.licdn.com/dms/image/v2/D4E03AQFK6M42xcMg5A/profile-displayphoto-crop_800_800/B4EZ6sZCB1JkAI-/0/1781008704690?e=1789603200&v=beta&t=YZ2KC6qZsyLRh5I68_yzdyOT8n1rt3k9YNeDA_l1E38",
+    bio: "Building fluid interactive components, course management tools, and seamless learning room workflows.",
+    focus: "Interactive Web",
+    icon: Laptop,
+  },
+];
+
 const AboutUs: React.FC = () => {
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [imageError, setImageError] = useState<Record<string, boolean>>({});
+
+  const scrollToIndex = (index: number) => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const clamped = Math.max(0, Math.min(index, DEVELOPERS.length - 1));
+    const card = container.children[clamped] as HTMLElement;
+    if (card) {
+      const targetLeft = card.offsetLeft - container.offsetLeft;
+      container.scrollTo({ left: targetLeft, behavior: "smooth" });
+    }
+    setCarouselIndex(clamped);
+  };
+
+  const handlePrev = () => {
+    const target = carouselIndex === 0 ? DEVELOPERS.length - 1 : carouselIndex - 1;
+    scrollToIndex(target);
+  };
+
+  const handleNext = () => {
+    const target = carouselIndex === DEVELOPERS.length - 1 ? 0 : carouselIndex + 1;
+    scrollToIndex(target);
+  };
+
+  const handleScroll = () => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const scrollLeft = container.scrollLeft;
+    const children = Array.from(container.children) as HTMLElement[];
+    if (!children.length) return;
+
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    children.forEach((child, idx) => {
+      const diff = Math.abs(child.offsetLeft - container.offsetLeft - scrollLeft);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = idx;
+      }
+    });
+    setCarouselIndex(closestIndex);
+  };
+
   return (
-    <div>
-      {/* ========================================== */}
-      {/* ABOUT US HEADER */}
-      {/* ========================================== */}
-      {/* ========================================== */}
-      {/* ABOUT US SECTION */}
-      {/* ========================================== */}
-      <section
-        id="about"
-        className="py-20 sm:py-24 bg-slate-50/50 dark:bg-slate-900"
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          {/* Header */}
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider">
-              About Us
-            </span>
+    <div className="w-full text-slate-900 dark:text-slate-100 flex flex-col">
+      {/* ======================================================== */}
+      {/* 1. HERO BANNER (Full-Width Edge-to-Edge like Home Page)   */}
+      {/* ======================================================== */}
+      <section className="relative w-full overflow-hidden pt-8 pb-14 sm:pt-14 sm:pb-20 border-b border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-b from-[#f0f7fd]/90 via-white to-white dark:from-[#0f2231]/30 dark:via-[#0a1824] dark:to-[#0a1824]">
+        {/* Ambient luminous glow backdrop */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none -z-10 overflow-hidden">
+          <div className="absolute top-[-15%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-[#d6e9f8]/70 via-[#0078d4]/10 to-transparent dark:from-[#0078d4]/20 dark:via-[#0f2231]/30 dark:to-transparent rounded-full blur-3xl opacity-80" />
+        </div>
 
-            <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
-              Making Learning More
-              <span className="text-indigo-600 dark:text-indigo-400">
-                {" "}
-                Structured & Accessible
-              </span>
-            </h2>
+        {/* Framing Container */}
+        <div className="relative max-w-6xl mx-auto px-4">
+          {/* Hero Content Container */}
+          <div className="max-w-2xl sm:max-w-3xl mx-auto text-center space-y-6 sm:space-y-8 px-4 relative z-10">
+            {/* Eyebrow badge */}
+           
 
-            <p className="mt-4 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-              We are building a technology-driven learning platform that helps
-              schools, academies, instructors, and students create better
-              learning experiences through simple and practical digital tools.
-            </p>
-          </div>
-
-          {/* Main About Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Mission */}
-            <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all duration-300">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                <Target className="w-6 h-6" />
-              </div>
-
-              <h3 className="mt-6 text-xl font-bold text-slate-900 dark:text-white">
-                Our Mission
-              </h3>
-
-              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Our mission is to make education technology easier to use,
-                helping educators manage learning while giving students the
-                structure and tools they need to succeed.
-              </p>
-            </article>
-
-            {/* Vision */}
-            <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all duration-300">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <Lightbulb className="w-6 h-6" />
-              </div>
-
-              <h3 className="mt-6 text-xl font-bold text-slate-900 dark:text-white">
-                Our Vision
-              </h3>
-
-              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                We envision a future where schools, instructors, and learners
-                can use technology to connect, collaborate, track progress, and
-                create meaningful learning outcomes.
-              </p>
-            </article>
-
-            {/* Our Approach */}
-            <article className="bg-white dark:bg-slate-800/60 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-700/60 hover:border-purple-300 dark:hover:border-purple-500/30 transition-all duration-300">
-              <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                <Users className="w-6 h-6" />
-              </div>
-
-              <h3 className="mt-6 text-xl font-bold text-slate-900 dark:text-white">
-                People First
-              </h3>
-
-              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                We design around the people who use our platform. Every feature
-                is built with simplicity, accessibility, and the everyday needs
-                of educators and learners in mind.
-              </p>
-            </article>
-          </div>
-
-          {/* What We Do */}
-          <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left */}
-            <div className="bg-indigo-600 rounded-3xl p-7 sm:p-9 text-white relative overflow-hidden">
-              <div className="absolute -right-20 -top-20 w-56 h-56 rounded-full bg-white/10 blur-3xl" />
-
-              <div className="relative">
-                <span className="text-xs font-bold uppercase tracking-[0.15em] text-indigo-200">
-                  What We Do
+            {/* Main Title */}
+            <div className="space-y-4 sm:space-y-5">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-heading tracking-tight text-slate-900 dark:text-white leading-[1.15] sm:leading-[1.12] break-words">
+                Empowering Academies.
+                <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-1.5 sm:mt-3">
+                  Connecting African Learners.
                 </span>
+              </h1>
 
-                <h3 className="mt-3 text-2xl sm:text-3xl font-extrabold">
-                  Connecting education with technology.
-                </h3>
-
-                <p className="mt-4 text-sm text-indigo-100 leading-relaxed max-w-xl">
-                  Our platform brings together the essential tools needed to
-                  organize courses, onboard instructors, manage students,
-                  monitor learning progress, and create structured educational
-                  programs.
-                </p>
-
-                <div className="mt-7 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-white/10 border border-white/10 p-4">
-                    <GraduationCap className="w-5 h-5 text-white mb-3" />
-                    <p className="text-sm font-bold">Learning</p>
-                    <p className="mt-1 text-xs text-indigo-200">
-                      Structured courses & progress
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-white/10 border border-white/10 p-4">
-                    <Users className="w-5 h-5 text-white mb-3" />
-                    <p className="text-sm font-bold">Communities</p>
-                    <p className="mt-1 text-xs text-indigo-200">
-                      Students & instructors
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right */}
-            <div className="bg-white dark:bg-slate-800/60 rounded-3xl p-7 sm:p-9 border border-slate-200 dark:border-slate-700/60">
-              <span className="text-xs font-bold uppercase tracking-[0.15em] text-slate-400">
-                What We Believe
-              </span>
-
-              <h3 className="mt-3 text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-                Technology should make things simpler.
-              </h3>
-
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Education already comes with enough complexity. Technology
-                should reduce that complexity rather than add to it.
+              <p className="text-sm sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto font-normal font-body px-2">
+                We are building modern technology infrastructure for African schools, universities, and vocational academies — making world-class education structured, accessible, and connected to direct regional tuition settlements.
               </p>
+            </div>
 
-              <div className="mt-7 space-y-5">
-                <div className="flex items-start gap-4">
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                    <CheckCircle className="w-5 h-5" />
-                  </div>
+            {/* Action Link Group (Tailored for About Us) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 pt-2 text-sm font-heading max-w-md sm:max-w-none mx-auto w-full">
+              <a
+                href="#mission"
+                className="w-full sm:w-auto px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Target className="w-4 h-4" />
+                <span>Our Mission &amp; Pillars</span>
+              </a>
+              <a
+                href="#team"
+                className="w-full sm:w-auto px-6 py-3 bg-white dark:bg-[#0f2231] hover:bg-slate-50 dark:hover:bg-[#1a384f] text-slate-800 dark:text-slate-200 border border-[#d6e9f8] dark:border-[#1e3a52] font-semibold rounded-xl transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Users className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                <span>Meet the Developers</span>
+              </a>
+              <a
+                href="#how-it-works"
+                className="w-full sm:w-auto px-5 py-3 text-slate-600 dark:text-slate-300 hover:text-[#0078d4] dark:hover:text-[#04a4ec] font-semibold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>How It Works</span>
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
 
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Simple by Design
-                    </h4>
-
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                      Clear tools and workflows that are easy to understand and
-                      use.
-                    </p>
-                  </div>
+            {/* Foundational Tenets Grid (About Us Specific) 
+            <div className="pt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto w-full text-left">
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] shadow-2xs hover:border-[#0078d4]/40 transition-colors">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900/60 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] mb-3">
+                  <Globe className="w-4 h-4" />
                 </div>
+                <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">Pan-African Access</h4>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                  Breaking geographic barriers so any learner can access verified curriculums across borders.
+                </p>
+              </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Built for Reliability
-                    </h4>
-
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                      Dependable systems that institutions and learners can
-                      trust.
-                    </p>
-                  </div>
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] shadow-2xs hover:border-emerald-400/40 transition-colors">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-3">
+                  <ShieldCheck className="w-4 h-4" />
                 </div>
+                <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">Institutional Freedom</h4>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                  Schools maintain full curricular autonomy, brand identity, and direct bank settlements.
+                </p>
+              </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-purple-100 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Always Improving
-                    </h4>
-
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                      We continuously learn, listen, and improve the platform
-                      around our community.
-                    </p>
-                  </div>
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] shadow-2xs hover:border-cyan-400/40 transition-colors">
+                <div className="w-9 h-9 rounded-xl bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800/60 flex items-center justify-center text-cyan-600 dark:text-cyan-400 mb-3">
+                  <Video className="w-4 h-4" />
                 </div>
+                <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">Real-Time Connection</h4>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                  Live interactive video classrooms with built-in attendance telemetry and recordings.
+                </p>
+              </div>
+
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-[#0f2231]/90 border border-[#d6e9f8] dark:border-[#1e3a52] shadow-2xs hover:border-amber-400/40 transition-colors">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 mb-3">
+                  <Users className="w-4 h-4" />
+                </div>
+                <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">Community Driven</h4>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                  Built alongside Nigerian and African educators to solve everyday educational bottlenecks.
+                </p>
               </div>
             </div>
-          </div>
-
-          {/* Bottom CTA */}
-          <div className="mt-10 text-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Want to build a better learning experience?
-            </p>
-
-            <Link
-              to="/onboard"
-              className="inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition"
-            >
-              Get Started
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+            */}
           </div>
         </div>
       </section>
 
-      {/* ========================================== */}
-      {/* HOW TO USE BACKPACK */}
-      {/* ========================================== */}
-      <section className="py-20 sm:py-24 bg-slate-100/60 dark:bg-slate-900/50 border-y border-slate-200/80 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider">
-              User Guide
+      {/* Main page content wrapped in standard container */}
+      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 w-full space-y-20 sm:space-y-24 py-12">
+        {/* ======================================================== */}
+        {/* 2. CORE PILLARS (Mission, Vision, Approach)               */}
+        {/* ======================================================== */}
+        <section id="mission" className="space-y-8 scroll-mt-24">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-bold text-[#0078d4] dark:text-[#04a4ec] uppercase tracking-wider font-heading">
+              Our Foundation
             </span>
-            <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
-              How to Use Backpack as an Organisation or Student
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+              Built for Purpose, Designed for Scale
             </h2>
-            <p className="mt-4 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-              Step-by-step instructions on how to register, log on, and get the most out of Backpack across all user types.
+            <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-body">
+              Guiding principles that define how we construct learning tools for students and faculty.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+            {/* Mission */}
+            <article className="group bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-slate-200/90 dark:border-slate-700/70 hover:border-[#0078d4] dark:hover:border-[#04a4ec] shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
+              <div className="h-1.5 w-full bg-gradient-to-r from-[#0078d4] to-cyan-500 absolute top-0 left-0" />
+
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-[#d6e9f8]/70 dark:bg-[#0f2231] border border-[#0078d4]/20 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] group-hover:scale-110 transition-transform">
+                  <Target className="w-6 h-6" />
+                </div>
+
+                <h3 className="mt-5 text-xl font-bold font-heading text-slate-900 dark:text-white">
+                  Our Mission
+                </h3>
+
+                <p className="mt-2.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-body">
+                  To simplify educational technology across Africa, allowing schools and educators to focus on teaching while providing students with modern tools, real-time telemetry, and verifiable credentials.
+                </p>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-1.5 text-xs font-semibold font-heading text-[#0078d4] dark:text-[#04a4ec]">
+                <span>Accessible Education</span>
+                <Check className="w-3.5 h-3.5" />
+              </div>
+            </article>
+
+            {/* Vision */}
+            <article className="group bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-slate-200/90 dark:border-slate-700/70 hover:border-emerald-500 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
+              <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-teal-400 absolute top-0 left-0" />
+
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-[#0d2618] border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+                  <Lightbulb className="w-6 h-6" />
+                </div>
+
+                <h3 className="mt-5 text-xl font-bold font-heading text-slate-900 dark:text-white">
+                  Our Vision
+                </h3>
+
+                <p className="mt-2.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-body">
+                  We envision a future where universities, secondary academies, and vocational institutes collaborate friction-free across African borders without barriers of technology, curriculum management, or currency settlements.
+                </p>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-1.5 text-xs font-semibold font-heading text-emerald-600 dark:text-emerald-400">
+                <span>Borderless Horizons</span>
+                <Check className="w-3.5 h-3.5" />
+              </div>
+            </article>
+
+            {/* People First */}
+            <article className="group bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-slate-200/90 dark:border-slate-700/70 hover:border-amber-500 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
+              <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 to-orange-400 absolute top-0 left-0" />
+
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-[#261e0e] border border-amber-200 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">
+                  <Users className="w-6 h-6" />
+                </div>
+
+                <h3 className="mt-5 text-xl font-bold font-heading text-slate-900 dark:text-white">
+                  People First
+                </h3>
+
+                <p className="mt-2.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-body">
+                  We design directly for learners and teachers. Every button, schedule, and gradebook is optimized for low-bandwidth environments, accessible typography, and intuitive clarity.
+                </p>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-1.5 text-xs font-semibold font-heading text-amber-600 dark:text-amber-400">
+                <span>User-Centric Design</span>
+                <Check className="w-3.5 h-3.5" />
+              </div>
+            </article>
+          </div>
+        </section>
+
+        {/* ======================================================== */}
+        {/* 3. PLATFORM SHOWCASE (What We Do & What We Believe)       */}
+        {/* ======================================================== */}
+        <section id="philosophy" className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch scroll-mt-24">
+          {/* Left: What We Do (Brand Gradient Hero Card) */}
+          <div className="bg-gradient-to-br from-[#0078d4] via-[#006bbd] to-[#04a4ec] rounded-3xl p-7 sm:p-10 text-white relative overflow-hidden shadow-xl flex flex-col justify-between">
+            {/* Subtle luminous blur orb */}
+            <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full bg-white/15 blur-3xl pointer-events-none" />
+            <div className="absolute -left-16 -bottom-16 w-56 h-56 rounded-full bg-cyan-300/20 blur-3xl pointer-events-none" />
+
+            <div className="relative z-10">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-100 font-heading">
+                What We Do
+              </span>
+
+              <h3 className="mt-3 text-2xl sm:text-3xl font-extrabold font-heading leading-tight">
+                Bridging African Education with Reliable Cloud Software.
+              </h3>
+
+              <p className="mt-4 text-xs sm:text-sm text-blue-50 leading-relaxed font-body">
+                Backpack unifies all vital academic tools: curriculum publishing, instructor onboarding, automated tuition disbursements, student cohort telemetry, and interactive video classrooms.
+              </p>
+
+              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 hover:bg-white/15 transition">
+                  <GraduationCap className="w-5 h-5 text-white mb-2.5" />
+                  <h4 className="text-sm font-bold font-heading">Curriculum Systems</h4>
+                  <p className="mt-1 text-xs text-blue-100 font-body">
+                    Modular academic syllabi, grading rubrics, and lesson resources.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 hover:bg-white/15 transition">
+                  <Video className="w-5 h-5 text-white mb-2.5" />
+                  <h4 className="text-sm font-bold font-heading">Live HD Classrooms</h4>
+                  <p className="mt-1 text-xs text-blue-100 font-body">
+                    Real-time interactive video with student attendance logging.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 hover:bg-white/15 transition">
+                  <CreditCard className="w-5 h-5 text-white mb-2.5" />
+                  <h4 className="text-sm font-bold font-heading">Tuition Settlement</h4>
+                  <p className="mt-1 text-xs text-blue-100 font-body">
+                    Automated direct bank payouts with 0% reconciliation friction.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 hover:bg-white/15 transition">
+                  <BarChart3 className="w-5 h-5 text-white mb-2.5" />
+                  <h4 className="text-sm font-bold font-heading">Cohort Telemetry</h4>
+                  <p className="mt-1 text-xs text-blue-100 font-body">
+                    Comprehensive performance analytics and exam verification.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-4 border-t border-white/20 relative z-10 flex items-center justify-between">
+              <span className="text-xs text-blue-100 font-heading">
+                Multi-Campus Academic Platform
+              </span>
+              <Link
+                to="/explore"
+                className="text-xs font-bold text-white hover:underline inline-flex items-center gap-1 font-heading"
+              >
+                Explore Institutions
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Right: What We Believe */}
+          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-7 sm:p-10 border border-slate-200/90 dark:border-slate-700/70 shadow-xs flex flex-col justify-between">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#0078d4] dark:text-[#04a4ec] font-heading">
+                Our Core Philosophy
+              </span>
+
+              <h3 className="mt-3 text-2xl sm:text-3xl font-extrabold font-heading text-slate-900 dark:text-white leading-tight">
+                Technology Should Make Education Simpler, Never Harder.
+              </h3>
+
+              <p className="mt-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-body">
+                Managing a university, school, or training bootcamp is already demanding. Educational software should remove overhead, protect institutional independence, and make progress visible.
+              </p>
+
+              <div className="mt-7 space-y-4">
+                <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <div className="w-9 h-9 shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                      Frictionless by Default
+                    </h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body">
+                      Clear UI patterns, zero unnecessary forms, and instant setup for both institutions and students.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <div className="w-9 h-9 shrink-0 rounded-xl bg-[#d6e9f8]/60 dark:bg-[#0078d4]/15 border border-[#0078d4]/20 dark:border-[#0078d4]/30 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec]">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                      Bank-Grade Security &amp; Payouts
+                    </h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body">
+                      Tuition lands directly into your institutional bank account with automated split disbursements via Paystack.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <div className="w-9 h-9 shrink-0 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                      Continuous Listening &amp; Evolution
+                    </h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body">
+                      We listen directly to educators across Africa, continually updating tools to meet real academic requirements.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-7 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-body">
+                Ready to modernize your academy?
+              </span>
+              <Link
+                to="/onboard"
+                className="inline-flex items-center gap-1.5 text-xs font-bold font-heading text-[#0078d4] dark:text-[#04a4ec] hover:underline"
+              >
+                Get Started as an Institution
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ======================================================== */}
+        {/* 4. USER GUIDES (For Institutions & Students)              */}
+        {/* ======================================================== */}
+        <section id="how-it-works" className="space-y-8 scroll-mt-24">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-bold text-[#0078d4] dark:text-[#04a4ec] uppercase tracking-wider font-heading">
+              User Guides
+            </span>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+              How to Use Backpack
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-body">
+              Straightforward step-by-step guidance tailored for organizations, instructors, and learners.
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Organisation / Instructor Guide */}
-            <div className="bg-white dark:bg-slate-800/80 rounded-3xl p-7 sm:p-9 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                  <Building2 className="w-6 h-6" />
+            <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-7 sm:p-9 border border-slate-200/90 dark:border-slate-700/70 shadow-xs flex flex-col justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-3.5 border-b border-slate-100 dark:border-slate-700/60 pb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#d6e9f8]/70 dark:bg-[#0f2231] border border-[#0078d4]/20 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] shrink-0">
+                    <Building2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-bold font-heading text-slate-900 dark:text-white">
+                      For Institutions &amp; Educators
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-body">
+                      Publish curriculums, receive tuition payouts, and lead cohorts
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                    For Organisations & Instructors
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Publish courses, manage payouts, and educate students
-                  </p>
+
+                <div className="space-y-4 pt-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-[#0078d4] text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      1
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Register &amp; Complete Academy Profile
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Sign up for an institutional account, upload your logo, configure your school branding, and draft your bio.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-[#0078d4] text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      2
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Connect Direct Bank Payout Subaccount
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Navigate to Settings &gt; Payouts. Enter your bank details to receive 100% of your tuition fees straight into your school bank account.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-[#0078d4] text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      3
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Publish Courses &amp; Define Tuition Pricing
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Upload modules, assign instructors, and set flexible payment options (single upfront or installment milestone splits).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-[#0078d4] text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      4
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Host Live Video Classes &amp; Track Telemetry
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Run interactive live HD lectures with auto-attendance, utilize grading rubrics, and track cohort progress in real time.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-4 pt-2">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    1
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Register & Create Profile</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Sign up for an account, select the organisation role, and configure your institution name, logo, and public bio.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    2
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Connect Payout Subaccount</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Go to Settings &gt; Payout Subaccount. Enter your bank details, verify your account name instantly via the secure payout gateway, and save. This ensures you receive 100% of your base tuition automatically.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    3
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Publish Courses & Set Pricing</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Create courses, add modules, curriculum resources, and define tuition pricing with flexible payment terms (one-time or installment milestones).
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    4
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Manage Students & Host Classes</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Review enrollment applications, host live video classes, utilize AI grading tools, and track student performance from your dashboard.
-                    </p>
-                  </div>
-                </div>
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-700/60">
+                <Link
+                  to="/onboard"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs sm:text-sm font-semibold font-heading transition shadow-xs hover:shadow-md cursor-pointer"
+                >
+                  <span>Register Your Institution</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
               </div>
             </div>
 
             {/* Student Guide */}
-            <div className="bg-white dark:bg-slate-800/80 rounded-3xl p-7 sm:p-9 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <GraduationCap className="w-6 h-6" />
+            <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-7 sm:p-9 border border-slate-200/90 dark:border-slate-700/70 shadow-xs flex flex-col justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-3.5 border-b border-slate-100 dark:border-slate-700/60 pb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-[#0d2618] border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                    <GraduationCap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-bold font-heading text-slate-900 dark:text-white">
+                      For Students &amp; Learners
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-body">
+                      Discover programs, enroll safely, and attend live lectures
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                    For Students & Learners
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Discover courses, enroll, and join live classes
-                  </p>
+
+                <div className="space-y-4 pt-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      1
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Create Your Free Student Profile
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Register with your email, set your academic interests, and configure your personalized student dashboard.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      2
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Explore Curriculums &amp; Vocational Scholarships
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Browse accredited university and vocational courses, review lesson plans, and apply for 100% tuition-waiver non-profit programs.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      3
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Secure Multi-Currency Checkout
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Pay tuition in regional currencies (NGN, GHS, KES) through instant one-time or installment milestone options.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs font-heading flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      4
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
+                        Enter Classrooms &amp; Earn Credentials
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
+                        Join live video sessions, submit graded projects, collaborate with peers, and obtain verifiable digital certificates.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-4 pt-2">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    1
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Create Your Account</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Register a student profile with your email, set up your learning preferences, and log in to your student dashboard.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    2
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Explore & Apply for Courses</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Browse verified organizations and courses on the Explore page, review curricula, and submit your enrollment application with required documents.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    3
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Secure Tuition Checkout</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Once accepted, pay tuition securely through our transparent split checkout. 100% of base tuition goes directly to the organization while platform fees cover server and processing costs.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    4
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Enter the Classroom & Learn</h4>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Access live video lectures, complete interactive assignments, collaborate with peers, and track your educational progress in real time.
-                    </p>
-                  </div>
-                </div>
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-700/60">
+                <Link
+                  to="/explore"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs sm:text-sm font-semibold font-heading transition shadow-xs cursor-pointer"
+                >
+                  <span>Browse Course Catalog</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ========================================== */}
-      {/* MEET THE DEVELOPERS */}
-      {/* ========================================== */}
-      <section className="py-20 sm:py-24 bg-white dark:bg-slate-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          {/* Header */}
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider">
-              The Team
+        {/* ======================================================== */}
+        {/* 5. MEET THE DEVELOPERS (Interactive Carousel Slider)      */}
+        {/* ======================================================== */}
+        <section id="team" className="space-y-6 scroll-mt-24">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+            <div>
+              <span className="text-xs font-bold text-[#0078d4] dark:text-[#04a4ec] uppercase tracking-wider block mb-1 font-heading">
+                The Engineering Team
+              </span>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+                Meet the Developers
+              </h2>
+              <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-body max-w-xl">
+                The engineers and AI developers designing scalable technologies, intuitive interfaces, and cloud services for Backpack.
+              </p>
+            </div>
+
+            {/* Slider Navigation Buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-semibold font-heading text-slate-400 dark:text-slate-500 mr-2">
+                {carouselIndex + 1} of {DEVELOPERS.length}
+              </span>
+              <button
+                onClick={handlePrev}
+                aria-label="Previous developer"
+                className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:border-[#0078d4] hover:text-[#0078d4] dark:hover:text-[#04a4ec] shadow-2xs transition-all flex items-center justify-center cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleNext}
+                aria-label="Next developer"
+                className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:border-[#0078d4] hover:text-[#0078d4] dark:hover:text-[#04a4ec] shadow-2xs transition-all flex items-center justify-center cursor-pointer"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Carousel Track */}
+          <div
+            ref={carouselRef}
+            onScroll={handleScroll}
+            className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 pt-2 px-1 scroll-smooth no-scrollbar"
+          >
+            {DEVELOPERS.map((dev) => {
+              const IconComponent = dev.icon;
+              const hasError = imageError[dev.number];
+
+              return (
+                <article
+                  key={dev.number}
+                  className="w-[290px] sm:w-[330px] md:w-[350px] shrink-0 snap-center group bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-700/70 overflow-hidden hover:border-[#0078d4] dark:hover:border-[#04a4ec] hover:-translate-y-1 hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Photo Container with Error Fallback */}
+                    <div className="relative h-64 sm:h-72 bg-slate-100 dark:bg-slate-900 overflow-hidden">
+                      {hasError ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0f2231] via-slate-900 to-[#0a1824] relative text-center p-6">
+                          <div className="w-16 h-16 rounded-2xl bg-[#0078d4]/15 border border-[#0078d4]/30 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec] text-2xl font-extrabold font-heading mb-2">
+                            {dev.initials}
+                          </div>
+                          <span className="text-xs font-semibold text-slate-400 font-heading">
+                            {dev.name}
+                          </span>
+                        </div>
+                      ) : (
+                        <img
+                          src={dev.image}
+                          alt={dev.name}
+                          onError={() =>
+                            setImageError((prev) => ({ ...prev, [dev.number]: true }))
+                          }
+                          className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                        />
+                      )}
+
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/80 via-slate-950/40 to-transparent pointer-events-none" />
+
+                      {/* Number badge */}
+                      <span className="absolute top-3.5 left-3.5 w-7 h-7 rounded-lg bg-slate-950/80 backdrop-blur-sm border border-white/15 flex items-center justify-center text-[11px] font-bold font-heading text-white shadow-xs">
+                        {dev.number}
+                      </span>
+
+                      {/* Specialty pill */}
+                      <span className="absolute bottom-3 left-3 text-[10px] font-bold font-heading uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-md text-white border border-white/20">
+                        {dev.focus}
+                      </span>
+                    </div>
+
+                    {/* Developer Info */}
+                    <div className="p-5 sm:p-6">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-base sm:text-lg font-bold font-heading text-slate-900 dark:text-white leading-snug group-hover:text-[#0078d4] dark:group-hover:text-[#04a4ec] transition-colors">
+                            {dev.name}
+                          </h3>
+                          <p className="mt-0.5 text-xs font-semibold text-[#0078d4] dark:text-[#04a4ec] font-heading">
+                            {dev.role}
+                          </p>
+                        </div>
+
+                        <div className="w-9 h-9 shrink-0 rounded-xl bg-[#d6e9f8]/60 dark:bg-[#0078d4]/15 border border-[#0078d4]/20 dark:border-[#0078d4]/30 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec]">
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                      </div>
+
+                      <p className="mt-3.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-body leading-relaxed line-clamp-3">
+                        {dev.bio}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="px-5 sm:px-6 pb-5 pt-0">
+                    <div className="h-1 w-full bg-slate-100 dark:bg-slate-700/60 group-hover:bg-[#0078d4] dark:group-hover:bg-[#04a4ec] transition-colors rounded-full" />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Dots Indicator */}
+          <div className="flex items-center justify-center gap-2 pt-2">
+            {DEVELOPERS.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => scrollToIndex(idx)}
+                aria-label={`Jump to developer ${idx + 1}`}
+                className={`transition-all duration-300 rounded-full cursor-pointer ${
+                  carouselIndex === idx
+                    ? "w-8 h-2.5 bg-[#0078d4]"
+                    : "w-2.5 h-2.5 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600"
+                }`}
+              />
+            ))}
+          </div>
+
+          <div className="text-center pt-2">
+            <div className="inline-flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-body">
+              <span className="w-12 h-px bg-slate-200 dark:bg-slate-700" />
+              <span>Swipe or click arrows to explore the team</span>
+              <span className="w-12 h-px bg-slate-200 dark:bg-slate-700" />
+            </div>
+          </div>
+        </section>
+
+        {/* ======================================================== */}
+        {/* 6. BOTTOM CALL TO ACTION BANNER                          */}
+        {/* ======================================================== */}
+        <section className="relative overflow-hidden rounded-3xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-r from-[#f0f7fd]/95 via-white to-[#f0f7fd]/95 dark:from-[#0f2231]/40 dark:via-[#0e1e2c] dark:to-[#0f2231]/40 p-8 sm:p-12 text-center shadow-xs">
+          <div className="max-w-2xl mx-auto space-y-4">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider">
+              Start Learning &amp; Teaching Today
             </span>
 
-            <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
-              Meet the Developers
-            </h2>
+            <h3 className="text-2xl sm:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight">
+              Ready to Build a Better Learning Experience?
+            </h3>
 
-            <p className="mt-4 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-              Meet the engineers and developers building the technology behind
-              the platform and creating better digital experiences for learners
-              and educators.
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-body leading-relaxed max-w-xl mx-auto">
+              Join hundreds of institutions, secondary schools, and students scaling digital education across Africa.
             </p>
-          </div>
 
-          {/* Developers */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Ekenedilichukwu */}
-            <article className="group bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/60 overflow-hidden hover:border-indigo-300 dark:hover:border-indigo-500/30 hover:-translate-y-1 transition-all duration-300">
-              {/* Image */}
-              <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                {/* Replace with actual image URL */}
-                <img
-                  src="https://media.licdn.com/dms/image/v2/D4E03AQHiqi4YHQpQLA/profile-displayphoto-crop_800_800/B4EZywxwZxGYAM-/0/1772492361198?e=1789603200&v=beta&t=RDKpliGLTyAKSqD5XPvMqyu9zsLJ9YsvXSrLvXn-GJA"
-                  alt="Ekenedilichukwu Okoli"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                />
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                to="/onboard"
+                className="w-full sm:w-auto px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs sm:text-sm font-semibold font-heading rounded-xl transition shadow-xs hover:shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Onboard Your Institution</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
 
-                {/* Gradient */}
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
-
-                {/* Number */}
-                <span className="absolute top-4 left-4 w-8 h-8 rounded-lg bg-slate-950/70 backdrop-blur-sm border border-white/10 flex items-center justify-center text-xs font-bold text-white">
-                  01
-                </span>
-              </div>
-
-              {/* Content */}
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                      Ekenedilichukwu Okoli
-                    </h3>
-
-                    <p className="mt-1 text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-                      Lead Software Engineer
-                    </p>
-                  </div>
-
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                    <Code2 className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                  </div>
-                </div>
-
-                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Leading the engineering direction and building scalable
-                  software systems that power the platform.
-                </p>
-              </div>
-            </article>
-
-            {/* Ogochukwu */}
-            <article className="group bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/60 overflow-hidden hover:border-emerald-300 dark:hover:border-emerald-500/30 hover:-translate-y-1 transition-all duration-300">
-              <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                <img
-                  src="https://media.licdn.com/dms/image/v2/D4E03AQEOPrCW2KTHrw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1729331170966?e=1789603200&v=beta&t=F83iBZgBuT6rjLGAyrkOEx9BOU-tRJaSRSVf7gHz5cg"
-                  alt="Ogochukwu Okoli"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                />
-
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
-
-                <span className="absolute top-4 left-4 w-8 h-8 rounded-lg bg-slate-950/70 backdrop-blur-sm border border-white/10 flex items-center justify-center text-xs font-bold text-white">
-                  02
-                </span>
-              </div>
-
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                      Ogochukwu Okoli
-                    </h3>
-
-                    <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                      AI Developer
-                    </p>
-                  </div>
-
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                  </div>
-                </div>
-
-                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Working on intelligent systems and AI-powered experiences that
-                  improve how users interact with technology.
-                </p>
-              </div>
-            </article>
-
-            {/* Richard */}
-            <article className="group bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/60 overflow-hidden hover:border-purple-300 dark:hover:border-purple-500/30 hover:-translate-y-1 transition-all duration-300">
-              <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                <img
-                  src="https://media.licdn.com/dms/image/v2/D4D03AQEH8lBu1Lca3Q/profile-displayphoto-crop_800_800/B4DZvLtaH9KoAI-/0/1768649239267?e=1789603200&v=beta&t=PG20w_SbBQKSHfJhAhEBDx5zCTaf2A9t6BlFBN3VsUw"
-                  alt="Richard Onyekachi"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                />
-
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
-
-                <span className="absolute top-4 left-4 w-8 h-8 rounded-lg bg-slate-950/70 backdrop-blur-sm border border-white/10 flex items-center justify-center text-xs font-bold text-white">
-                  03
-                </span>
-              </div>
-
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                      Richard Oyenchi
-                    </h3>
-
-                    <p className="mt-1 text-sm font-semibold text-purple-600 dark:text-purple-400">
-                      Frontend Engineer
-                    </p>
-                  </div>
-
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-                    <Layout className="w-4 h-4 text-purple-500 dark:text-purple-400" />
-                  </div>
-                </div>
-
-                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Building responsive and intuitive interfaces that make the
-                  platform simple and enjoyable to use.
-                </p>
-              </div>
-            </article>
-
-            {/* Stella */}
-            <article className="group bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/60 overflow-hidden hover:border-pink-300 dark:hover:border-pink-500/30 hover:-translate-y-1 transition-all duration-300">
-              <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                <img
-                  src="https://media.licdn.com/dms/image/v2/D4D03AQG_Kk8suQsnyg/profile-displayphoto-crop_800_800/B4DZ21.xaHGcAI-/0/1776874637809?e=1789603200&v=beta&t=wVkJDQIBpe8hnfC7St_ugtX61jAWJ_n7VK8FBUzs3fo"
-                  alt="Stella Eneh"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                />
-
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
-
-                <span className="absolute top-4 left-4 w-8 h-8 rounded-lg bg-slate-950/70 backdrop-blur-sm border border-white/10 flex items-center justify-center text-xs font-bold text-white">
-                  04
-                </span>
-              </div>
-
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                      Stella Eneh
-                    </h3>
-
-                    <p className="mt-1 text-sm font-semibold text-pink-600 dark:text-pink-400">
-                      Frontend Engineer
-                    </p>
-                  </div>
-
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
-                    <Monitor className="w-4 h-4 text-pink-500 dark:text-pink-400" />
-                  </div>
-                </div>
-
-                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Creating polished frontend experiences and helping turn
-                  product ideas into accessible, responsive interfaces.
-                </p>
-              </div>
-            </article>
-
-            <article className="group bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/60 overflow-hidden hover:border-pink-300 dark:hover:border-pink-500/30 hover:-translate-y-1 transition-all duration-300">
-              <div className="relative h-64 bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                <img
-                  src="https://media.licdn.com/dms/image/v2/D4E03AQFK6M42xcMg5A/profile-displayphoto-crop_800_800/B4EZ6sZCB1JkAI-/0/1781008704690?e=1789603200&v=beta&t=YZ2KC6qZsyLRh5I68_yzdyOT8n1rt3k9YNeDA_l1E38"
-                  alt="Ilonuba Chukwudi"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                />
-
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
-
-                <span className="absolute top-4 left-4 w-8 h-8 rounded-lg bg-slate-950/70 backdrop-blur-sm border border-white/10 flex items-center justify-center text-xs font-bold text-white">
-                  05
-                </span>
-              </div>
-
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                      Ilonuba Chukwudi
-                    </h3>
-
-                    <p className="mt-1 text-sm font-semibold text-pink-600 dark:text-pink-400">
-                      Frontend Engineer
-                    </p>
-                  </div>
-
-                  <div className="w-9 h-9 shrink-0 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
-                    <Monitor className="w-4 h-4 text-pink-500 dark:text-pink-400" />
-                  </div>
-                </div>
-
-                <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Turning product ideas into polished, accessible, and
-                  responsive user experiences through clean frontend
-                  engineering.
-                </p>
-              </div>
-            </article>
-          </div>
-
-          {/* Bottom Statement */}
-          <div className="mt-12 text-center">
-            <div className="inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-500">
-              <span className="w-8 h-px bg-slate-300 dark:bg-slate-800" />
-
-              <span>
-                Built by people who care about technology and education
-              </span>
-
-              <span className="w-8 h-px bg-slate-300 dark:bg-slate-800" />
+              <Link
+                to="/explore"
+                className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs sm:text-sm font-semibold font-heading rounded-xl transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>Explore All Courses</span>
+              </Link>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 };

@@ -46,12 +46,12 @@ interface EventCreationProps {
 /* ============================================================= */
 
 const inputBase =
-  "w-full rounded-xl border bg-white dark:bg-slate-800/70 pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition";
+  "w-full rounded-xl border bg-white dark:bg-slate-800/70 pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 focus:border-[#0078d4] transition";
 
 const borderFor = (error?: string) =>
   error
     ? "border-red-400 dark:border-red-500/60"
-    : "border-slate-200 dark:border-slate-700 focus:border-indigo-400";
+    : "border-slate-200 dark:border-slate-700 focus:border-[#0078d4]";
 
 /** Convert a 24h "14:30" input value into a friendly "2:30 PM" label. */
 const to12Hour = (value: string): string => {
@@ -242,7 +242,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
             </p>
             <button
               onClick={onClose}
-              className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition"
+              className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold transition cursor-pointer"
             >
               Got it
             </button>
@@ -358,7 +358,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
         <div className="flex justify-between items-start p-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div>
             <div className="flex items-center space-x-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-[10px] font-bold uppercase tracking-wider">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] border border-[#0078d4]/20 text-[10px] font-bold uppercase tracking-wider">
                 <Building2 className="w-3 h-3 mr-1" />
                 Organization Event
               </span>
@@ -453,7 +453,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
               value={form.description}
               onChange={(e) => setField("description", e.target.value)}
               placeholder="Optional details about the event, agenda, or what attendees should expect…"
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 focus:border-indigo-400 bg-white dark:bg-slate-800/70 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition resize-none"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition resize-none"
             />
           </div>
 
@@ -525,7 +525,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
                   id="event-course"
                   value={form.courseId}
                   onChange={(e) => setField("courseId", e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 focus:border-indigo-400 bg-white dark:bg-slate-800/70 pl-10 pr-10 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition"
+                  className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 pl-10 pr-10 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition"
                 >
                   {organizationCourses.length > 0 && (
                     <optgroup label="My courses">
@@ -621,7 +621,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
             type="submit"
             form="event-creation-form"
             disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold transition shadow-sm"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white text-sm font-bold transition shadow-sm cursor-pointer"
           >
             {isEditMode ? (
               <Save className="w-4 h-4" />
