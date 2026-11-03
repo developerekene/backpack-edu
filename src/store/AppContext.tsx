@@ -26,6 +26,7 @@ import {
   EnrollmentRequest,
   UserProgress,
   AttendanceRecord,
+  AttendanceEntry,
   Material,
   ChatMessage,
   OrgJoinRequest,
@@ -133,6 +134,24 @@ interface AppState {
   updateMaterial: (id: string, updates: Partial<Material>) => Promise<void>;
   deleteMaterial: (id: string) => Promise<void>;
   addAttendanceRecord: (record: AttendanceRecord) => Promise<void>;
+  updateAttendanceRecord: (
+    id: string,
+    updates: Partial<AttendanceRecord>,
+  ) => Promise<void>;
+  deleteAttendanceRecord: (id: string) => Promise<void>;
+  recordLiveOnlineEngagement: (params: {
+    courseId: string;
+    courseTitle?: string;
+    sessionTitle?: string;
+    userId: string;
+    userName: string;
+    userEmail?: string;
+    role: "student" | "instructor";
+    durationMinutes: number;
+    checkInTime?: string;
+    checkOutTime?: string;
+    location?: string;
+  }) => Promise<void>;
   sendMessage: (msg: ChatMessage) => Promise<void>;
   addDiscussionChannel: (channel: DiscussionChannel) => Promise<void>;
   addDiscussionMessage: (message: DiscussionMessage) => Promise<void>;
@@ -181,9 +200,10 @@ interface AppState {
   addNotification: (
     notification: Omit<AppNotification, "id" | "createdAt" | "read">,
   ) => void;
-  markNotificationRead: (id: string) => void;
+  markNotificationRead: (id: string) => void | Promise<void>;
   markAllNotificationsRead: () => void;
   clearNotifications: () => void;
+  deleteNotification: (id: string) => Promise<void>;
 
   allUsers: User[];
   suspendUser: (userId: string, reason?: string) => Promise<void>;
@@ -404,9 +424,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const markNotificationRead = (id: string) => {
+  const markNotificationRead = async (id: string) => {
     if (currentUser?.id) {
-      updateBackpackUserField<AppNotification>(
+      await updateBackpackUserField<AppNotification>(
         currentUser.id,
         "notifications",
         (list) => list.map((n) => (n.id === id ? { ...n, read: true } : n)),
@@ -415,6 +435,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+  };
+
+  const deleteNotification = async (id: string) => {
+    if (currentUser?.id) {
+      await updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        (list) => list.filter((n) => n.id !== id),
+      ).catch(console.error);
+    }
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   const markAllNotificationsRead = () => {
@@ -440,9 +471,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Fetch all global data and user-specific data from backpack documents
-  const loadAllBackpackData = useCallback(async () => {
+  const loadAllBackpackData = useCallback(async (providedSnap?: any) => {
     try {
-      const backpackSnap = await getDocs(collection(db, "backpack"));
+      const backpackSnap =
+        providedSnap || (await getDocs(collection(db, "backpack")));
 
       const allUsersList: User[] = [];
       const allOrganizations: Organization[] = [];
@@ -834,11 +866,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       unsubscribe = onSnapshot(
         collection(db, "backpack"),
-        () => {
-          loadAllBackpackData();
+        (snap) => {
+          loadAllBackpackData(snap);
         },
         (err) => {
-          console.warn("Backpack realtime listener notice:", err);
+          console.warn("Backpack realtime listener notice:", err?.message || err);
         },
       );
     } catch (e) {
@@ -1698,7 +1730,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Attendance Records (stored in backpack/{targetId}.user.attendance)
+  // Attendance Records (stored in backpack/{targetId}.user.course.attendance & cached locally)
   const addAttendanceRecord = async (record: AttendanceRecord) => {
     const attId = record.id || `att_${Date.now()}_${record.courseId}`;
     const cleaned = sanitizeForFirestore({ ...record, id: attId });
@@ -1707,11 +1739,209 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (targetUid) {
       await updateBackpackUserField<AttendanceRecord>(
         targetUid,
-        "attendance",
-        (list) => [...list, cleaned],
+        "course.attendance",
+        (list) => [...list.filter((r) => r.id !== attId), cleaned],
       );
     }
-    setAttendanceRecords((prev) => [...prev, cleaned]);
+    setAttendanceRecords((prev) => {
+      const next = [...prev.filter((r) => r.id !== attId), cleaned];
+      try {
+        localStorage.setItem("bp_cache_course.attendance", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const updateAttendanceRecord = async (
+    id: string,
+    updates: Partial<AttendanceRecord>,
+  ) => {
+    const targetUid = currentUser?.id || "";
+    const cleanedUpdates = sanitizeForFirestore(updates);
+
+    if (targetUid) {
+      await updateBackpackUserField<AttendanceRecord>(
+        targetUid,
+        "course.attendance",
+        (list) =>
+          list.map((r) => (r.id === id ? { ...r, ...cleanedUpdates } : r)),
+      );
+    }
+    setAttendanceRecords((prev) => {
+      const next = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
+      try {
+        localStorage.setItem("bp_cache_course.attendance", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const deleteAttendanceRecord = async (id: string) => {
+    const targetUid = currentUser?.id || "";
+
+    setAttendanceRecords((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem("bp_cache_course.attendance", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+
+    if (targetUid) {
+      try {
+        await updateBackpackUserField<AttendanceRecord>(
+          targetUid,
+          "course.attendance",
+          (list) => list.filter((r) => r.id !== id),
+        );
+      } catch (err) {
+        console.error("Failed to delete attendance record from backend:", err);
+      }
+    }
+  };
+
+  const recordLiveOnlineEngagement = async (params: {
+    courseId: string;
+    courseTitle?: string;
+    sessionTitle?: string;
+    userId: string;
+    userName: string;
+    userEmail?: string;
+    role: "student" | "instructor";
+    durationMinutes: number;
+    checkInTime?: string;
+    checkOutTime?: string;
+    location?: string;
+  }) => {
+    const today = new Date().toISOString().split("T")[0];
+    const sessionTitle = params.sessionTitle || "Live Online Class Session";
+    const duration = Math.max(1, Math.round(params.durationMinutes));
+    const nowTime = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    // Find existing online record for today and this session
+    const existing = attendanceRecords.find(
+      (r) =>
+        r.courseId === params.courseId &&
+        r.date === today &&
+        r.mode === "online" &&
+        r.sessionTitle?.toLowerCase() === sessionTitle.toLowerCase(),
+    );
+
+    const newEntry: AttendanceEntry = {
+      id: `entry_${params.userId}_${Date.now()}`,
+      userId: params.userId,
+      userName: params.userName,
+      userEmail: params.userEmail,
+      role: params.role,
+      status: "present",
+      checkInTime: params.checkInTime || nowTime,
+      checkOutTime: params.checkOutTime || nowTime,
+      durationMinutes: duration,
+      location: params.location || "Online Live Classroom",
+      method: "live_online",
+    };
+
+    if (existing && existing.id) {
+      const existingEntries = existing.entries || [];
+      const entryIdx = existingEntries.findIndex(
+        (e) => e.userId === params.userId,
+      );
+      let updatedEntries: AttendanceEntry[];
+
+      if (entryIdx >= 0) {
+        const cur = existingEntries[entryIdx];
+        updatedEntries = [...existingEntries];
+        updatedEntries[entryIdx] = {
+          ...cur,
+          checkOutTime: params.checkOutTime || nowTime,
+          durationMinutes: Math.max(cur.durationMinutes, duration),
+          status: "present",
+        };
+      } else {
+        updatedEntries = [...existingEntries, newEntry];
+      }
+
+      const totalMins = updatedEntries.reduce(
+        (acc, curr) => acc + (curr.durationMinutes || 0),
+        0,
+      );
+      const avgMins =
+        updatedEntries.length > 0
+          ? Math.round(totalMins / updatedEntries.length)
+          : 0;
+
+      const recordUpdates: Partial<AttendanceRecord> = {
+        entries: updatedEntries,
+        records: {
+          ...(existing.records || {}),
+          [params.userId]: true,
+        },
+        totalAttendees: updatedEntries.length,
+        avgEngagementMinutes: avgMins,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (params.role === "instructor") {
+        recordUpdates.instructorEngagement = {
+          instructorId: params.userId,
+          instructorName: params.userName,
+          checkInTime: params.checkInTime || nowTime,
+          checkOutTime: params.checkOutTime || nowTime,
+          durationMinutes: duration,
+          status: "present",
+        };
+      }
+
+      await updateAttendanceRecord(existing.id, recordUpdates);
+    } else {
+      const newRecId = `att_online_${Date.now()}_${params.courseId}`;
+      const courseObj = courses.find((c) => c.id === params.courseId);
+
+      const newRecord: AttendanceRecord = {
+        id: newRecId,
+        courseId: params.courseId,
+        courseTitle: params.courseTitle || courseObj?.title || "Online Course",
+        orgId: courseObj?.orgId,
+        date: today,
+        mode: "online",
+        sessionTitle,
+        location: params.location || "Online Live Classroom",
+        startTime: params.checkInTime || nowTime,
+        endTime: params.checkOutTime || nowTime,
+        expectedDurationMinutes: duration,
+        entries: [newEntry],
+        records: {
+          [params.userId]: true,
+        },
+        totalAttendees: 1,
+        avgEngagementMinutes: duration,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...(params.role === "instructor"
+          ? {
+              instructorEngagement: {
+                instructorId: params.userId,
+                instructorName: params.userName,
+                checkInTime: params.checkInTime || nowTime,
+                checkOutTime: params.checkOutTime || nowTime,
+                durationMinutes: duration,
+                status: "present",
+              },
+            }
+          : {}),
+      };
+
+      await addAttendanceRecord(newRecord);
+    }
   };
 
   // Assessments (stored in backpack/{targetId}.user.assessments)
@@ -2299,6 +2529,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         updateMaterial,
         deleteMaterial,
         addAttendanceRecord,
+        updateAttendanceRecord,
+        deleteAttendanceRecord,
+        recordLiveOnlineEngagement,
         sendMessage,
         addDiscussionChannel,
         addDiscussionMessage,
@@ -2321,6 +2554,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         markNotificationRead,
         markAllNotificationsRead,
         clearNotifications,
+        deleteNotification,
         allUsers,
         suspendUser,
         reactivateUser,

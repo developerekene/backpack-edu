@@ -374,11 +374,51 @@ export interface UserProgress {
   performanceScore: number;
 }
 
+export type AttendanceMode = "physical" | "online";
+export type AttendanceStatus = "present" | "late" | "absent" | "excused";
+
+export interface AttendanceEntry {
+  id?: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  role: "student" | "instructor";
+  status: AttendanceStatus;
+  checkInTime?: string; // e.g. "08:30" or ISO string
+  checkOutTime?: string; // e.g. "12:45" or ISO string
+  durationMinutes: number; // engagement duration in minutes
+  location?: string; // e.g. "Campus Hall A", "Chemistry Lab", "Online Live Classroom"
+  verifiedBy?: string; // admin or instructor name
+  method?: "manual" | "qr_kiosk" | "live_online" | "self_clock";
+  notes?: string;
+}
+
 export interface AttendanceRecord {
   id?: string;
   courseId: string;
-  date: string;
-  records: Record<string, boolean>; // userId -> isPresent
+  courseTitle?: string;
+  orgId?: string;
+  date: string; // YYYY-MM-DD
+  records?: Record<string, boolean>; // backward-compatible userId -> isPresent
+  mode?: AttendanceMode; // "physical" | "online"
+  sessionTitle?: string; // e.g., "Physical Day 14 Lecture", "Campus Morning Attendance", "Live Online Class"
+  location?: string; // e.g., "Campus Block B, Hall 102"
+  startTime?: string;
+  endTime?: string;
+  expectedDurationMinutes?: number;
+  entries?: AttendanceEntry[];
+  instructorEngagement?: {
+    instructorId: string;
+    instructorName: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    durationMinutes: number;
+    status: AttendanceStatus;
+  };
+  totalAttendees?: number;
+  avgEngagementMinutes?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Material {

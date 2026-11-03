@@ -36,10 +36,12 @@ import {
   EyeOff,
   BookOpen,
   Edit3,
+  Timer,
 } from "lucide-react";
 import { PublicCourseDetails } from "../components/PublicCourseDetails";
 import { EditCourseDetailsModal } from "../components/EditCourseDetailsModal";
 import { LiveKitCall } from "../components/LiveKitCall";
+import { CourseAttendance } from "../components/CourseAttendance";
 // import { ChatMessage } from "../../types";
 import { LunchGames } from "../components/LunchGames";
 import { CourseAssessments } from "../components/courseAssesment/CourseAssessments";
@@ -148,6 +150,7 @@ const CourseDetails = () => {
     | "people"
     | "assessments"
     | "schedule"
+    | "attendance"
     | "certificate"
     | "donations"
   >("info");
@@ -1314,6 +1317,12 @@ const CourseDetails = () => {
         >
           <Calendar className="w-4 h-4 mr-2" /> Timetable
         </button>
+        <button
+          onClick={() => setActiveTab("attendance")}
+          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "attendance" ? "text-[#0078d4] dark:text-[#04a4ec] border-b-2 border-[#0078d4] dark:border-[#04a4ec] font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+        >
+          <Timer className="w-4 h-4 mr-2 text-[#0078d4]" /> Attendance & Engagement
+        </button>
         {isVocationalDonationFunded && (
           <button
             onClick={() => setActiveTab("donations")}
@@ -1868,6 +1877,12 @@ const CourseDetails = () => {
                     }, 200);
                   }}
                 />
+              </div>
+            )}
+
+            {activeTab === "attendance" && (
+              <div className="animate-in fade-in">
+                <CourseAttendance course={course} isStudent={isStudent} />
               </div>
             )}
 

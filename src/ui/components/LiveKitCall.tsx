@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   LiveKitRoom,
   VideoConference,
@@ -25,10 +25,13 @@ import {
   RefreshCw,
   Maximize2,
   Minimize2,
+  Timer,
 } from 'lucide-react';
 import { LiveClassRecorder } from './LiveClassRecorder';
 import { endLiveClassSessionApi } from '../../lib/liveClass';
 import { centralApiClient } from '../../lib/centralApiClient';
+import { useAppContext } from '../../store/AppContext';
+import { useAuth } from '../../store/AuthContext';
 
 interface LiveKitCallProps {
   roomName: string;
@@ -59,6 +62,20 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [sessionAccessError, setSessionAccessError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Online class attendance & engagement duration tracking
+  const { recordLiveOnlineEngagement } = useAppContext();
+  const { currentUser } = useAuth();
+  const sessionStartTimeRef = useRef<number>(0);
+  const [elapsedEngagementSeconds, setElapsedEngagementSeconds] = useState<number>(0);
+
+  useEffect(() => {
+    sessionStartTimeRef.current = Date.now();
+    const timer = setInterval(() => {
+      setElapsedEngagementSeconds(Math.floor((Date.now() - sessionStartTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -328,7 +345,43 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     setNewMessage('');
   };
 
+  const syncAttendanceEngagement = useCallback(() => {
+    const elapsedMs = Date.now() - sessionStartTimeRef.current;
+    const durationMins = Math.max(1, Math.round(elapsedMs / 60000));
+    const targetCourseId = courseId || cleanRoomName;
+    const targetUserId = currentUser?.id || `guest_${(displayName || 'Guest').replace(/\s+/g, '_')}`;
+    const targetUserName = currentUser?.name || displayName || 'Learner';
+    const targetRole: "student" | "instructor" = effectiveRole === "instructor" ? "instructor" : "student";
+    const checkInIso = new Date(sessionStartTimeRef.current).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const checkOutIso = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    recordLiveOnlineEngagement({
+      courseId: targetCourseId,
+      sessionTitle: `Live Online Class: ${cleanRoomName}`,
+      userId: targetUserId,
+      userName: targetUserName,
+      userEmail: currentUser?.email,
+      role: targetRole,
+      durationMinutes: durationMins,
+      checkInTime: checkInIso,
+      checkOutTime: checkOutIso,
+      location: `Online Room: ${cleanRoomName}`,
+    }).catch(() => {});
+  }, [courseId, cleanRoomName, currentUser, displayName, effectiveRole, recordLiveOnlineEngagement]);
+
+  // Periodic engagement sync every 60s and on component unmount
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      syncAttendanceEngagement();
+    }, 60000);
+    return () => {
+      clearInterval(syncInterval);
+      syncAttendanceEngagement();
+    };
+  }, [syncAttendanceEngagement]);
+
   const handleLeave = () => {
+    syncAttendanceEngagement();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
@@ -338,6 +391,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   };
 
   const handleEndClass = async () => {
+    syncAttendanceEngagement();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
@@ -406,6 +460,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
                 LIVE
               </span>
+              <div
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-[10px] font-mono font-bold text-indigo-300 shrink-0"
+                title="Your live class attendance and engagement duration are being recorded automatically."
+              >
+                <Timer className="w-3 h-3 text-[#0078d4] animate-pulse" />
+                <span>
+                  {Math.floor(elapsedEngagementSeconds / 60)}m {elapsedEngagementSeconds % 60}s
+                </span>
+              </div>
             </div>
           </div>
 
@@ -502,6 +565,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
               LIVE
             </span>
+            <div
+              className="flex items-center space-x-1 px-2.5 py-0.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-[10px] font-mono font-bold text-indigo-300 shrink-0"
+              title="Your live class attendance and engagement duration are being recorded automatically."
+            >
+              <Timer className="w-3 h-3 text-[#0078d4] animate-pulse" />
+              <span>
+                {Math.floor(elapsedEngagementSeconds / 60)}m {elapsedEngagementSeconds % 60}s
+              </span>
+            </div>
           </div>
         </div>
 

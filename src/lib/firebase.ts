@@ -16,9 +16,9 @@ const firebaseConfig = {
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Configure Firestore with auto-detect long polling and undefined property handling to prevent WebChannel stream timeouts
+// Configure Firestore with forced long polling and undefined property handling to prevent WebChannel stream timeouts
 export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
   ignoreUndefinedProperties: true,
 });
 

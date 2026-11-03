@@ -28,6 +28,7 @@ import Policy from "../pages/Policy";
 import { LiveRoomPage } from "../pages/LiveRoomPage";
 import { GlobalLoader } from "./GlobalLoader";
 import SuperAdmin from "../pages/SuperAdmin";
+import { Notifications } from "../pages/Notifications";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, firebaseUser, loading } = useAuth();
@@ -87,6 +88,14 @@ const Index: React.FC = () => {
                         element={
                           <ProtectedRoute>
                             <PageWrapper><Dashboard /></PageWrapper>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/notifications"
+                        element={
+                          <ProtectedRoute>
+                            <PageWrapper><Notifications /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />

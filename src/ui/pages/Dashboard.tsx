@@ -25,6 +25,8 @@ import {
   Accessibility,
   Lock,
   Sparkles,
+  Timer,
+  Video,
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
@@ -56,6 +58,7 @@ const Dashboard = () => {
     deleteOrgMember,
     assessments,
     submissions,
+    attendanceRecords,
   } = useAppContext();
   const { currentUser } = useAuth();
   const [selectedReviewReq, setSelectedReviewReq] =
@@ -803,6 +806,138 @@ const Dashboard = () => {
           orgMembers={orgMembers}
         />
       )}
+
+      {/* Institutional Attendance & Engagement Tracker (Physical Campus & Online) */}
+      {(() => {
+        const relevantAttendance = attendanceRecords.filter((r) =>
+          myCourses.some((c) => c.id === r.courseId) ||
+          (currentUser.role === "organization" && r.orgId === currentUser.id)
+        );
+
+        const physicalRecords = relevantAttendance.filter((r) => r.mode === "physical" || !r.mode);
+        const onlineRecords = relevantAttendance.filter((r) => r.mode === "online");
+
+        let totalPhysicalMins = 0;
+        physicalRecords.forEach((r) => {
+          r.entries?.forEach((e) => {
+            totalPhysicalMins += e.durationMinutes || 0;
+          });
+          if (r.instructorEngagement?.durationMinutes) {
+            totalPhysicalMins += r.instructorEngagement.durationMinutes;
+          }
+        });
+
+        let totalOnlineMins = 0;
+        onlineRecords.forEach((r) => {
+          r.entries?.forEach((e) => {
+            totalOnlineMins += e.durationMinutes || 0;
+          });
+          if (r.instructorEngagement?.durationMinutes) {
+            totalOnlineMins += r.instructorEngagement.durationMinutes;
+          }
+        });
+
+        return (
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <Timer className="w-5 h-5 text-[#0078d4] dark:text-[#04a4ec]" />
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white font-heading">
+                    Attendance & Engagement Command Center
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Live engagement duration and attendance records across 100% physical campus operations and online live courses.
+                </p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="px-3 py-1 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold rounded-full border border-[#0078d4]/20">
+                  {relevantAttendance.length} Total Sessions Logged
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Physical Campus Operations */}
+              <div className="p-5 bg-gradient-to-br from-amber-500/5 via-orange-500/5 to-amber-500/10 rounded-2xl border border-amber-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-amber-700 dark:text-amber-400 font-bold text-xs uppercase tracking-wider">
+                    <Building2 className="w-4 h-4" />
+                    <span>100% Physical Campus Attendance</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-extrabold">
+                    {physicalRecords.length} Physical Records
+                  </span>
+                </div>
+
+                <div className="flex items-baseline space-x-2">
+                  <span className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono">
+                    {(totalPhysicalMins / 60).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">
+                    Hours of In-Person Engagement Logged
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Track student arrivals, instructor lecture and office hours, physical room check-ins, and self-clocking kiosk terminals.
+                </p>
+
+                <div className="pt-1 flex items-center space-x-2">
+                  {myCourses.length > 0 && (
+                    <Link
+                      to={`/course/${myCourses[0].id}`}
+                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs"
+                    >
+                      <Timer className="w-3.5 h-3.5 mr-1" />
+                      Manage Campus Attendance
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {/* Online Course Engagement */}
+              <div className="p-5 bg-gradient-to-br from-indigo-500/5 via-blue-500/5 to-indigo-500/10 rounded-2xl border border-indigo-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-indigo-700 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
+                    <Video className="w-4 h-4" />
+                    <span>Online Course Live Attendance</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 text-[10px] font-extrabold">
+                    {onlineRecords.length} Online Records
+                  </span>
+                </div>
+
+                <div className="flex items-baseline space-x-2">
+                  <span className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono">
+                    {(totalOnlineMins / 60).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">
+                    Hours of Live Online Engagement Logged
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Automatic timekeeping for students and instructors in live video lectures with live attendance duration computation.
+                </p>
+
+                <div className="pt-1 flex items-center space-x-2">
+                  {myCourses.length > 0 && (
+                    <Link
+                      to={`/course/${myCourses[0].id}`}
+                      className="px-3.5 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs"
+                    >
+                      <Video className="w-3.5 h-3.5 mr-1" />
+                      View Online Class Logs
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Student Applications & Review Board */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
