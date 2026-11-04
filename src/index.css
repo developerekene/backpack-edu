@@ -123,3 +123,12 @@ body.high-contrast-mode {
   animation: float-subtle-5 6s ease-in-out infinite 0.7s;
 }
 
+/* Hide scrollbar for clean carousels and tabs */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

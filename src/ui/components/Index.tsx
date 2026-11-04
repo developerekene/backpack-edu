@@ -28,6 +28,7 @@ import Policy from "../pages/Policy";
 import { LiveRoomPage } from "../pages/LiveRoomPage";
 import { GlobalLoader } from "./GlobalLoader";
 import SuperAdmin from "../pages/SuperAdmin";
+import ScrollToTop from "./ScrollToTop";
 import { Notifications } from "../pages/Notifications";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -61,6 +62,7 @@ const Index: React.FC = () => {
           <EventProvider>
             <AccessibilityProvider>
               <BrowserRouter>
+                <ScrollToTop />
                 <GlobalLoader />
                 <ColorFilterOverlay />
                 <ReadingFocusRuler />
@@ -70,11 +72,11 @@ const Index: React.FC = () => {
                   <UniversalAccessibilityModal />
                   <main className="flex-1 w-full flex flex-col">
                     <Routes>
-                      {/* Home has full-width layout capabilities with edge-to-edge Hero */}
+                      {/* Home & AboutUs have full-width layout capabilities with edge-to-edge Hero */}
                       <Route path="/" element={<Home />} />
                       <Route path="/login" element={<PageWrapper><Login /></PageWrapper>} />
                       <Route path="/signup" element={<PageWrapper><Signup /></PageWrapper>} />
-                      <Route path="/about-us" element={<PageWrapper><AboutUs /></PageWrapper>} />
+                      <Route path="/about-us" element={<AboutUs />} />
                       <Route path="/donate" element={<Navigate to="/explore" replace />} />
                       <Route path="/donate/:courseId" element={<Navigate to="/explore" replace />} />
 

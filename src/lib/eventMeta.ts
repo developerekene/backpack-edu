@@ -9,22 +9,22 @@ export type EventMode = "online" | "onsite" | "allevent";
 export const EVENT_MODE_OPTIONS: { value: EventMode; label: string }[] = [
   { value: "online", label: "Online" },
   { value: "onsite", label: "Onsite" },
-  { value: "allevent", label: "all event" },
+  { value: "allevent", label: "All Events" },
 ];
 
 export const EVENT_MODE_LABELS: Record<EventMode, string> = {
   online: "Online",
   onsite: "Onsite",
-  allevent: "all event",
+  allevent: "All Events",
 };
 
 export const EVENT_MODE_BADGE_STYLES: Record<EventMode, string> = {
   online:
-    "bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400",
+    "bg-[#0078d4]/10 border-[#0078d4]/25 text-[#0078d4] dark:text-[#04a4ec] dark:bg-[#0078d4]/15 dark:border-[#0078d4]/30",
   onsite:
-    "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
+    "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-500/15 dark:border-emerald-500/30",
   allevent:
-    "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400",
+    "bg-sky-500/10 border-sky-500/25 text-sky-700 dark:text-sky-400 dark:bg-sky-500/15 dark:border-sky-500/30",
 };
 
 /** Fall back to "general" for events saved before modes existed. */

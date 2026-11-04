@@ -77,7 +77,7 @@ const DetailRow: React.FC<DetailRowProps> = ({
   mono,
 }) => (
   <div className="flex items-start gap-3 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 p-4">
-    <span className="shrink-0 w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+    <span className="shrink-0 w-9 h-9 rounded-xl bg-[#d6e9f8]/60 dark:bg-[#0078d4]/15 border border-[#0078d4]/20 dark:border-[#0078d4]/30 flex items-center justify-center text-[#0078d4] dark:text-[#04a4ec]">
       <Icon className="w-4 h-4" />
     </span>
     <div className="min-w-0">
@@ -302,7 +302,7 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
             {!isAuthenticated ? (
               <button
                 onClick={handleRequestLogin}
-                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-sm"
+                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold transition shadow-sm cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
                 Sign in to join
@@ -319,7 +319,7 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
             ) : attending && event.link ? (
               <button
                 onClick={handleOpenLink}
-                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-sm"
+                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold transition shadow-sm cursor-pointer"
               >
                 <Video className="w-4 h-4" />
                 Open Event Link
@@ -328,7 +328,7 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
             ) : attending ? (
               <button
                 onClick={handleLeave}
-                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-sm font-semibold transition"
+                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-sm font-semibold transition cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Attending — leave
@@ -336,7 +336,7 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
             ) : (
               <button
                 onClick={handleJoin}
-                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-sm"
+                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold transition shadow-sm cursor-pointer"
               >
                 <Video className="w-4 h-4" />
                 {event.link ? "Join & Open Link" : "Join Event"}
