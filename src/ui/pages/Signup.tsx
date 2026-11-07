@@ -20,6 +20,9 @@ import {
   GraduationCap,
   UserCheck,
   AlertCircle,
+  Sparkles,
+  Copy,
+  Check,
 } from "lucide-react";
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -34,8 +37,121 @@ const Signup = () => {
   const [role, setRole] = useState<Role>("student");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [suggestedNotice, setSuggestedNotice] = useState<string | null>(null);
   const { signup, currentUser } = useAuth();
   const navigate = useNavigate();
+
+  // Generate an ultra-secure 14-character password
+  const generateStrongPassword = () => {
+    const lowercase = "abcdefghjkmnpqrstuvwxyz";
+    const uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const numbers = "23456789";
+    const symbols = "!@#$%&*?";
+
+    const pick = (str: string) => str[Math.floor(Math.random() * str.length)];
+    const chars = [
+      pick(uppercase),
+      pick(lowercase),
+      pick(numbers),
+      pick(symbols),
+      pick(uppercase),
+      pick(lowercase),
+      pick(numbers),
+      pick(symbols),
+      pick(lowercase),
+      pick(uppercase),
+      pick(numbers),
+      pick(lowercase),
+      pick(symbols),
+      pick(uppercase),
+    ];
+
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+
+    return chars.join("");
+  };
+
+  const handleSuggestPassword = () => {
+    const strong = generateStrongPassword();
+    setPassword(strong);
+    setConfirmPassword(strong);
+    setShowPassword(true);
+    setShowConfirmPassword(true);
+    setSuggestedNotice("Strong password generated and applied to both fields!");
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(strong).catch(() => {});
+    }
+  };
+
+  const handleCopyPassword = () => {
+    if (password && navigator.clipboard) {
+      navigator.clipboard
+        .writeText(password)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => {});
+    }
+  };
+
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) {
+      return {
+        score: 0,
+        label: "",
+        color: "bg-slate-200 dark:bg-slate-700",
+        text: "text-slate-400",
+        tip: "",
+      };
+    }
+    let score = 0;
+    if (pass.length >= 6) score += 1;
+    if (pass.length >= 9) score += 1;
+    if (/[a-z]/.test(pass) && /[A-Z]/.test(pass)) score += 1;
+    if (/\d/.test(pass)) score += 1;
+    if (/[^a-zA-Z0-9]/.test(pass)) score += 1;
+
+    if (score <= 1) {
+      return {
+        score: 1,
+        label: "Weak",
+        color: "bg-rose-500",
+        text: "text-rose-500 dark:text-rose-400",
+        tip: "Use at least 8 characters with numbers.",
+      };
+    } else if (score === 2) {
+      return {
+        score: 2,
+        label: "Fair",
+        color: "bg-amber-500",
+        text: "text-amber-500 dark:text-amber-400",
+        tip: "Add uppercase letters and symbols.",
+      };
+    } else if (score === 3 || score === 4) {
+      return {
+        score: 3,
+        label: "Strong",
+        color: "bg-emerald-500",
+        text: "text-emerald-500 dark:text-emerald-400",
+        tip: "Good password! Meets security standards.",
+      };
+    } else {
+      return {
+        score: 4,
+        label: "Very Strong",
+        color: "bg-sky-500",
+        text: "text-sky-500 dark:text-sky-400",
+        tip: "Excellent! Highly secure password.",
+      };
+    }
+  };
+
+  const strength = getPasswordStrength(password);
 
   // If already authenticated, redirect to appropriate page
   useEffect(() => {
@@ -323,74 +439,148 @@ const Signup = () => {
             </div>
 
             {/* Password Grid (2 Columns on tablet/desktop) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Password Field */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
-                  Password
-                </label>
-                <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Lock className="w-4.5 h-4.5" />
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Password Field */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSuggestPassword}
+                      className="text-[11px] font-semibold text-[#0078d4] dark:text-[#04a4ec] hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Generate and apply a strong password"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-500" />
+                      <span>Generate strong password</span>
+                    </button>
                   </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-11 pr-11 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
-                    title={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4.5 h-4.5" />
-                    ) : (
-                      <Eye className="w-4.5 h-4.5" />
-                    )}
-                  </button>
+                  <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-4.5 h-4.5" />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (suggestedNotice) setSuggestedNotice(null);
+                      }}
+                      className="w-full pl-11 pr-11 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4.5 h-4.5" />
+                      ) : (
+                        <Eye className="w-4.5 h-4.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password Field */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                      Confirm Password
+                    </label>
+                    {password && confirmPassword && password === confirmPassword ? (
+                      <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                        <Check className="w-3 h-3" /> Matches
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-4.5 h-4.5" />
+                    </div>
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full pl-11 pr-11 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
+                      title={
+                        showConfirmPassword ? "Hide password" : "Show password"
+                      }
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4.5 h-4.5" />
+                      ) : (
+                        <Eye className="w-4.5 h-4.5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Confirm Password Field */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
-                  Confirm Password
-                </label>
-                <div className="relative rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] focus-within:ring-2 focus-within:ring-[#0078d4]/30 focus-within:border-[#0078d4] transition-all">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Lock className="w-4.5 h-4.5" />
+              {/* Password Strength Meter Bar & Suggestion Action */}
+              {password ? (
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2 animate-in fade-in">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Password strength:</span>
+                      <span className={`font-bold ${strength.text}`}>{strength.label}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyPassword}
+                      className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Copy password to clipboard"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="text-emerald-500 font-bold">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy password</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-11 pr-11 py-3 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 font-body"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
-                    title={
-                      showConfirmPassword ? "Hide password" : "Show password"
-                    }
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="w-4.5 h-4.5" />
-                    ) : (
-                      <Eye className="w-4.5 h-4.5" />
+
+                  {/* 4-Step Animated Password Strength Bar */}
+                  <div className="grid grid-cols-4 gap-1.5 h-2">
+                    <div className={`rounded-full transition-all duration-300 ${strength.score >= 1 ? strength.color : 'bg-slate-200 dark:bg-slate-700'}`} />
+                    <div className={`rounded-full transition-all duration-300 ${strength.score >= 2 ? strength.color : 'bg-slate-200 dark:bg-slate-700'}`} />
+                    <div className={`rounded-full transition-all duration-300 ${strength.score >= 3 ? strength.color : 'bg-slate-200 dark:bg-slate-700'}`} />
+                    <div className={`rounded-full transition-all duration-300 ${strength.score >= 4 ? strength.color : 'bg-slate-200 dark:bg-slate-700'}`} />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>{strength.tip}</span>
+                    {suggestedNotice && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" /> Auto-suggested
+                      </span>
                     )}
-                  </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="px-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>Must be at least 6 characters (8+ recommended).</span>
+                </div>
+              )}
             </div>
 
             {/* Submit Button */}

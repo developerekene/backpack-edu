@@ -36,6 +36,14 @@ export interface EventAttendee {
   joinedAt: string;
 }
 
+/** Assigned instructor facilitator for the event. */
+export interface EventFacilitator {
+  id: string;
+  name: string;
+  email?: string;
+  role?: Role;
+}
+
 /** The core event shape stored & displayed by the app. */
 export interface AppEvent {
   id: string;
@@ -61,7 +69,12 @@ export interface AppEvent {
   courseType?: string;
   /** How the event takes place — online, onsite, or general. */
   mode?: EventMode;
-  /** The user that created the event. */
+  /** Assigned facilitator (instructor or speaker) who leads the session */
+  facilitatorId?: string;
+  facilitatorName?: string;
+  facilitatorEmail?: string;
+  facilitators?: EventFacilitator[];
+  /** The user that created the event (organization or super admin). */
   createdBy: EventCreator;
   /** Everyone who has been marked as attending (or maybe / not going). */
   attendees: EventAttendee[];
@@ -75,6 +88,10 @@ export type NewAppEvent = Omit<
   "id" | "createdAt" | "updatedAt" | "attendees"
 > & {
   attendees?: EventAttendee[];
+  facilitatorId?: string;
+  facilitatorName?: string;
+  facilitatorEmail?: string;
+  facilitators?: EventFacilitator[];
 };
 
 /** Minimal attendee info required when marking attendance. */
@@ -141,7 +158,18 @@ const loadEvents = (): AppEvent[] => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as AppEvent[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    // Strict filter: Remove any dummy seed events previously saved in the user's browser
+    return (parsed as AppEvent[]).filter(
+      (evt) =>
+        evt &&
+        typeof evt.id === "string" &&
+        !evt.id.startsWith("evt_seed_") &&
+        evt.title !== "Orientation & Platform Tour" &&
+        evt.title !== "Live Class: Introduction to Data Science" &&
+        evt.title !== "End of Term Project Showcase" &&
+        evt.title !== "Instructor Workshop: Engaging Remote Learners",
+    );
   } catch {
     /* Corrupt cache — fall back to an empty list. */
     return [];
@@ -151,7 +179,11 @@ const loadEvents = (): AppEvent[] => {
 const saveEvents = (events: AppEvent[]) => {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+    // Only save authentic non-dummy events
+    const clean = events.filter(
+      (evt) => evt && typeof evt.id === "string" && !evt.id.startsWith("evt_seed_"),
+    );
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
   } catch {
     /* Storage might be full or unavailable — safe to ignore. */
   }
@@ -223,93 +255,11 @@ export const getEventSummary = (event: AppEvent): EventSummary => {
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
-/* Sample events so the Events page has content before organizations publish. */
-const SEED_EVENTS: AppEvent[] = [
-  {
-    id: "evt_seed_1",
-    title: "Orientation & Platform Tour",
-    subject: "A guided walkthrough of Backpack for new members",
-    description:
-      "A guided walkthrough of Backpack for new students, instructors, and organizations joining this semester.",
-    date: "2026-09-18",
-    time: "10:00 AM",
-    location: "Main Auditorium / Zoom",
-    link: "https://meet.example.com/backpack-orientation",
-    mode: "allevent",
-    createdBy: {
-      id: "org_backpack",
-      name: "Backpack Learning Team",
-      role: "organization",
-    },
-    attendees: [],
-    createdAt: "2026-09-15T09:00:00.000Z",
-  },
-  {
-    id: "evt_seed_2",
-    title: "Live Class: Introduction to Data Science",
-    subject: "Instructor-led live session covering core concepts",
-    description:
-      "Instructor-led live session covering core data science concepts, tools, and a hands-on walkthrough.",
-    date: "2026-09-22",
-    time: "02:00 PM",
-    location: "Online (LiveKit)",
-    link: "https://meet.example.com/data-science",
-    mode: "online",
-    createdBy: {
-      id: "org_backpack",
-      name: "Backpack Learning Team",
-      role: "organization",
-    },
-    attendees: [],
-    createdAt: "2026-09-15T09:05:00.000Z",
-  },
-  {
-    id: "evt_seed_3",
-    title: "End of Term Project Showcase",
-    subject: "Students present their term projects",
-    description:
-      "Students present their term projects. Instructors and partner organizations are invited to join as judges.",
-    date: "2026-09-28",
-    time: "11:00 AM",
-    location: "Academy Hall",
-    mode: "onsite",
-    createdBy: {
-      id: "org_backpack",
-      name: "Backpack Learning Team",
-      role: "organization",
-    },
-    attendees: [],
-    createdAt: "2026-09-15T09:10:00.000Z",
-  },
-  {
-    id: "evt_seed_4",
-    title: "Instructor Workshop: Engaging Remote Learners",
-    subject: "Practical techniques for remote and hybrid teaching",
-    description:
-      "A practical workshop for instructors on keeping remote and hybrid learners engaged through the platform.",
-    date: "2026-10-02",
-    time: "03:00 PM",
-    location: "Online (LiveKit)",
-    link: "https://meet.example.com/instructor-workshop",
-    mode: "online",
-    createdBy: {
-      id: "org_backpack",
-      name: "Backpack Educator Network",
-      role: "organization",
-    },
-    attendees: [],
-    createdAt: "2026-09-15T09:15:00.000Z",
-  },
-];
-
-const hasStoredEvents = () =>
-  typeof window !== "undefined" &&
-  window.localStorage.getItem(STORAGE_KEY) !== null;
-
 export const EventProvider = ({ children }: { children: React.ReactNode }) => {
-  const [events, setEvents] = useState<AppEvent[]>(() =>
-    hasStoredEvents() ? loadEvents() : SEED_EVENTS,
-  );
+  const [events, setEvents] = useState<AppEvent[]>(() => {
+    const loaded = loadEvents();
+    return loaded;
+  });
 
   /* Persist to the local cache whenever events change. */
   useEffect(() => {
@@ -328,6 +278,17 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
       link: input.link,
       courseId: input.courseId,
       courseTitle: input.courseTitle,
+      courseType: input.courseType,
+      mode: input.mode,
+      facilitatorId: input.facilitatorId,
+      facilitatorName: input.facilitatorName,
+      facilitatorEmail: input.facilitatorEmail,
+      facilitators: input.facilitators ?? (input.facilitatorName ? [{
+        id: input.facilitatorId || generateId("fac"),
+        name: input.facilitatorName,
+        email: input.facilitatorEmail,
+        role: "instructor",
+      }] : []),
       createdBy: input.createdBy,
       attendees: input.attendees ?? [],
       createdAt: new Date().toISOString(),

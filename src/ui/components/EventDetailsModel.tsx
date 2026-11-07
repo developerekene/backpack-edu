@@ -15,6 +15,7 @@ import {
   Building2,
   FileText,
   Globe,
+  UserCheck,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/AuthContext";
@@ -257,6 +258,13 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
               label="Created by"
               value={event.createdBy?.name || "Organization"}
             />
+            {event.facilitatorName && (
+              <DetailRow
+                icon={UserCheck}
+                label="Facilitator (Instructor)"
+                value={`${event.facilitatorName}${event.facilitatorEmail ? ` (${event.facilitatorEmail})` : ""}`}
+              />
+            )}
             <DetailRow
               icon={Link2}
               label="Link"

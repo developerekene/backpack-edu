@@ -3,37 +3,37 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --card: #f8f8f8;
-  --card-foreground: #0a0a0a;
-  --popover: #f8f8f8;
-  --popover-foreground: #0a0a0a;
+  --background: #f8fafd;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
   --primary: #0078d4;
   --primary-foreground: #ffffff;
   --secondary: #d6e9f8;
-  --secondary-foreground: #0a0a0a;
-  --muted: #f3f3f3;
-  --muted-foreground: #6c6c6c;
+  --secondary-foreground: #004e8a;
+  --muted: #f0f7fd;
+  --muted-foreground: #64748b;
   --accent: #0078d4;
   --accent-foreground: #ffffff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e2e2e2;
-  --input: #e2e2e2;
+  --border: #d6e9f8;
+  --input: #f8fafd;
   --ring: #0078d4;
   --chart-1: #0078d4;
   --chart-2: #d6e9f8;
   --chart-3: #04a4ec;
   --chart-4: #d1960e;
   --chart-5: #fc5c2c;
-  --sidebar: #f5f5f5;
-  --sidebar-foreground: #0a0a0a;
+  --sidebar: #f0f7fd;
+  --sidebar-foreground: #0f172a;
   --sidebar-primary: #0078d4;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #0078d4;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #e2e2e2;
+  --sidebar-border: #d6e9f8;
   --sidebar-ring: #0078d4;
   --font-sans: "Plus Jakarta Sans", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   --font-heading: "Outfit", "Plus Jakarta Sans", sans-serif;
@@ -60,37 +60,38 @@
 }
 
 .dark {
-  --background: #121212;
-  --foreground: #fefefe;
-  --card: #121212;
-  --card-foreground: #fefefe;
-  --popover: #121212;
-  --popover-foreground: #fefefe;
+  --background: #091824;
+  --foreground: #f8fafc;
+  --card: #0f2231;
+  --card-foreground: #f8fafc;
+  --popover: #0f2231;
+  --popover-foreground: #f8fafc;
   --primary: #0078d4;
   --primary-foreground: #ffffff;
-  --secondary: #0f2231;
-  --secondary-foreground: #ffffff;
-  --muted: #2a2a2a;
-  --muted-foreground: #a0a0a0;
-  --accent: #0078d4;
+  --secondary: #1a384f;
+  --secondary-foreground: #04a4ec;
+  --muted: #132838;
+  --muted-foreground: #94a3b8;
+  --accent: #04a4ec;
   --accent-foreground: #ffffff;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #374151;
-  --input: #374151;
+  --border: #1e3a52;
+  --input: #132838;
   --ring: #0078d4;
   --chart-1: #0078d4;
   --chart-2: #0f2231;
   --chart-3: #04a4ec;
   --chart-4: #d1960e;
   --chart-5: #fc5c2c;
-  --sidebar: #1e1e1e;
-  --sidebar-foreground: #fefefe;
+  --sidebar: #0f2231;
+  --sidebar-foreground: #f8fafc;
   --sidebar-primary: #0078d4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #0078d4;
+  --sidebar-accent: #04a4ec;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #374151;
+  --sidebar-border: #1e3a52;
+  --sidebar-ring: #0078d4;
   --font-sans: "Plus Jakarta Sans", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   --font-heading: "Outfit", "Plus Jakarta Sans", sans-serif;
   --font-body: "Inter", "Plus Jakarta Sans", sans-serif;
@@ -146,6 +147,48 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Backpack Home & Signup Signature Blue Palette */
+  --color-backpack-blue: #0078d4;
+  --color-backpack-hover: #006cbd;
+  --color-backpack-sky: #04a4ec;
+  --color-backpack-light: #d6e9f8;
+  --color-backpack-soft: #f0f7fd;
+  --color-backpack-deep: #004e8a;
+  --color-backpack-card-dark: #0f2231;
+  --color-backpack-input-dark: #132838;
+  --color-backpack-border-dark: #1e3a52;
+
+  /* Global primary blue palette overrides for indigo */
+  --color-indigo-50: #f0f7fd;
+  --color-indigo-100: #e2f0fb;
+  --color-indigo-200: #d6e9f8;
+  --color-indigo-300: #8ecbf5;
+  --color-indigo-400: #3daef5;
+  --color-indigo-500: #04a4ec;
+  --color-indigo-600: #0078d4;
+  --color-indigo-700: #006cbd;
+  --color-indigo-800: #004e8a;
+  --color-indigo-900: #003560;
+  --color-indigo-950: #00213d;
+
+  /* Global primary blue palette overrides for blue */
+  --color-blue-50: #f0f7fd;
+  --color-blue-100: #e2f0fb;
+  --color-blue-200: #d6e9f8;
+  --color-blue-300: #8ecbf5;
+  --color-blue-400: #3daef5;
+  --color-blue-500: #04a4ec;
+  --color-blue-600: #0078d4;
+  --color-blue-700: #006cbd;
+  --color-blue-800: #004e8a;
+  --color-blue-900: #003560;
+  --color-blue-950: #00213d;
+
+  /* Theme slate surfaces matching Home and Signup dark palette */
+  --color-slate-700: #1e3a52;
+  --color-slate-800: #0f2231;
+  --color-slate-900: #091824;
   
   --font-sans: var(--font-sans);
   --font-heading: var(--font-heading);

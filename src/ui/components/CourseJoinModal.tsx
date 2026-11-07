@@ -23,10 +23,13 @@ export const CourseJoinModal: React.FC<CourseJoinModalProps> = ({
     onJoinSuccess,
 }) => {
     const { currentUser } = useAuth();
-    const { updateOrgMember, addEnrollmentRequest, updateEnrollmentRequest, enrollmentRequests, organizations } = useAppContext();
+    const { updateOrgMember, addEnrollmentRequest, updateEnrollmentRequest, enrollmentRequests, organizations, allUsers } = useAppContext();
 
     const providerOrg = organizations.find(o => o.id === course.orgId || o.ownerId === course.orgId);
-    const subaccount = providerOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
+    const instructorUser = allUsers.find(
+        u => u.id === course.instructorId || u.id === course.createdBy || (Boolean(course.instructorName) && u.name?.toLowerCase() === course.instructorName?.toLowerCase())
+    );
+    const subaccount = providerOrg?.paystackSubaccount || instructorUser?.paystackSubaccount || (currentUser?.role !== 'student' ? currentUser?.paystackSubaccount : undefined);
 
     // Check requirement flags
     const feeRequired = invite.requiresPayment !== false && course.price > 0;

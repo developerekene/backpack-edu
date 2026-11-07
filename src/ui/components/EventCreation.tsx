@@ -15,6 +15,8 @@ import {
   AlertCircle,
   ChevronDown,
   Save,
+  UserCheck,
+  Video,
 } from "lucide-react";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
@@ -25,6 +27,7 @@ import {
   COURSE_TYPE_PREFIX,
   courseTypeFromValue,
   courseTypeLabel,
+  type EventMode,
 } from "../../lib/eventMeta";
 
 /* ============================================================= */
@@ -162,6 +165,9 @@ export const EventCreation: React.FC<EventCreationProps> = ({
     time: existingEvent ? to24Hour(existingEvent.time) : (initialDraft?.time ?? ""),
     location: existingEvent?.location ?? initialDraft?.location ?? "",
     link: existingEvent?.link ?? initialDraft?.link ?? "",
+    mode: (existingEvent?.mode ?? initialDraft?.mode ?? "online") as string,
+    facilitatorName: existingEvent?.facilitatorName ?? initialDraft?.facilitatorName ?? "",
+    facilitatorEmail: existingEvent?.facilitatorEmail ?? initialDraft?.facilitatorEmail ?? "",
     courseId: existingEvent?.courseType
       ? `${COURSE_TYPE_PREFIX}${existingEvent.courseType}`
       : (existingEvent?.courseId ?? initialDraft?.courseId ?? ""),
@@ -169,6 +175,24 @@ export const EventCreation: React.FC<EventCreationProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(() => Boolean(initialDraft));
+
+  const instructorsList = React.useMemo(() => {
+    const map = new Map<string, { id: string; name: string; email?: string }>();
+    courses.forEach((c) => {
+      if (c.instructorName && c.instructorName.trim()) {
+        const key = c.instructorName.trim().toLowerCase();
+        if (!map.has(key)) {
+          const instructorEmail = (c as typeof c & { instructorEmail?: string }).instructorEmail || "";
+          map.set(key, {
+            id: c.instructorId || `inst_${key}`,
+            name: c.instructorName.trim(),
+            email: instructorEmail,
+          });
+        }
+      }
+    });
+    return Array.from(map.values());
+  }, [courses]);
 
   // Auto-save event draft when user changes fields
   useEffect(() => {
@@ -194,6 +218,9 @@ export const EventCreation: React.FC<EventCreationProps> = ({
       time: "",
       location: "",
       link: "",
+      mode: "online",
+      facilitatorName: "",
+      facilitatorEmail: "",
       courseId: "",
     });
     setIsDraftRestored(false);
@@ -214,12 +241,17 @@ export const EventCreation: React.FC<EventCreationProps> = ({
     };
   }, [isOpen, onClose]);
 
-  const isOrganization = currentUser?.role === "organization";
+  // Strict check: only organization accounts and super admins can create/edit events.
+  // Instructors can only be assigned as facilitators.
+  const isOrganizationOrSuperAdmin =
+    currentUser?.role === "organization" ||
+    currentUser?.role === "super_admin" ||
+    currentUser?.email?.toLowerCase() === "ekenehq@gmail.com";
 
-  /* ---- Organization-only gate ---- */
+  /* ---- Organization / Super Admin gate ---- */
   if (!isOpen) return null;
 
-  if (!currentUser || !isOrganization) {
+  if (!currentUser || !isOrganizationOrSuperAdmin) {
     return (
       <div
         className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
@@ -234,17 +266,17 @@ export const EventCreation: React.FC<EventCreationProps> = ({
               <Lock className="w-7 h-7" />
             </div>
             <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">
-              Organizations only
+              Organizations &amp; Admins Only
             </h3>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              Only organization accounts can create events. Please sign in with
-              an organization account to publish an event.
+              Only verified organization and super administrator accounts can create or manage events on Backpack.
+              Instructors can be assigned to facilitate sessions, but cannot create or delete events.
             </p>
             <button
               onClick={onClose}
               className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-semibold transition cursor-pointer"
             >
-              Got it
+              Understood
             </button>
           </div>
         </div>
@@ -307,6 +339,10 @@ export const EventCreation: React.FC<EventCreationProps> = ({
 
     setIsSubmitting(true);
 
+    const assignedFacilitator = instructorsList.find(
+      (inst) => inst.name.toLowerCase() === form.facilitatorName.trim().toLowerCase(),
+    );
+
     const payload = {
       title: form.title.trim(),
       subject: form.subject.trim(),
@@ -315,6 +351,10 @@ export const EventCreation: React.FC<EventCreationProps> = ({
       time: to12Hour(form.time),
       location: form.location.trim(),
       link: form.link.trim() || undefined,
+      mode: (form.mode || "online") as EventMode,
+      facilitatorName: form.facilitatorName.trim() || undefined,
+      facilitatorEmail: form.facilitatorEmail.trim() || assignedFacilitator?.email || undefined,
+      facilitatorId: assignedFacilitator?.id || (form.facilitatorName.trim() ? "inst_assigned" : undefined),
       courseId: selectedCourse?.id,
       courseTitle: selectedCourse?.title,
       courseType: selectedCourseType,
@@ -575,6 +615,66 @@ export const EventCreation: React.FC<EventCreationProps> = ({
                 {form.courseId
                   ? "Only students enrolled in this course (or level) can participate."
                   : "General events can be joined by any signed-in user."}
+              </p>
+            </div>
+          </div>
+
+          {/* Event Mode & Assigned Facilitator (Instructor) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label
+                htmlFor="event-mode"
+                className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5"
+              >
+                Delivery Mode
+              </label>
+              <div className="relative">
+                <Video className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <select
+                  id="event-mode"
+                  value={form.mode}
+                  onChange={(e) => setField("mode", e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 pl-10 pr-10 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition"
+                >
+                  <option value="online">Online Live (LiveKit / Virtual)</option>
+                  <option value="onsite">Campus Onsite (Physical Lecture Hall)</option>
+                  <option value="allevent">Hybrid / General Symposium</option>
+                </select>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Determines how attendees join and where session access links appear.
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="event-facilitator"
+                className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5"
+              >
+                Session Facilitator (Instructor)
+              </label>
+              <div className="relative">
+                <UserCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <input
+                  id="event-facilitator"
+                  type="text"
+                  list="instructors-datalist"
+                  value={form.facilitatorName}
+                  onChange={(e) => setField("facilitatorName", e.target.value)}
+                  placeholder="e.g. Dr. Adaora Eze (or select instructor)"
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition"
+                />
+                <datalist id="instructors-datalist">
+                  {instructorsList.map((inst) => (
+                    <option key={inst.id} value={inst.name}>
+                      {inst.name} {inst.email ? `(${inst.email})` : ""}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Instructors facilitate sessions and conduct roll-call, but cannot create or delete events.
               </p>
             </div>
           </div>

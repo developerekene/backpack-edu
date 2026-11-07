@@ -15,7 +15,6 @@ import {
   Video,
   CreditCard,
   BarChart3,
-  Globe,
   Laptop,
   Check,
   ChevronLeft,

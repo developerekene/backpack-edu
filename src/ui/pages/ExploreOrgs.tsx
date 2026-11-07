@@ -277,14 +277,14 @@ const ExploreOrgs = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d6e9f8] dark:border-[#1e3a52] pb-4">
+        <div className="flex items-center space-x-2 bg-[#f0f7fd] dark:bg-[#132838] p-1.5 rounded-2xl border border-[#d6e9f8] dark:border-[#1e3a52]">
           <button
             onClick={() => setActiveTab("courses")}
-            className={`flex items-center px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            className={`flex items-center px-5 py-2.5 rounded-xl font-bold font-heading text-sm transition-all cursor-pointer ${
               activeTab === "courses"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-slate-700"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-[#0078d4] text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-[#0078d4] dark:hover:text-[#04a4ec]"
             }`}
           >
             <BookOpen className="w-4 h-4 mr-2" /> Search Courses (
@@ -292,10 +292,10 @@ const ExploreOrgs = () => {
           </button>
           <button
             onClick={() => setActiveTab("organizations")}
-            className={`flex items-center px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            className={`flex items-center px-5 py-2.5 rounded-xl font-bold font-heading text-sm transition-all cursor-pointer ${
               activeTab === "organizations"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-slate-700"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-[#0078d4] text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-[#0078d4] dark:hover:text-[#04a4ec]"
             }`}
           >
             <Building className="w-4 h-4 mr-2" /> Organizations (
@@ -303,10 +303,10 @@ const ExploreOrgs = () => {
           </button>
           <button
             onClick={() => setActiveTab("instructors")}
-            className={`flex items-center px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            className={`flex items-center px-5 py-2.5 rounded-xl font-bold font-heading text-sm transition-all cursor-pointer ${
               activeTab === "instructors"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-slate-700"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-[#0078d4] text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-[#0078d4] dark:hover:text-[#04a4ec]"
             }`}
           >
             <Users className="w-4 h-4 mr-2" /> Instructors (
@@ -315,7 +315,7 @@ const ExploreOrgs = () => {
         </div>
 
         {/* Filter Count summary */}
-        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-heading">
           Showing{" "}
           {activeTab === "courses"
             ? filteredCourses.length
@@ -327,7 +327,7 @@ const ExploreOrgs = () => {
       </div>
 
       {/* Search and Filters Bar */}
-      <div className="bg-white dark:bg-slate-800/80 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-[#0f2231] p-6 rounded-3xl border border-[#d6e9f8] dark:border-[#1e3a52] shadow-xs space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           {/* Primary Search Input */}
           <div className="md:col-span-5 relative">
@@ -341,12 +341,12 @@ const ExploreOrgs = () => {
                   ? "Search courses by title, qualification, or instructor..."
                   : "Search organizations by name, location, or accreditation..."
               }
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-11 pr-10 py-3 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full bg-[#f8fafd] dark:bg-[#132838] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-xl pl-11 pr-10 py-3 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 focus:border-[#0078d4] text-sm"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -363,7 +363,7 @@ const ExploreOrgs = () => {
                     e.target.value as "all" | "popular" | "non-profit",
                   )
                 }
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                className="w-full bg-[#f8fafd] dark:bg-[#132838] border border-[#d6e9f8] dark:border-[#1e3a52] rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 focus:border-[#0078d4] text-sm font-semibold font-heading"
               >
                 <option value="all">All Course Models</option>
                 <option value="popular">Popular Courses</option>
@@ -473,18 +473,18 @@ const ExploreOrgs = () => {
                 return (
                   <div
                     key={course.id}
-                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500/50 transition shadow-sm p-6 flex flex-col justify-between group"
+                    className="bg-white dark:bg-[#0f2231] rounded-3xl border border-[#d6e9f8] dark:border-[#1e3a52] hover:border-[#0078d4] transition shadow-xs p-6 flex flex-col justify-between group"
                   >
                     <div>
                       {/* Badges Bar */}
                       <div className="flex flex-wrap items-center gap-2 mb-3">
                         {course.qualificationTitle ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full text-xs font-bold border border-indigo-500/20">
+                          <span className="inline-flex items-center px-2.5 py-0.5 bg-[#d6e9f8]/60 dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] rounded-full text-xs font-bold border border-[#b8daf4] dark:border-[#254b68]">
                             <GraduationCap className="w-3 h-3 mr-1" />{" "}
                             {course.qualificationTitle}
                           </span>
                         ) : course.qualificationType ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full text-xs font-bold border border-indigo-500/20 uppercase">
+                          <span className="inline-flex items-center px-2.5 py-0.5 bg-[#d6e9f8]/60 dark:bg-[#1a384f] text-[#0078d4] dark:text-[#04a4ec] rounded-full text-xs font-bold border border-[#b8daf4] dark:border-[#254b68] uppercase">
                             {course.qualificationType}
                           </span>
                         ) : null}
@@ -499,7 +499,7 @@ const ExploreOrgs = () => {
 
                       <h3
                         onClick={() => navigate(`/course/${course.id}`)}
-                        className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-indigo-500 transition line-clamp-2 cursor-pointer"
+                        className="text-xl font-bold font-heading text-slate-900 dark:text-white mb-2 group-hover:text-[#0078d4] dark:group-hover:text-[#04a4ec] transition line-clamp-2 cursor-pointer"
                         title="View Course Details"
                       >
                         {course.title}
@@ -531,81 +531,87 @@ const ExploreOrgs = () => {
                       </p>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                      <div>
-                        <div className="text-lg font-bold text-slate-900 dark:text-white">
-                          {course.price > 0
-                            ? `${course.currency} ${formatPriceWithDecimals(getEffectivePrice(course.price))}`
-                            : "Free"}
-                        </div>
-                        {course.paymentTermsAllowed === "installment" ||
-                        course.paymentTermsAllowed === "both" ? (
-                          <div className="text-[10px] uppercase font-semibold text-indigo-500">
-                            Installments Available
+                    <div className="pt-4 border-t border-[#d6e9f8] dark:border-[#1e3a52] flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                            {course.price > 0
+                              ? `${course.currency} ${formatPriceWithDecimals(getEffectivePrice(course.price))}`
+                              : "Free"}
                           </div>
-                        ) : null}
+                          {course.paymentTermsAllowed === "installment" ||
+                          course.paymentTermsAllowed === "both" ? (
+                            <div className="text-[10px] uppercase font-semibold text-[#0078d4] dark:text-[#04a4ec]">
+                              Installments Available
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => navigate(`/course/${course.id}`)}
+                            className="px-3.5 py-2 bg-[#f0f7fd] hover:bg-[#e2f0fb] dark:bg-[#132838] dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 border border-[#d6e9f8] dark:border-[#1e3a52] rounded-xl text-xs font-semibold transition cursor-pointer font-heading"
+                            title="View Course Details"
+                          >
+                            Details
+                          </button>
+                          {status === "approved" ? (
+                            <span className="text-emerald-500 text-xs font-bold flex items-center bg-emerald-500/10 px-3.5 py-2 rounded-xl border border-emerald-500/20">
+                              <ShieldCheck className="w-3.5 h-3.5 mr-1" />{" "}
+                              Enrolled
+                            </span>
+                          ) : status === "pending" ? (
+                            <span className="text-amber-500 text-xs font-bold px-3.5 py-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                              Pending Review
+                            </span>
+                          ) : activeInvite ? (
+                            <button
+                              onClick={() =>
+                                setJoiningInvite({ course, invite: activeInvite })
+                              }
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs cursor-pointer font-heading"
+                            >
+                              <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Accept
+                              & Join
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (!currentUser) {
+                                  navigate("/login");
+                                  return;
+                                }
+                                if (currentUser.role === "organization") {
+                                  setAlertConfig({
+                                    isOpen: true,
+                                    title: "Role Restriction",
+                                    message:
+                                      "Only student and instructor accounts can apply for courses.",
+                                    type: "info",
+                                  });
+                                  return;
+                                }
+                                setEnrollModalCourse(course);
+                              }}
+                              className="px-4 py-2 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold font-heading transition flex items-center shadow-xs cursor-pointer"
+                            >
+                              Apply <Send className="w-3.5 h-3.5 ml-1.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      {/* Donate / Sponsor Button Placed Below Details & Apply */}
+                      {isDonationFundedVocational(course) && (
                         <button
-                          onClick={() => navigate(`/course/${course.id}`)}
-                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition"
-                          title="View Course Details"
+                          onClick={() => setDonatingCourse(course)}
+                          className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold transition flex items-center justify-center shadow-xs cursor-pointer group/btn"
                         >
-                          Details
+                          <HeartHandshake className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400 group-hover/btn:scale-110 transition-transform" />
+                          <span>Donate / Sponsor Students</span>
+                          <span className="ml-1 text-[10px] opacity-75 font-normal">(Non-Profit)</span>
                         </button>
-                        {isDonationFundedVocational(course) && (
-                          <button
-                            onClick={() => setDonatingCourse(course)}
-                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm shrink-0"
-                          >
-                            <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Donate/Sponsor
-                          </button>
-                        )}
-                        {status === "approved" ? (
-                          <span className="text-emerald-500 text-xs font-bold flex items-center bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                            <ShieldCheck className="w-3.5 h-3.5 mr-1" />{" "}
-                            Enrolled
-                          </span>
-                        ) : status === "pending" ? (
-                          <span className="text-amber-500 text-xs font-bold px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                            Pending Review
-                          </span>
-                        ) : activeInvite ? (
-                          <button
-                            onClick={() =>
-                              setJoiningInvite({ course, invite: activeInvite })
-                            }
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm"
-                          >
-                            <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Accept
-                            & Join
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              if (!currentUser) {
-                                navigate("/login");
-                                return;
-                              }
-                              if (currentUser.role === "organization") {
-                                setAlertConfig({
-                                  isOpen: true,
-                                  title: "Role Restriction",
-                                  message:
-                                    "Only student and instructor accounts can apply for courses.",
-                                  type: "info",
-                                });
-                                return;
-                              }
-                              setEnrollModalCourse(course);
-                            }}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white dark:text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm"
-                          >
-                            Apply <Send className="w-3.5 h-3.5 ml-1.5" />
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -639,13 +645,13 @@ const ExploreOrgs = () => {
                 return (
                   <div
                     key={org.id}
-                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-500/20 transition-all cursor-pointer shadow-sm group p-6 flex flex-col justify-between"
+                    className="bg-white dark:bg-[#0f2231] rounded-3xl border border-[#d6e9f8] dark:border-[#1e3a52] hover:border-[#0078d4] hover:ring-2 hover:ring-[#0078d4]/20 transition-all cursor-pointer shadow-xs group p-6 flex flex-col justify-between"
                     onClick={() => navigate(`/org/${org.id}`)}
                   >
                     <div>
                       <div className="flex items-start justify-between mb-4">
-                        <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 transition-colors">
-                          <Building className="w-6 h-6 text-indigo-600 dark:text-indigo-400 group-hover:text-slate-900 dark:text-white transition-colors" />
+                        <div className="w-12 h-12 bg-[#d6e9f8]/60 dark:bg-[#1a384f] rounded-2xl flex items-center justify-center group-hover:bg-[#0078d4] transition-colors">
+                          <Building className="w-6 h-6 text-[#0078d4] dark:text-[#04a4ec] group-hover:text-white transition-colors" />
                         </div>
                         <div className="flex items-center space-x-2">
                           {org.isAccredited && (
@@ -659,7 +665,7 @@ const ExploreOrgs = () => {
                                 handleDeleteOrg(e, org.id, org.name)
                               }
                               title="Delete Organization"
-                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition cursor-pointer"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -667,7 +673,7 @@ const ExploreOrgs = () => {
                         </div>
                       </div>
 
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-indigo-500 transition">
+                      <h3 className="text-xl font-bold font-heading text-slate-900 dark:text-white mb-2 group-hover:text-[#0078d4] dark:group-hover:text-[#04a4ec] transition">
                         {org.name}
                       </h3>
 

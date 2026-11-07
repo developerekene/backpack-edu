@@ -131,6 +131,13 @@ export interface Organization {
   isDeleted?: boolean;
   paystackSubaccount?: PaystackSubaccount;
   plan?: OrgPlanTier;
+  admins?: { 
+    email: string; 
+    name?: string; 
+    role: "admin" | "staff"; 
+    permissions: string[]; // e.g. ["attendance_edit", "course_edit", "member_manage"]
+    userId?: string 
+  }[];
 }
 
 export interface AdmissionSession {

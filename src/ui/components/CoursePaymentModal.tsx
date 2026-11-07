@@ -27,7 +27,7 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
   onPaymentSuccess,
 }) => {
   const { currentUser } = useAuth();
-  const { organizations } = useAppContext();
+  const { organizations, allUsers } = useAppContext();
   const [selectedMethod, setSelectedMethod] = useState<
     "one-time" | "installment"
   >(
@@ -46,10 +46,18 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
   const providerOrg = organizations.find(
     (o) => o.id === course.orgId || o.ownerId === course.orgId,
   );
+  const instructorUser = allUsers.find(
+    (u) =>
+      u.id === course.instructorId ||
+      u.id === course.createdBy ||
+      (Boolean(course.instructorName) && u.name?.toLowerCase() === course.instructorName?.toLowerCase())
+  );
   const subaccount =
-    providerOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
+    providerOrg?.paystackSubaccount ||
+    instructorUser?.paystackSubaccount ||
+    (currentUser?.role !== "student" ? currentUser?.paystackSubaccount : undefined);
   const providerName =
-    providerOrg?.name || course.instructorName || "Course Provider";
+    providerOrg?.name || instructorUser?.name || course.instructorName || "Course Provider";
 
   const effectivePrice = getEffectivePrice(course.price);
   const requiresPayment = effectivePrice > 0;

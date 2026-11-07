@@ -613,6 +613,16 @@ const Events: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Assigned Instructor Facilitator Badge */}
+                    {evt.facilitatorName && (
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/80 dark:bg-[#0078d4]/10 border border-blue-200/70 dark:border-[#0078d4]/30 text-xs text-slate-700 dark:text-slate-300 w-full">
+                        <UserCheck className="w-3.5 h-3.5 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
+                        <span className="truncate">
+                          Facilitated by <strong className="font-semibold text-slate-900 dark:text-white">{evt.facilitatorName}</strong> (Instructor)
+                        </span>
+                      </div>
+                    )}
+
                     {/* Bottom Action Bar */}
                     <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2.5">
                       {/* Primary CTA */}

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Globe,
   ShieldCheck,
@@ -35,9 +35,17 @@ import {
   MessageSquarePlus,
   X,
   Send,
+  Radio,
+  Download,
+  QrCode,
+  MapPin,
+  CalendarDays,
+  Mic,
+  Wifi,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
+import { useEventContext } from "../../store/EventContext";
 import { Course } from "../../types";
 import { CourseDonationModal } from "../components/CourseDonationModal";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
@@ -76,9 +84,22 @@ const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
 ];
 
 const Home: React.FC = () => {
+  const navigate = useNavigate();
   const { courses, organizations } = useAppContext();
   const { currentUser } = useAuth();
+  const { events } = useEventContext();
   const [donatingCourse, setDonatingCourse] = useState<Course | null>(null);
+
+  // Go Live feature state
+  const [showGoLiveModal, setShowGoLiveModal] = useState(false);
+  const [showJoinStreamModal, setShowJoinStreamModal] = useState(false);
+  const [liveStreamTitle, setLiveStreamTitle] = useState("");
+  const [liveRoomId, setLiveRoomId] = useState("backpack-faculty-live");
+  const [selectedLiveCourseId, setSelectedLiveCourseId] = useState("");
+
+  // Backpack Mobile Android launch pre-registration state
+  const [preRegisteredPlay, setPreRegisteredPlay] = useState(false);
+  const [showPlayToast, setShowPlayToast] = useState(false);
 
   // Testimonials state
   const [showTestimonialModal, setShowTestimonialModal] = useState(false);
@@ -1578,6 +1599,614 @@ const Home: React.FC = () => {
       )}
 
       {/* ======================================================== */}
+      {/* 8. UPCOMING ACADEMIC EVENTS (Student & Member Browsing) */}
+      {/* ======================================================== */}
+      <section className="space-y-6 py-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider mb-2">
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>Campus Schedules &amp; Orientations</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
+              Upcoming Academic Events &amp; Live Sessions
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-body">
+              Verified sessions scheduled by educational institutions and platform administrators. Students can explore and reserve attendance.
+            </p>
+          </div>
+
+          <Link
+            to="/events"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] text-[#0078d4] dark:text-[#04a4ec] text-xs sm:text-sm font-bold font-heading rounded-xl transition shadow-2xs hover:shadow-xs shrink-0 cursor-pointer"
+          >
+            <span>View Full Events Calendar</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {events.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.slice(0, 3).map((evt) => {
+              const isOnline = evt.mode === "online" || !evt.mode;
+              const dateObj = new Date(evt.date);
+              const formattedMonth = !Number.isNaN(dateObj.getTime())
+                ? dateObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase()
+                : "DATE";
+              const formattedDay = !Number.isNaN(dateObj.getTime())
+                ? dateObj.toLocaleDateString(undefined, { day: "2-digit" })
+                : "--";
+
+              return (
+                <div
+                  key={evt.id}
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] dark:hover:border-[#04a4ec] p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 group"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900 text-[#0078d4] dark:text-[#04a4ec]">
+                        {isOnline ? <Video className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
+                        {isOnline ? "Online Live" : "Campus Onsite"}
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-500">
+                        {evt.createdBy?.name || "Verified Organization"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-12 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center shrink-0">
+                        <div className="bg-[#0078d4] text-white text-[9px] font-bold py-0.5">
+                          {formattedMonth}
+                        </div>
+                        <div className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-extrabold text-lg py-0.5">
+                          {formattedDay}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-base font-heading text-slate-900 dark:text-white group-hover:text-[#0078d4] transition line-clamp-1">
+                          {evt.title}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                          {evt.subject}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Assigned Instructor Facilitator */}
+                    {evt.facilitatorName && (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/80 text-[11px] text-slate-700 dark:text-slate-300 w-full truncate">
+                        <UserCheck className="w-3.5 h-3.5 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
+                        <span className="truncate">
+                          Facilitator: <strong className="font-semibold text-slate-900 dark:text-white">{evt.facilitatorName}</strong> (Instructor)
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-3 text-xs text-slate-500 pt-1">
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-[#0078d4]" />
+                        <span>{evt.time || "Scheduled"}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-[#0078d4] shrink-0" />
+                        <span className="truncate">{evt.location}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-500">
+                      {evt.attendees?.length || 0} Attending
+                    </span>
+                    <Link
+                      to="/events"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#0078d4] hover:underline"
+                    >
+                      <span>Join &amp; Details</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/40 p-8 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#d6e9f8]/60 dark:bg-[#0f2231] text-[#0078d4] dark:text-[#04a4ec] border border-[#0078d4]/20 flex items-center justify-center mx-auto">
+              <CalendarDays className="w-6 h-6" />
+            </div>
+            <h4 className="text-base font-bold font-heading text-slate-900 dark:text-white">
+              No Public Events Scheduled Right Now
+            </h4>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+              Only verified organizations and platform administrators can create academic events. Check back soon for upcoming seminars, live classrooms, and campus workshops.
+            </p>
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                to="/explore"
+                className="px-4 py-2 bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs font-bold rounded-xl transition shadow-xs"
+              >
+                Browse Course Catalog
+              </Link>
+              <Link
+                to="/events"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition"
+              >
+                Go to Events Hub
+              </Link>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ======================================================== */}
+      {/* 9. GO LIVE ON BACKPACK (New Feature: Live Broadcasts)     */}
+      {/* ======================================================== */}
+      <section className="space-y-6 py-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="relative overflow-hidden rounded-3xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-br from-[#f0f7fd] via-white to-[#e8f3fc] dark:from-[#0a1824] dark:via-[#0f2231] dark:to-[#0a1824] p-6 sm:p-10 shadow-xs">
+          {/* Background Ambient Glow */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-red-500/10 dark:bg-red-500/15 rounded-full blur-3xl pointer-events-none -z-0" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#0078d4]/10 dark:bg-[#04a4ec]/10 rounded-full blur-3xl pointer-events-none -z-0" />
+
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            {/* Left Content Column */}
+            <div className="lg:col-span-7 space-y-5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 dark:bg-red-500/20 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-bold font-heading uppercase tracking-wider">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  New Feature · Live on Backpack
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading">
+                  <Radio className="w-3.5 h-3.5" />
+                  Interactive Classrooms
+                </span>
+              </div>
+
+              <h2 className="text-2xl sm:text-4xl font-extrabold font-heading text-slate-900 dark:text-white tracking-tight leading-tight">
+                Go Live on Backpack.
+                <span className="block text-[#0078d4] dark:text-[#04a4ec] mt-1">
+                  Teach, Broadcast &amp; Engage in Real-Time.
+                </span>
+              </h2>
+
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-body leading-relaxed max-w-xl">
+                Instructors and educational organizations can now launch interactive live video broadcasts directly from the browser. Anyone on the platform can discover active sessions, request instant access, and participate with questions, roll-calls, and screen sharing.
+              </p>
+
+              {/* Action Buttons for Both Audiences */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    if (!currentUser) {
+                      navigate("/login");
+                      return;
+                    }
+                    if (
+                      currentUser.role === "instructor" ||
+                      currentUser.role === "organization" ||
+                      currentUser.role === "super_admin"
+                    ) {
+                      setShowGoLiveModal(true);
+                    } else {
+                      // Student clicked Go Live: guide them to browse or request access
+                      setShowJoinStreamModal(true);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold font-heading text-sm transition shadow-md hover:shadow-lg cursor-pointer"
+                >
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  <span>Go Live Now</span>
+                </button>
+
+                <button
+                  onClick={() => setShowJoinStreamModal(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-[#d6e9f8] dark:border-slate-700 text-[#0078d4] dark:text-[#04a4ec] font-bold font-heading text-sm transition shadow-xs cursor-pointer"
+                >
+                  <Video className="w-4 h-4" />
+                  <span>Request Access &amp; Join Stream</span>
+                </button>
+              </div>
+
+              {/* 3 Pillars */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 text-xs">
+                <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-heading">
+                    <Mic className="w-3.5 h-3.5 text-red-500" />
+                    <span>In-Browser Studio</span>
+                  </div>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    Zero software installation. High-definition camera, mic, and screen share in 1 tap.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-heading">
+                    <Users className="w-3.5 h-3.5 text-[#0078d4]" />
+                    <span>Join Request Queue</span>
+                  </div>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    Hosts moderate entry requests or open streams to enrolled students and guests.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-heading">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Auto Attendance</span>
+                  </div>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    Live participation time logs automatically into the institution attendance record.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Interactive Mockup Visual */}
+            <div className="lg:col-span-5">
+              <div className="relative rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden shadow-2xl p-4 space-y-3">
+                {/* Broadcaster Preview Banner */}
+                <div className="relative aspect-video rounded-xl bg-gradient-to-tr from-slate-900 via-slate-800 to-indigo-950 flex flex-col justify-between p-4 overflow-hidden border border-slate-800">
+                  <div className="flex items-center justify-between z-10">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-600 text-white text-[10px] font-bold tracking-wider uppercase shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      LIVE STREAM
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 text-slate-200 text-[10px] font-medium backdrop-blur-sm">
+                      <Users className="w-3 h-3 text-emerald-400" />
+                      148 Watching
+                    </span>
+                  </div>
+
+                  {/* Center Presenter Badge */}
+                  <div className="text-center space-y-1 z-10">
+                    <div className="w-14 h-14 rounded-full bg-[#0078d4] text-white flex items-center justify-center font-bold text-lg mx-auto shadow-lg ring-4 ring-white/10">
+                      AE
+                    </div>
+                    <p className="text-white font-bold text-sm font-heading">
+                      Dr. Adaora Eze · Faculty of Computing
+                    </p>
+                    <p className="text-xs text-sky-300">
+                      Distributed Systems &amp; Real-Time WebSockets
+                    </p>
+                  </div>
+
+                  {/* Audio Equalizer Bars */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 z-10 pt-2 border-t border-white/10">
+                    <span className="flex items-center gap-1 text-emerald-400">
+                      <Mic className="w-3 h-3" /> Audio Active
+                    </span>
+                    <div className="flex items-end gap-1 h-3">
+                      <span className="w-1 bg-[#0078d4] h-2 rounded-full animate-bounce" />
+                      <span className="w-1 bg-[#04a4ec] h-3 rounded-full animate-bounce [animation-delay:0.1s]" />
+                      <span className="w-1 bg-emerald-400 h-1.5 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-1 bg-[#0078d4] h-3 rounded-full animate-bounce [animation-delay:0.3s]" />
+                    </div>
+                  </div>
+
+                  {/* Subtle Grid Pattern Overlay */}
+                  <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px]" />
+                </div>
+
+                {/* Simulated Live Chat Strip */}
+                <div className="rounded-xl bg-slate-900 p-3 space-y-2 border border-slate-800 text-xs">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-800 pb-1.5">
+                    <span className="font-semibold text-slate-300 font-heading">Live Class Stream Chat</span>
+                    <span className="text-emerald-400">● 14 Join Requests</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px]">
+                    <p className="text-slate-300">
+                      <strong className="text-sky-400">Chinedu Nwosu:</strong> Could you demonstrate how the split payment gateway reconciles?
+                    </p>
+                    <p className="text-slate-400">
+                      <strong className="text-emerald-400">Amaka Okafor:</strong> The audio and screen latency is super fast today!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-[11px] text-slate-400">
+                    Room ID: <code className="text-sky-300">backpack-live-class</code>
+                  </span>
+                  <button
+                    onClick={() => navigate("/live/backpack-live-class")}
+                    className="px-3 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                  >
+                    Join Live Class
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ======================================================== */}
+      {/* 10. OUR ANDROID APP LAUNCHING SOON (Backpack Mobile)     */}
+      {/* ======================================================== */}
+      <section className="space-y-6 py-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="relative overflow-hidden rounded-3xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-r from-slate-900 via-[#0a1824] to-[#0f2231] text-white p-6 sm:p-12 shadow-xl">
+          {/* Ambient luminous glow */}
+          <div className="absolute top-0 right-1/4 w-[500px] h-[300px] bg-[#0078d4]/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-10 w-[400px] h-[250px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            {/* Left Column: Description & Google Play CTA */}
+            <div className="lg:col-span-7 space-y-6">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-heading uppercase tracking-wider">
+                <Smartphone className="w-4 h-4 text-emerald-400" />
+                <span>Our Android App Launching Soon · Backpack Mobile</span>
+              </div>
+
+              <h2 className="text-3xl sm:text-5xl font-extrabold font-heading tracking-tight leading-[1.15]">
+                Backpack Mobile:
+                <span className="block text-[#04a4ec] mt-1 sm:mt-2">
+                  Carry Your Campus in Your Pocket.
+                </span>
+              </h2>
+
+              <p className="text-sm sm:text-base text-slate-300 font-body leading-relaxed max-w-xl">
+                Experience borderless learning engineered specifically for Android devices across Africa. Take physical lecture roll-calls via instant QR scan, stream live HD video lectures on low data, and download course curriculums for complete offline study.
+              </p>
+
+              {/* Feature Highlights Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#0078d4]/20 border border-[#0078d4]/40 flex items-center justify-center text-[#04a4ec] shrink-0 mt-0.5">
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold font-heading text-white">Instant QR Attendance</h4>
+                    <p className="text-[11px] text-slate-400 font-body">Scan classroom QR codes to mark verified attendance in seconds.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold font-heading text-white">Offline Lecture Sync</h4>
+                    <p className="text-[11px] text-slate-400 font-body">Download lessons on campus Wi-Fi; learn anywhere with zero data.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold font-heading text-white">Live Class Push Alerts</h4>
+                    <p className="text-[11px] text-slate-400 font-body">Get lockscreen reminders 15 minutes before your instructor goes live.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400 shrink-0 mt-0.5">
+                    <Wifi className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold font-heading text-white">Low-Bandwidth Adaptive</h4>
+                    <p className="text-[11px] text-slate-400 font-body">Dynamic video compression ensures smooth playback on 3G and 4G.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Get it on Google Play Button & Pre-register Actions */}
+              <div className="pt-3 flex flex-wrap items-center gap-4">
+                {/* Official styled Get it on Google Play Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreRegisteredPlay(true);
+                    setShowPlayToast(true);
+                    setTimeout(() => setShowPlayToast(false), 4000);
+                  }}
+                  className="group inline-flex items-center gap-3.5 px-5 py-2.5 rounded-2xl bg-black hover:bg-slate-900 border border-slate-700 hover:border-slate-500 text-white transition-all shadow-xl hover:scale-105 cursor-pointer"
+                  title="Get Backpack Mobile on Google Play"
+                >
+                  {/* Google Play Triangle SVG Icon */}
+                  <svg
+                    className="w-7 h-7 shrink-0"
+                    viewBox="0 0 512 512"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M325.3 234.3L100.8 10L308.2 217.2L325.3 234.3Z"
+                      fill="#00D2FF"
+                    />
+                    <path
+                      d="M407.5 216.5L342.3 178.8L325.3 234.3L342.3 251.3L407.6 213.6C416.7 208.3 416.7 197.3 407.5 216.5Z"
+                      fill="#FFCE00"
+                    />
+                    <path
+                      d="M20.5 4.8C10.6 15.3 5 30.6 5 48.7V463.3C5 481.4 10.6 496.7 20.5 507.2L227.6 300.1L20.5 4.8Z"
+                      fill="#00F076"
+                    />
+                    <path
+                      d="M325.3 277.7L308.2 294.8L100.8 502L325.3 277.7Z"
+                      fill="#FF3A44"
+                    />
+                  </svg>
+
+                  <div className="text-left font-sans">
+                    <span className="block text-[10px] tracking-widest text-slate-400 font-medium uppercase leading-none">
+                      GET IT ON
+                    </span>
+                    <span className="block text-base sm:text-lg font-bold text-white tracking-wide leading-tight">
+                      Google Play
+                    </span>
+                  </div>
+                </button>
+
+                {/* Pre-register status pill */}
+                {preRegisteredPlay ? (
+                  <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold font-heading animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>✓ Pre-registered for Android Launch</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreRegisteredPlay(true);
+                      setShowPlayToast(true);
+                      setTimeout(() => setShowPlayToast(false), 4000);
+                    }}
+                    className="text-xs font-semibold text-slate-300 hover:text-white underline underline-offset-4 cursor-pointer"
+                  >
+                    Notify me when the APK is available
+                  </button>
+                )}
+              </div>
+
+              {/* Toast confirmation */}
+              {showPlayToast && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-600/50 rounded-xl text-emerald-200 text-xs flex items-center gap-2 max-w-md animate-in slide-in-from-top-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Success! You're on the priority notification list for the Google Play APK release.</span>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: High-Fidelity Mobile App Mockup View */}
+            <div className="lg:col-span-5 flex justify-center">
+              {/* Phone Frame */}
+              <div className="relative w-[280px] sm:w-[320px] rounded-[42px] p-3 bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 border-4 border-slate-700/80 shadow-2xl shadow-cyan-950/50 ring-1 ring-white/10">
+                {/* Speaker Ear Notch / Dynamic Island */}
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 w-24 h-4 bg-black rounded-full z-30 flex items-center justify-center">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-900 ring-1 ring-slate-800 mr-2" />
+                  <span className="w-8 h-1 rounded-full bg-slate-800" />
+                </div>
+
+                {/* Smartphone Screen Canvas */}
+                <div className="relative w-full rounded-[34px] overflow-hidden bg-[#091824] text-slate-100 flex flex-col font-sans select-none border border-slate-800">
+                  {/* Status Bar */}
+                  <div className="pt-3 px-5 pb-2 flex items-center justify-between text-[10px] font-bold text-slate-300">
+                    <span>9:41</span>
+                    <div className="flex items-center gap-1.5">
+                      <Wifi className="w-3 h-3" />
+                      <span className="text-[9px]">5G</span>
+                      <span className="w-4 h-2 border border-slate-300 rounded-[2px] p-[1px] flex items-center">
+                        <span className="w-full h-full bg-emerald-400 rounded-[1px]" />
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* App Screen Header */}
+                  <div className="px-4 py-3 bg-[#0f2231] border-b border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-[#0078d4] text-white flex items-center justify-center font-bold text-xs">
+                        BP
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-white leading-tight">Backpack Mobile</p>
+                        <p className="text-[9px] text-sky-400">Student Portal</p>
+                      </div>
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 relative">
+                      <Bell className="w-3.5 h-3.5" />
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />
+                    </div>
+                  </div>
+
+                  {/* App Screen Body */}
+                  <div className="p-3.5 space-y-3 text-left">
+                    {/* Welcome pill */}
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-300">Welcome back, <strong>Chinedu</strong> 👋</span>
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-bold">Enrolled</span>
+                    </div>
+
+                    {/* Instant QR Check-in Banner */}
+                    <div className="rounded-xl p-3 bg-gradient-to-r from-[#0078d4] to-[#04a4ec] text-white shadow-md space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
+                          Attendance
+                        </span>
+                        <QrCode className="w-4 h-4 text-white" />
+                      </div>
+                      <p className="text-xs font-bold font-heading">
+                        Scan Campus QR Attendance
+                      </p>
+                      <button
+                        type="button"
+                        className="w-full py-1.5 rounded-lg bg-white text-[#0078d4] text-[11px] font-bold flex items-center justify-center gap-1 shadow-xs"
+                      >
+                        <QrCode className="w-3 h-3" />
+                        <span>Tap to Scan Lecture Roll-Call</span>
+                      </button>
+                    </div>
+
+                    {/* Active Live Class Card */}
+                    <div className="rounded-xl p-2.5 bg-slate-800/90 border border-slate-700/80 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="flex items-center gap-1 text-red-400 font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          LIVE CLASSROOM
+                        </span>
+                        <span className="text-slate-400">10:00 AM</span>
+                      </div>
+                      <p className="text-xs font-bold text-white truncate">
+                        Data Structures &amp; Algorithms
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        Dr. Adaora Eze · University of Ibadan
+                      </p>
+                      <div className="pt-1 flex items-center justify-between">
+                        <span className="text-[9px] text-emerald-400">Low-data optimized</span>
+                        <span className="px-2 py-0.5 rounded bg-[#0078d4] text-white text-[10px] font-bold">
+                          Enter Room
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Offline Downloads Widget */}
+                    <div className="rounded-xl p-2.5 bg-slate-800/60 border border-slate-700/60 flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-2">
+                        <Download className="w-4 h-4 text-emerald-400" />
+                        <div>
+                          <p className="font-bold text-white">Offline Synced</p>
+                          <p className="text-slate-400">3 Lectures ready</p>
+                        </div>
+                      </div>
+                      <span className="text-emerald-400 font-bold">Available Offline</span>
+                    </div>
+                  </div>
+
+                  {/* App Bottom Navigation Bar */}
+                  <div className="mt-auto px-4 py-2.5 bg-[#0f2231] border-t border-slate-800 flex items-center justify-between text-slate-400 text-[9px]">
+                    <span className="flex flex-col items-center text-[#04a4ec] font-bold">
+                      <School className="w-3.5 h-3.5" />
+                      Home
+                    </span>
+                    <span className="flex flex-col items-center">
+                      <Video className="w-3.5 h-3.5" />
+                      Live
+                    </span>
+                    <span className="flex flex-col items-center">
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      Courses
+                    </span>
+                    <span className="flex flex-col items-center">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      Profile
+                    </span>
+                  </div>
+
+                  {/* Bottom Home Indicator */}
+                  <div className="pb-1.5 pt-1 flex justify-center bg-[#0f2231]">
+                    <span className="w-20 h-1 bg-slate-600 rounded-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ======================================================== */}
       {/* 8. TESTIMONIALS (Community Stories)                      */}
       {/* ======================================================== */}
       <section className="space-y-8 py-6 border-t border-slate-200 dark:border-slate-800">
@@ -1783,8 +2412,233 @@ const Home: React.FC = () => {
         </div>
       )}
 
+      {/* Go Live Broadcaster Modal (Instructors & Organizations) */}
+      {showGoLiveModal && currentUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0f2231] rounded-3xl max-w-lg w-full border border-[#d6e9f8] dark:border-[#1e3a52] shadow-2xl p-6 sm:p-8 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center">
+                  <Radio className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                    Go Live on Backpack
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-body">
+                    Broadcast interactive lectures &amp; symposiums in real-time
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGoLiveModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const roomClean = (liveRoomId.trim() || `bp-live-${Date.now()}`)
+                  .toLowerCase()
+                  .replace(/[^a-z0-9-]/g, "-")
+                  .replace(/-+/g, "-");
+                setShowGoLiveModal(false);
+                navigate(`/live/${roomClean}?name=${encodeURIComponent(currentUser.name || "Instructor")}${selectedLiveCourseId ? `&courseId=${selectedLiveCourseId}` : ""}`);
+              }}
+              className="space-y-4 font-body"
+            >
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                  Broadcast Topic / Lecture Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={liveStreamTitle}
+                  onChange={(e) => setLiveStreamTitle(e.target.value)}
+                  placeholder="e.g. Masterclass: Scalable WebSockets with Node.js"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs outline-none focus:ring-2 focus:ring-red-500/30 text-slate-900 dark:text-white font-body"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                  Associated Course Cohort (Optional)
+                </label>
+                <select
+                  value={selectedLiveCourseId}
+                  onChange={(e) => setSelectedLiveCourseId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs outline-none focus:ring-2 focus:ring-[#0078d4]/30 text-slate-900 dark:text-white font-body"
+                >
+                  <option value="">Public Open Broadcast (All Students &amp; Guests)</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                  Live Room Identifier / Stream Key
+                </label>
+                <input
+                  type="text"
+                  value={liveRoomId}
+                  onChange={(e) => setLiveRoomId(e.target.value)}
+                  placeholder="e.g. comp-sci-101-live"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs font-mono outline-none focus:ring-2 focus:ring-[#0078d4]/30 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl text-[11px] text-red-700 dark:text-red-300 flex items-start gap-2">
+                <Video className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  Launching this room enables HD video, audio, and screen sharing. Students who join will have attendance recorded automatically.
+                </span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowGoLiveModal(false)}
+                  className="flex-1 py-2.5 bg-[#e2f0fb] dark:bg-[#1a384f] hover:bg-[#d6e9f8] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition font-heading cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 font-heading shadow-xs cursor-pointer"
+                >
+                  <Radio className="w-3.5 h-3.5 mr-1" />
+                  <span>Start Live Broadcast</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Request Access & Join Stream Modal (Students & General Attendees) */}
+      {showJoinStreamModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0f2231] rounded-3xl max-w-lg w-full border border-[#d6e9f8] dark:border-[#1e3a52] shadow-2xl p-6 sm:p-8 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] flex items-center justify-center">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                    Join Live Classroom
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-body">
+                    Enter an active broadcast or request session access
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowJoinStreamModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const roomClean = (liveRoomId.trim() || "backpack-public-classroom")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9-]/g, "-")
+                  .replace(/-+/g, "-");
+                setShowJoinStreamModal(false);
+                navigate(`/live/${roomClean}?name=${encodeURIComponent(currentUser?.name || "Guest Learner")}`);
+              }}
+              className="space-y-4 font-body"
+            >
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                  Active Channels
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setLiveRoomId("backpack-live-class")}
+                    className={`p-2.5 rounded-xl border text-left transition ${
+                      liveRoomId === "backpack-live-class"
+                        ? "border-[#0078d4] bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] font-bold"
+                        : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      Faculty Live Class
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Computing &amp; Tech</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setLiveRoomId("backpack-public-classroom")}
+                    className={`p-2.5 rounded-xl border text-left transition ${
+                      liveRoomId === "backpack-public-classroom"
+                        ? "border-[#0078d4] bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] font-bold"
+                        : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Public Auditorium
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Open Orientation</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                  Classroom Room ID / Access Key
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={liveRoomId}
+                  onChange={(e) => setLiveRoomId(e.target.value)}
+                  placeholder="e.g. backpack-live-class"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs font-mono outline-none focus:ring-2 focus:ring-[#0078d4]/30 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowJoinStreamModal(false)}
+                  className="flex-1 py-2.5 bg-[#e2f0fb] dark:bg-[#1a384f] hover:bg-[#d6e9f8] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition font-heading cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 font-heading shadow-xs cursor-pointer"
+                >
+                  <Video className="w-3.5 h-3.5 mr-1" />
+                  <span>Request Access &amp; Enter</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ======================================================== */}
-      {/* 9. FOOTER (Clean Microsoft / Coursera Navigation)        */}
+      {/* 11. FOOTER (Clean Microsoft / Coursera Navigation)       */}
       {/* ======================================================== */}
       <footer className="pt-12 border-t border-slate-200 dark:border-slate-700 font-body">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10 text-xs">
