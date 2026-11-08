@@ -172,6 +172,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const user = userCredential.user;
 
     let userRole: Role = cleanEmail === "ekenehq@gmail.com" ? "super_admin" : "student";
+    let orgId: string | undefined = undefined;
+
     try {
       const docSnap = await getDoc(doc(db, "backpack", user.uid));
       if (docSnap.exists()) {
@@ -190,7 +192,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           userRole = "super_admin";
         } else {
           userRole = personalInfo?.role || "student";
+          orgId = personalInfo?.orgId;
         }
+      } else {
+        // Check if this is an organization staff member (org_admin)
+        // Staff members are created in Auth but might not have a full User doc
+        // Or we might store their role in a different way.
+        // For now, let's assume they have a basic user doc with role 'org_admin'
+        // If not found, default to student.
       }
     } catch (e: any) {
       if (e.message?.includes("Account Suspended")) {

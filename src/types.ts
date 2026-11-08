@@ -1,4 +1,15 @@
-export type Role = "student" | "organization" | "instructor" | "super_admin";
+export type Role = "student" | "organization" | "instructor" | "super_admin" | "org_admin";
+
+export interface OrganizationAdmin {
+  id: string;
+  email: string;
+  name?: string;
+  role: "admin" | "staff";
+  permissions: string[]; // e.g. ["attendance_edit", "course_edit", "member_manage", "domain_manage"]
+  orgId: string;
+  password?: string; // For mock local auth if needed, though we prefer linking to a user
+  userId?: string;
+}
 
 export interface PaystackSubaccount {
   subaccount_code: string;
@@ -131,13 +142,13 @@ export interface Organization {
   isDeleted?: boolean;
   paystackSubaccount?: PaystackSubaccount;
   plan?: OrgPlanTier;
-  admins?: { 
-    email: string; 
-    name?: string; 
-    role: "admin" | "staff"; 
-    permissions: string[]; // e.g. ["attendance_edit", "course_edit", "member_manage"]
-    userId?: string 
-  }[];
+  // Domain Verification
+  domain?: string; // e.g. "academy.edu"
+  isDomainVerified?: boolean;
+  domainVerificationToken?: string;
+  domainVerificationMethod?: "dns" | "html" | "meta";
+  // Staff / Org Admins
+  admins?: OrganizationAdmin[];
 }
 
 export interface AdmissionSession {

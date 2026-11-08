@@ -41,6 +41,8 @@ import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
 import { AssessmentsOverview } from "../components/courseAssesment/AssessmentOverview";
 import { generateId } from "../../lib/id";
+import { DomainVerificationCard } from "../components/DomainVerificationCard";
+import { StaffManagement } from "../components/StaffManagement";
 
 const Dashboard = () => {
   const {
@@ -708,12 +710,13 @@ const Dashboard = () => {
 
   // Organization / Instructor Dashboard Logic
   const myOrg =
-    currentUser.role === "organization"
+    currentUser.role === "organization" || currentUser.role === "org_admin"
       ? organizations.find(
           (o) =>
             o.id === currentUser.id ||
             o.ownerId === currentUser.id ||
-            o.id === `org_${currentUser.id}`,
+            o.id === `org_${currentUser.id}` ||
+            (currentUser.orgId && (o.id === currentUser.orgId || o.ownerId === currentUser.orgId))
         )
       : null;
 
@@ -731,7 +734,7 @@ const Dashboard = () => {
   });
 
   const myCourses =
-    currentUser.role === "organization"
+    currentUser.role === "organization" || currentUser.role === "org_admin"
       ? courses.filter(
           (c) =>
             c.orgId === currentUser.id ||
@@ -776,6 +779,8 @@ const Dashboard = () => {
 
 
 
+  const isOrganizationOrAdmin = currentUser.role === "organization" || currentUser.role === "org_admin";
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -783,10 +788,12 @@ const Dashboard = () => {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-1">
             {currentUser.role === "organization"
               ? "Organization Management Dashboard"
-              : "Instructor Teaching Dashboard"}
+              : currentUser.role === "org_admin"
+                ? "Organization Staff Portal"
+                : "Instructor Teaching Dashboard"}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {currentUser.role === "organization"
+            {currentUser.role === "organization" || currentUser.role === "org_admin"
               ? "Manage cohorts, review student admissions, inspect uploaded documents, and track analytics."
               : "Manage your assigned institutional courses, student applications, and grading."}
           </p>
@@ -798,7 +805,7 @@ const Dashboard = () => {
         <KnowledgeCityBanner variant="instructor" />
       )}
 
-      {currentUser.role === "organization" && (
+      {isOrganizationOrAdmin && (
         <AnalyticsOverview
           courses={myCourses}
           progressData={userProgress}
@@ -1075,6 +1082,14 @@ const Dashboard = () => {
         assessments={assessments}
         submissions={submissions}
       />
+
+      {/* Organization Administration: Staff & Domain */}
+      {isOrganizationOrAdmin && myOrg && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <StaffManagement organization={myOrg} />
+          <DomainVerificationCard organization={myOrg} />
+        </div>
+      )}
 
       {/* Courses Overview & Admission Session Controls */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-4 shadow-sm">

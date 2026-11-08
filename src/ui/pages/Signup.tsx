@@ -616,7 +616,7 @@ const Signup = () => {
 
           {/* App Version Tag */}
           <div className="pt-2 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 font-heading tracking-wider">
-            v0.1.2
+            v0.1.9
           </div>
         </div>
       </div>

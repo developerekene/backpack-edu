@@ -414,6 +414,35 @@ const Home: React.FC = () => {
       <div className="max-w-7xl mx-auto px-3.5 sm:px-6 w-full space-y-20 sm:space-y-24 py-12">
 
       {/* ======================================================== */}
+      {/* PARTNERS SECTION                                         */}
+      {/* ======================================================== */}
+      <section className="py-6 border-y border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 rounded-2xl px-6">
+        <div className="text-center space-y-4">
+          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest font-heading">
+            Trusted by Leading Technology &amp; Educational Partners across Africa
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-16 opacity-85">
+            <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-extrabold text-sm sm:text-base font-heading">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#0078d4]" />
+              <span>D'roid Technologies</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-extrabold text-sm sm:text-base font-heading">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span>LeadPac Foundation</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-extrabold text-sm sm:text-base font-heading">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+              <span>Knowledge City</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-extrabold text-sm sm:text-base font-heading">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <span>iLead Foundation</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ======================================================== */}
       {/* 2. CORE CAPABILITIES (3-Card Pillar Structure)           */}
       {/* ======================================================== */}
       <section className="space-y-8">
@@ -1753,9 +1782,9 @@ const Home: React.FC = () => {
             {/* Left Content Column */}
             <div className="lg:col-span-7 space-y-5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 dark:bg-red-500/20 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-bold font-heading uppercase tracking-wider">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  New Feature · Live on Backpack
+                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider">
+                  <span className="w-2 h-2 rounded-full bg-[#0078d4] animate-pulse" />
+                  Coming Soon · Live on Backpack
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading">
                   <Radio className="w-3.5 h-3.5" />
@@ -1771,10 +1800,10 @@ const Home: React.FC = () => {
               </h2>
 
               <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-body leading-relaxed max-w-xl">
-                Instructors and educational organizations can now launch interactive live video broadcasts directly from the browser. Anyone on the platform can discover active sessions, request instant access, and participate with questions, roll-calls, and screen sharing.
+                Instructors and educational organizations will soon be able to launch interactive live video broadcasts directly from the browser. Anyone on the platform will be able to discover active sessions and participate with questions and screen sharing.
               </p>
 
-              {/* Action Buttons for Both Audiences */}
+              {/* Action Button */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={() => {
@@ -1789,22 +1818,13 @@ const Home: React.FC = () => {
                     ) {
                       setShowGoLiveModal(true);
                     } else {
-                      // Student clicked Go Live: guide them to browse or request access
                       setShowJoinStreamModal(true);
                     }
                   }}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold font-heading text-sm transition shadow-md hover:shadow-lg cursor-pointer"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white font-bold font-heading text-sm transition shadow-md hover:shadow-lg cursor-pointer"
                 >
                   <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                   <span>Go Live Now</span>
-                </button>
-
-                <button
-                  onClick={() => setShowJoinStreamModal(true)}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-[#d6e9f8] dark:border-slate-700 text-[#0078d4] dark:text-[#04a4ec] font-bold font-heading text-sm transition shadow-xs cursor-pointer"
-                >
-                  <Video className="w-4 h-4" />
-                  <span>Request Access &amp; Join Stream</span>
                 </button>
               </div>
 
@@ -1908,12 +1928,9 @@ const Home: React.FC = () => {
                   <span className="text-[11px] text-slate-400">
                     Room ID: <code className="text-sky-300">backpack-live-class</code>
                   </span>
-                  <button
-                    onClick={() => navigate("/live/backpack-live-class")}
-                    className="px-3 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs font-bold rounded-lg transition cursor-pointer"
-                  >
-                    Join Live Class
-                  </button>
+                  <span className="px-3 py-1 bg-slate-800 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700">
+                    Sample Preview · Coming Soon
+                  </span>
                 </div>
               </div>
             </div>
@@ -2685,7 +2702,7 @@ const Home: React.FC = () => {
             <Link to="/privacy" className="hover:text-[#0078d4]">Terms</Link>
             <Link to="/events" className="hover:text-[#0078d4]">Events</Link>
             <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              v0.1.5
+              v0.1.9
             </span>
           </div>
         </div>
