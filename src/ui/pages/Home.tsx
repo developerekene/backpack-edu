@@ -379,13 +379,13 @@ const Home: React.FC = () => {
                 <span>Get Started Free</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link
+              {/* <Link
                 to="/onboard"
                 className="w-full sm:w-auto px-6 py-3 bg-white dark:bg-[#0f2231] hover:bg-slate-50 dark:hover:bg-[#1a384f] text-slate-700 dark:text-slate-200 border border-[#d6e9f8] dark:border-[#1e3a52] font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Building2 className="w-4 h-4 text-[#0078d4]" />
                 <span>Register an Institution</span>
-              </Link>
+              </Link> */}
             </div>
 
             {/* Proof Bar (Microsoft / Coursera Metric Tiles) */}
