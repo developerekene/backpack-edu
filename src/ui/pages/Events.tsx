@@ -41,6 +41,7 @@ import {
   resolveEnrolledCourse,
   useMyCourses,
 } from "../../lib/eventEligibility";
+import Footer from "../components/Footer";
 
 /* ============================================================= */
 /* Helpers & Types                                               */
@@ -789,6 +790,7 @@ const Events: React.FC = () => {
           onCancel={() => setEventToDelete(null)}
         />
       )}
+      <Footer />
     </div>
   );
 };
