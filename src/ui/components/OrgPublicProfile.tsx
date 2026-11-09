@@ -86,17 +86,15 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState(false);
 
-  // Check if current user is the owner or admin of this organization
+  // Check if current user is the owner of this organization
   const isOwner = useMemo(() => {
-    if (!currentUser?.id) return false;
+    if (!currentUser) return false;
     return (
-      currentUser.role === "super_admin" ||
       currentUser.id === orgUserId || 
       currentUser.id === orgData?.ownerId || 
       currentUser.id === orgData?.id ||
       orgUserId === `org_${currentUser.id}` ||
-      orgData?.id === `org_${currentUser.id}` ||
-      Boolean(orgData?.adminUserIds && orgData.adminUserIds.includes(currentUser.id))
+      orgData?.id === `org_${currentUser.id}`
     );
   }, [currentUser, orgUserId, orgData]);
 
@@ -298,8 +296,8 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   // Loading State
   if (loading) {
     return (
-      <div className="min-h-[500px] flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-[500px] flex flex-col items-center justify-center space-y-4 font-body">
+        <div className="w-10 h-10 border-4 border-[#0078d4] border-t-transparent rounded-full animate-spin"></div>
         <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Loading institution profile...</p>
       </div>
     );
@@ -308,17 +306,17 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   // Not Found / Deleted State
   if (error || !orgData || orgData.isDeleted) {
     return (
-      <div className="max-w-3xl mx-auto py-20 px-6 text-center">
-        <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-6 text-slate-400">
+      <div className="max-w-3xl mx-auto py-20 px-6 text-center font-body">
+        <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-5 text-slate-400">
           <Building className="w-10 h-10" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Organization Profile Not Found</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 font-heading">Organization Profile Not Found</h2>
         <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-8">
           The educational institution profile you requested does not exist or has been modified.
         </p>
         <button
           onClick={() => onBack ? onBack() : navigate('/explore')}
-          className="inline-flex items-center px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition shadow-lg shadow-indigo-600/20"
+          className="inline-flex items-center px-6 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white font-bold rounded-xl transition shadow-xs font-heading cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 mr-2" /> Return to Directory
         </button>
@@ -327,13 +325,13 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto pb-16 space-y-8 animate-in fade-in duration-300">
+    <div className="w-full max-w-7xl mx-auto pb-16 space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       {/* Navigation & Owner Action Bar */}
-      <div className="flex items-center justify-between px-2">
+      <div className="flex items-center justify-between px-2 font-heading">
         {showBackButton && (
           <button
             onClick={() => onBack ? onBack() : navigate(-1)}
-            className="inline-flex items-center text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white transition"
+            className="inline-flex items-center text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </button>
@@ -343,10 +341,10 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           <div className="flex items-center gap-3 ml-auto">
             <button
               onClick={() => setIsCustomizing(true)}
-              className="inline-flex items-center px-4 py-2 text-xs sm:text-sm font-bold text-white rounded-xl shadow-md transition transform active:scale-95"
+              className="inline-flex items-center px-4 py-2 text-xs sm:text-sm font-bold text-white rounded-xl shadow-xs transition cursor-pointer"
               style={{ backgroundColor: activeTheme.primary }}
             >
-              <Palette className="w-4 h-4 mr-2" /> Customize Webpage Theme
+              <Palette className="w-4 h-4 mr-2" /> Customize Brand Profile
             </button>
           </div>
         )}
@@ -356,41 +354,33 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           1. HEADER BANNER
           ========================================================================================= */}
       <div 
-        className="rounded-3xl border border-slate-200 dark:border-slate-700/80 overflow-hidden shadow-xl text-center relative"
-        style={{
-          background: `linear-gradient(135deg, ${activeTheme.primary}ee, #0f172a 90%)`
-        }}
+        className="rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-xs text-center relative"
+        style={{ backgroundColor: activeTheme.primary }}
       >
-        {/* Subtle Decorative Pattern Overlay */}
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
-
         <div className="relative z-10 py-12 px-6 sm:px-12 flex flex-col items-center">
           {/* Institutional Crest / Emblem */}
           <div className="relative mb-6">
             <div 
-              className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl p-1 shadow-2xl flex items-center justify-center border-2 border-white/20 bg-slate-900/80 backdrop-blur-md transform transition hover:scale-105"
+              className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl flex items-center justify-center border-4 border-white/20 bg-white shadow-md overflow-hidden"
             >
               {orgData.logoUrl ? (
                 <img 
                   src={orgData.logoUrl} 
                   alt={`${orgData.name} Crest`}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain rounded-2xl p-2"
+                  className="w-full h-full object-contain p-2"
                 />
               ) : (
-                <div 
-                  className="w-full h-full rounded-2xl flex flex-col items-center justify-center text-white"
-                  style={{ backgroundColor: `${activeTheme.primary}99` }}
-                >
-                  <Building className="w-10 h-10 mb-1 text-white" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white/80">EST. ACADEMY</span>
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                  <Building className="w-10 h-10 mb-1" />
+                  <span className="text-[10px] font-black uppercase tracking-widest font-heading">Academy</span>
                 </div>
               )}
             </div>
-
+            
             {orgData.isAccredited && (
               <div 
-                className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1.5 rounded-full shadow-lg border-2 border-slate-900"
+                className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1.5 rounded-full shadow-md border-2 border-white"
                 title="Accredited Institution"
               >
                 <ShieldCheck className="w-5 h-5" />
@@ -399,43 +389,43 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           </div>
 
           {/* Institutional Name */}
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight uppercase max-w-4xl font-serif">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight max-w-4xl font-heading">
             {orgData.name}
           </h1>
 
           {/* Tagline / Motto */}
           {orgData.motto ? (
-            <p className="mt-3 text-base sm:text-lg italic text-slate-200/90 font-medium max-w-2xl">
+            <p className="mt-3 text-sm sm:text-base italic text-white/90 font-medium max-w-2xl font-body">
               &ldquo;{orgData.motto}&rdquo;
             </p>
           ) : null}
 
           {/* Badges Bar */}
-          <div className="flex flex-wrap items-center justify-center gap-2.5 mt-6">
-            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-white/10 text-white border border-white/20 backdrop-blur-sm">
+          <div className="flex flex-wrap items-center justify-center gap-2.5 mt-6 font-heading">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-bold bg-white/20 text-white backdrop-blur-md uppercase tracking-wider">
               <GraduationCap className="w-3.5 h-3.5 mr-1.5 text-amber-300" />
               {orgData.orgType === 'higher' ? 'Higher Education' : orgData.orgType === 'vocational' ? 'Vocational Institute' : 'Basic Education Academy'}
             </span>
 
             {orgData.isAccredited ? (
-              <span className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 backdrop-blur-sm">
-                <Award className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
+              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-bold bg-emerald-500/30 text-white backdrop-blur-md uppercase tracking-wider border border-emerald-400/30">
+                <Award className="w-3.5 h-3.5 mr-1.5 text-emerald-300" />
                 Accredited {orgData.accreditingBody ? `by ${orgData.accreditingBody}` : 'Institution'}
               </span>
             ) : (
-              <span className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 backdrop-blur-sm">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-bold bg-white/20 text-white backdrop-blur-md uppercase tracking-wider">
                 Accreditation: {orgData.accreditationStatus || 'Standard'}
               </span>
             )}
 
             {orgData.location && (
-              <span className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-white/10 text-white border border-white/20 backdrop-blur-sm">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-bold bg-white/20 text-white backdrop-blur-md uppercase tracking-wider">
                 <MapPin className="w-3.5 h-3.5 mr-1.5 text-rose-300" />
                 {orgData.location}
               </span>
             )}
 
-            <span className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-white/10 text-white border border-white/20 backdrop-blur-sm">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-bold bg-white/20 text-white backdrop-blur-md uppercase tracking-wider">
               <DollarSign className="w-3.5 h-3.5 mr-1 text-emerald-300" />
               {orgData.baseCurrency}
             </span>
@@ -446,31 +436,20 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
       {/* =========================================================================================
           2 & 3. TWO-COLUMN CONTENT GRID (Main Column Left + Sidebar Panel Right)
           ========================================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
         
         {/* =========================================================================================
             2. MAIN COLUMN (Left)
             ========================================================================================= */}
-        <div className="lg:col-span-8 space-y-8">
+        <div className="lg:col-span-8 space-y-6 sm:space-y-8">
           
-          {/* [ ABOUT OUR INSTITUTION ] */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
-              <h2 
-                className="text-lg sm:text-xl font-bold tracking-wide uppercase flex items-center"
-                style={{ color: activeTheme.primary }}
-              >
-                [ ABOUT OUR INSTITUTION ]
-              </h2>
-            </div>
+          {/* ABOUT OUR INSTITUTION */}
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-xs">
+            <h2 className="text-lg sm:text-xl font-bold font-heading text-slate-900 dark:text-white mb-4">
+              About {orgData.name}
+            </h2>
             
-            {/* Themed Accent Divider */}
-            <div 
-              className="h-1 w-20 rounded-full my-4"
-              style={{ backgroundColor: activeTheme.accent }}
-            ></div>
-
-            <div className="prose dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed space-y-4 font-normal">
+            <div className="prose dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed font-body">
               {orgData.description ? (
                 <p>{orgData.description}</p>
               ) : (
@@ -479,37 +458,26 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
             </div>
           </div>
 
-          {/* [ ACADEMIC HIGHLIGHTS ] */}
+          {/* ACADEMIC HIGHLIGHTS */}
           {displayHighlights.length > 0 && (
-            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
-                <h2 
-                  className="text-lg sm:text-xl font-bold tracking-wide uppercase flex items-center"
-                  style={{ color: activeTheme.primary }}
-                >
-                  [ ACADEMIC HIGHLIGHTS ]
-                </h2>
-              </div>
+            <div className="bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-xs">
+              <h2 className="text-lg sm:text-xl font-bold font-heading text-slate-900 dark:text-white mb-4">
+                Academic Highlights
+              </h2>
 
-              {/* Themed Accent Divider */}
-              <div 
-                className="h-1 w-20 rounded-full my-4"
-                style={{ backgroundColor: activeTheme.accent }}
-              ></div>
-
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {displayHighlights.map((highlight, idx) => (
                   <li 
                     key={idx} 
-                    className="flex items-start p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 transition hover:border-slate-300 dark:hover:border-slate-700"
+                    className="flex items-start p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 shadow-2xs font-body"
                   >
                     <div 
-                      className="w-6 h-6 rounded-full flex items-center justify-center mr-3 shrink-0 mt-0.5"
-                      style={{ backgroundColor: `${activeTheme.accent}20`, color: activeTheme.accent }}
+                      className="w-5 h-5 rounded-full flex items-center justify-center mr-3 shrink-0 mt-0.5"
+                      style={{ backgroundColor: `${activeTheme.primary}20`, color: activeTheme.primary }}
                     >
-                      <Check className="w-3.5 h-3.5" />
+                      <Check className="w-3 h-3" />
                     </div>
-                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-snug">
                       {highlight}
                     </span>
                   </li>
@@ -523,84 +491,71 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
             3. SIDEBAR PANEL (Right)
             ========================================================================================= */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-sm space-y-6 sticky top-6">
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-5 sticky top-6">
             
-            <div>
-              <h2 
-                className="text-lg font-bold tracking-wide uppercase"
-                style={{ color: activeTheme.primary }}
-              >
-                [ CAMPUS DIRECTORY ]
-              </h2>
-              {/* Themed Accent Divider */}
-              <div 
-                className="h-1 w-16 rounded-full my-3"
-                style={{ backgroundColor: activeTheme.accent }}
-              ></div>
-            </div>
+            <h2 className="text-base font-bold font-heading text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-3">
+              Campus Directory
+            </h2>
 
-            {/* 📧 Phone, Address, Web Portal */}
+            {/* Phone */}
             {orgData.phone && (
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center">
-                  <Phone className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> Front Desk Phone
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 font-body">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1 font-heading flex items-center">
+                  <Phone className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> Front Desk Phone
                 </span>
                 <a 
                   href={`tel:${orgData.phone}`}
-                  className="text-sm font-bold text-slate-900 dark:text-white hover:underline"
+                  className="text-sm font-bold text-slate-900 dark:text-white hover:text-[#0078d4] dark:hover:text-[#04a4ec] transition-colors"
                 >
                   {orgData.phone}
                 </a>
               </div>
             )}
 
-            {/* 📍 Campus Address */}
+            {/* Address */}
             {orgData.address && (
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center">
-                  <MapPin className="w-3.5 h-3.5 mr-1.5 text-rose-500" /> Campus Address
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 font-body">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1 font-heading flex items-center">
+                  <MapPin className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> Campus Address
                 </span>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                <p className="text-sm font-medium text-slate-900 dark:text-white leading-snug">
                   {orgData.address}
                 </p>
                 {orgData.location && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-wider font-bold">
                     {orgData.location}
                   </p>
                 )}
               </div>
             )}
 
-            {/* 🌐 Official Web Portal */}
+            {/* Website */}
             {orgData.website && (
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2 flex items-center">
-                  <Globe className="w-3.5 h-3.5 mr-1.5 text-sky-500" /> Official Web Portal
-                </span>
+              <div className="pt-2">
                 <a
                   href={orgData.website.startsWith('http') ? orgData.website : `https://${orgData.website}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold text-white transition shadow-md"
+                  className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold text-white transition shadow-sm hover:opacity-90 font-heading cursor-pointer"
                   style={{ backgroundColor: activeTheme.primary }}
                 >
-                  Visit Official Portal <ExternalLink className="w-3.5 h-3.5 ml-2" />
+                  Visit Official Web Portal <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
                 </a>
               </div>
             )}
 
-            {/* 🛡️ Verification Proof */}
+            {/* Accreditation Doc */}
             {orgData.accreditationDocUrl && (
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50">
-                <div className="flex items-center space-x-2 text-emerald-700 dark:text-emerald-300 font-bold text-xs mb-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span>Verified Institutional Credential</span>
+              <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 mt-4">
+                <div className="flex items-center space-x-2 text-emerald-700 dark:text-emerald-300 font-bold text-xs mb-1.5 font-heading">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Verified Credentials</span>
                 </div>
                 <a
                   href={orgData.accreditationDocUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                  className="inline-flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline font-heading"
                 >
                   <FileText className="w-3.5 h-3.5 mr-1.5" /> View Accreditation License
                 </a>
@@ -613,44 +568,34 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
       {/* =========================================================================================
           4. COURSES FEED
           ========================================================================================= */}
-      <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-xs space-y-6 mt-2">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-700">
           <div>
-            <div className="flex items-center space-x-3">
-              <h2 
-                className="text-xl sm:text-2xl font-bold tracking-wide uppercase flex items-center"
-                style={{ color: activeTheme.primary }}
-              >
-                [ 4. COURSES FEED ]
-              </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+            <h2 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white flex items-center">
+              Program Catalog
+              <span className="ml-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {courses.length} Available
               </span>
-            </div>
-            {/* Themed Accent Divider */}
-            <div 
-              className="h-1 w-20 rounded-full my-2"
-              style={{ backgroundColor: activeTheme.accent }}
-            ></div>
+            </h2>
           </div>
 
-          {/* Search & Qualification Filters */}
+          {/* Search & Filters */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search courses..."
+                placeholder="Search catalog..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                className="pl-9 pr-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 focus:border-[#0078d4] text-slate-900 dark:text-white font-body shadow-2xs min-w-[200px]"
               />
             </div>
 
             <select
               value={selectedQualType}
               onChange={(e) => setSelectedQualType(e.target.value)}
-              className="px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+              className="px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 focus:border-[#0078d4] font-body shadow-2xs appearance-none cursor-pointer"
             >
               <option value="all">All Qualifications</option>
               <option value="bachelors">Bachelors Degree</option>
@@ -664,14 +609,14 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
 
         {/* Courses Cards Grid */}
         {filteredCourses.length === 0 ? (
-          <div className="py-16 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-            <BookOpen className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200 mb-1">
-              {courses.length === 0 ? "No Courses Currently Published" : "No Matching Courses Found"}
+          <div className="py-16 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+            <BookOpen className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 font-heading">
+              {courses.length === 0 ? "No Programs Available" : "No Matching Programs Found"}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-body">
               {courses.length === 0 
-                ? "This institution has not yet listed active courses in its public catalog."
+                ? "This institution has not yet listed active programs in its public catalog."
                 : "Try adjusting your search terms or qualification filter."}
             </p>
           </div>
@@ -690,116 +635,120 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
 
               const isOpen = course.admissionStatus !== 'closed';
               const isRejected = status === 'rejected';
+              const isNonProfit = isDonationFundedVocational(course);
 
               return (
                 <div 
                   key={course.id}
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 flex flex-col justify-between transition hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 group"
+                  className="group relative bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden"
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      {course.qualificationTitle ? (
-                        <span 
-                          className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold"
-                          style={{ backgroundColor: `${activeTheme.primary}15`, color: activeTheme.primary }}
-                        >
-                          <GraduationCap className="w-3.5 h-3.5 mr-1" />
-                          {course.qualificationTitle}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Course Track</span>
-                      )}
+                  <div className="absolute top-0 left-0 right-0 h-1.5 opacity-90 transition-opacity" style={{ backgroundColor: activeTheme.primary }} />
 
-                      <div className="flex items-center gap-1.5">
-                        <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                  <div className="p-5 flex flex-col flex-1 gap-4">
+                    <div>
+                      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                        {course.qualificationTitle ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider font-heading bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            <GraduationCap className="w-3 h-3 mr-1" />
+                            {course.qualificationTitle}
+                          </span>
+                        ) : course.qualificationType ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider font-heading bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            <GraduationCap className="w-3 h-3 mr-1" />
+                            {course.qualificationType}
+                          </span>
+                        ) : null}
+
+                        <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider font-heading px-2 py-0.5 rounded-md border ${
                           isOpen
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                            : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
+                            : 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60'
                         }`}>
                           {isOpen ? (
-                            <><DoorOpen className="w-3 h-3 mr-1" /> Admission Open ({course.activeSessionName || 'Current'})</>
+                            <><DoorOpen className="w-3 h-3 mr-1" /> Open ({course.activeSessionName || 'Current'})</>
                           ) : (
-                            <><DoorClosed className="w-3 h-3 mr-1" /> Admission Closed</>
+                            <><DoorClosed className="w-3 h-3 mr-1" /> Closed</>
                           )}
                         </span>
-
-                        {course.paymentTerms === 'installment' && (
-                          <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                            Installments
-                          </span>
-                        )}
                       </div>
-                    </div>
 
-                    <h3
-                      onClick={() => navigate(`/course/${course.id}`)}
-                      className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-500 transition line-clamp-2 cursor-pointer"
-                      title="View Course Details"
-                    >
-                      {course.title}
-                    </h3>
+                      <h3
+                        onClick={() => navigate(`/course/${course.id}`)}
+                        className="text-lg font-bold text-slate-900 dark:text-white transition-colors line-clamp-2 cursor-pointer font-heading leading-snug"
+                        style={{ ":hover": { color: activeTheme.primary } } as React.CSSProperties}
+                        title="View Course Details"
+                      >
+                        {course.title}
+                      </h3>
 
-                    {course.instructorName && (
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                        Instructor: <span className="font-semibold text-slate-700 dark:text-slate-300">{course.instructorName}</span>
+                      {course.instructorName && (
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-2 font-body">
+                          Lead: <span className="font-bold text-slate-700 dark:text-slate-300">{course.instructorName}</span>
+                        </p>
+                      )}
+
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-3 mt-3 font-body leading-relaxed">
+                        {course.description}
                       </p>
-                    )}
-
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-3">
-                      {course.description}
-                    </p>
-
-                    {course.requirements && (
-                      <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/50 text-xs text-slate-500 dark:text-slate-400">
-                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-0.5">Prerequisites:</span>
-                        <span className="line-clamp-2">{course.requirements}</span>
-                      </div>
-                    )}
+                    </div>
                   </div>
 
-                  <div className="pt-5 mt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                  <div className="px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-3">
                     <div>
-                      <span className="text-xs text-slate-400 block font-medium">Tuition Fee</span>
-                      <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      <div className="text-lg font-extrabold text-slate-900 dark:text-white font-heading truncate">
                         {course.price > 0 ? `${course.currency || orgData.baseCurrency} ${formatPriceWithDecimals(getEffectivePrice(course.price))}` : "Free Admission"}
-                      </span>
+                      </div>
+                      {course.paymentTermsAllowed === 'installment' || course.paymentTermsAllowed === 'both' ? (
+                        <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500 mt-0.5 font-heading">
+                          Installments Available
+                        </div>
+                      ) : null}
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      {isDonationFundedVocational(course) && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => navigate(`/course/${course.id}`)}
+                        className="flex-1 min-w-[100px] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-400 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold font-heading transition cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
+                        title="View Course Details"
+                      >
+                        Details
+                      </button>
+                      
+                      {isNonProfit && (
                         <button
                           onClick={() => setDonatingCourse(course)}
-                          className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95 bg-emerald-600"
+                          className="flex-1 min-w-[100px] px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold font-heading transition flex items-center justify-center shadow-2xs shrink-0 cursor-pointer"
                         >
-                          <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Donate/Sponsor
+                          <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Sponsor
                         </button>
                       )}
+
                       {currentUser?.role === 'organization' ? (
                         <button
                           onClick={() => navigate(`/course/${course.id}`)}
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95"
+                          className="flex-1 min-w-[100px] px-3 py-2 rounded-xl text-xs font-bold text-white transition flex items-center justify-center shadow-2xs shrink-0 cursor-pointer"
                           style={{ backgroundColor: activeTheme.primary }}
                         >
                           {course.orgId === currentUser.id || course.orgId === `org_${currentUser.id}` || isOwner ? (
-                            <>View Classroom <BookOpen className="w-3.5 h-3.5 ml-1.5" /></>
+                            <>Classroom <BookOpen className="w-3.5 h-3.5 ml-1.5" /></>
                           ) : (
-                            <>View Details <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>
+                            <>View <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>
                           )}
                         </button>
                       ) : status === 'approved' ? (
-                        <span className="inline-flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20">
-                          <ShieldCheck className="w-4 h-4 mr-1.5" /> Enrolled
+                        <span className="flex-1 min-w-[100px] text-emerald-600 dark:text-emerald-400 text-xs font-bold font-heading flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/60 px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
+                          <ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> Enrolled
                         </span>
                       ) : status === 'pending' ? (
-                        <span className="inline-flex items-center text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-2 rounded-xl border border-amber-500/20">
-                          Pending Review
+                        <span className="flex-1 min-w-[100px] text-amber-600 dark:text-amber-400 text-xs font-bold font-heading px-3 py-2 bg-amber-50 dark:bg-amber-950/60 rounded-xl border border-amber-200 dark:border-amber-800/60 flex items-center justify-center">
+                          Pending
                         </span>
                       ) : activeInvite ? (
                         <button
                           onClick={() => setJoiningInvite({ course, invite: activeInvite })}
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95 bg-emerald-600"
+                          className="flex-1 min-w-[100px] px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold font-heading transition flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
                         >
-                          <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Accept & Join
+                          <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Accept
                         </button>
                       ) : isRejected ? (
                         isOpen ? (
@@ -809,26 +758,23 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                                 navigate('/login');
                                 return;
                               }
-                              if (currentUser.role === 'organization') {
-                                alert("Only student and instructor accounts can apply for courses.");
-                                return;
-                              }
                               setEnrollModalCourse(course);
                             }}
                             disabled={isEnrolling}
-                            className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95 bg-indigo-600"
+                            className="flex-1 min-w-[100px] px-3 py-2 rounded-xl text-xs font-bold text-white transition flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
+                            style={{ backgroundColor: activeTheme.primary }}
                           >
                             <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reapply
                           </button>
                         ) : (
-                          <span className="inline-flex items-center text-xs font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-3 py-2 rounded-xl border border-red-500/20">
-                            Admissions Closed
+                          <span className="flex-1 min-w-[100px] text-red-600 dark:text-red-400 text-[11px] font-bold font-heading px-3 py-2 bg-red-50 dark:bg-red-950/60 rounded-xl border border-red-200 dark:border-red-800/60 flex items-center justify-center uppercase tracking-wider">
+                            Closed
                           </span>
                         )
                       ) : !isOpen ? (
                         <button
                           disabled
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-800 cursor-not-allowed"
+                          className="flex-1 min-w-[100px] px-3 py-2 rounded-xl text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-not-allowed flex items-center justify-center font-heading"
                         >
                           <DoorClosed className="w-3.5 h-3.5 mr-1.5" /> Closed
                         </button>
@@ -839,17 +785,13 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                               navigate('/login');
                               return;
                             }
-                            if (currentUser.role === 'organization') {
-                              alert("Only student and instructor accounts can apply for courses.");
-                              return;
-                            }
                             setEnrollModalCourse(course);
                           }}
                           disabled={isEnrolling}
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95"
+                          className="flex-1 min-w-[100px] px-3 py-2 rounded-xl text-xs font-bold text-white transition flex items-center justify-center shadow-2xs cursor-pointer shrink-0 font-heading"
                           style={{ backgroundColor: activeTheme.primary }}
                         >
-                          Apply <Send className="w-3.5 h-3.5 ml-1.5" />
+                          Apply <Send className="w-3 h-3 ml-1.5" />
                         </button>
                       )}
                     </div>
@@ -865,33 +807,30 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           5. FOOTER
           ========================================================================================= */}
       <footer 
-        className="rounded-3xl border border-slate-200 dark:border-slate-700/80 p-8 text-center text-slate-500 dark:text-slate-400 space-y-4"
-        style={{
-          borderTop: `4px solid ${activeTheme.primary}`,
-          backgroundColor: `${activeTheme.light}10`
-        }}
+        className="rounded-3xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-500 dark:text-slate-400 space-y-3 font-body shadow-xs bg-white dark:bg-slate-800/50"
+        style={{ borderTop: `4px solid ${activeTheme.primary}` }}
       >
-        <div className="flex flex-wrap items-center justify-center gap-6 text-xs font-semibold">
-          <span>© {new Date().getFullYear()} {orgData.name}. All rights reserved.</span>
-          <span>•</span>
+        <div className="flex flex-wrap items-center justify-center gap-5 text-xs font-bold text-slate-600 dark:text-slate-300 font-heading">
+          <span>© {new Date().getFullYear()} {orgData.name}</span>
+          <span className="text-slate-300 dark:text-slate-600">•</span>
           <span>{orgData.address || "Main Academic Campus"}</span>
           {orgData.location && (
             <>
-              <span>•</span>
+              <span className="text-slate-300 dark:text-slate-600">•</span>
               <span>{orgData.location}</span>
             </>
           )}
           {orgData.isAccredited && (
             <>
-              <span>•</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                Officially Accredited Institution
+              <span className="text-slate-300 dark:text-slate-600">•</span>
+              <span className="text-emerald-600 dark:text-emerald-400">
+                Accredited Institution
               </span>
             </>
           )}
         </div>
         <p className="text-[11px] text-slate-400 max-w-xl mx-auto">
-          Powered by Backpack Pan-African Educational Infrastructure. Verified organization credentials stored on-chain & in decentralized user backpacks.
+          Powered by Backpack Pan-African Educational Infrastructure. Verified organization credentials.
         </p>
       </footer>
 
@@ -899,25 +838,25 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           OWNER THEME CUSTOMIZER DRAWER / MODAL
           ========================================================================================= */}
       {isCustomizing && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700 shadow-2xl p-6 sm:p-8 space-y-6">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700 shadow-2xl p-6 sm:p-8 space-y-6 font-body">
             
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700">
               <div className="flex items-center space-x-3">
                 <div 
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm"
                   style={{ backgroundColor: activeTheme.primary }}
                 >
                   <Palette className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Customise Webpage Theme</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">Customize Brand Profile</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Configure your public institutional colors, motto & highlights</p>
                 </div>
               </div>
               <button 
                 onClick={() => setIsCustomizing(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -927,7 +866,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
               
               {/* Color Theme Selector */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-3">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
                   Select Brand Color Theme
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -938,20 +877,20 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                         type="button"
                         key={theme.id}
                         onClick={() => setCustomThemeId(theme.id)}
-                        className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between space-y-2 ${
+                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between space-y-2 cursor-pointer ${
                           isSelected 
-                            ? 'border-indigo-600 dark:border-indigo-400 ring-2 ring-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/30' 
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                            ? 'border-[#0078d4] dark:border-[#04a4ec] ring-2 ring-[#0078d4]/20 bg-[#d6e9f8]/30 dark:bg-[#0078d4]/10' 
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-900'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <div 
-                            className="w-6 h-6 rounded-full shadow-inner border border-white/20"
+                            className="w-5 h-5 rounded-full shadow-inner border border-black/10 dark:border-white/10"
                             style={{ backgroundColor: theme.primary }}
                           />
-                          {isSelected && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+                          {isSelected && <Check className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />}
                         </div>
-                        <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                        <span className="text-[11px] font-bold text-slate-900 dark:text-white leading-tight font-heading">
                           {theme.name}
                         </span>
                       </button>
@@ -962,7 +901,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
 
               {/* Tagline / Motto */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
                   Institutional Motto / Tagline
                 </label>
                 <input
@@ -970,13 +909,13 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                   value={customMotto}
                   onChange={(e) => setCustomMotto(e.target.value)}
                   placeholder="e.g. Excellence in Education, Integrity in Life"
-                  className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40 focus:border-[#0078d4] transition"
                 />
               </div>
 
               {/* Crest / Logo URL */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
                   Crest / Logo Image URL
                 </label>
                 <input
@@ -984,14 +923,14 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                   value={customLogoUrl}
                   onChange={(e) => setCustomLogoUrl(e.target.value)}
                   placeholder="https://example.com/crest.png"
-                  className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40 focus:border-[#0078d4] transition"
                 />
               </div>
 
               {/* Campus Directory Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
                     Front Desk Phone
                   </label>
                   <input
@@ -999,12 +938,12 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                     value={customPhone}
                     onChange={(e) => setCustomPhone(e.target.value)}
                     placeholder="+1 (555) 019-2834"
-                    className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40 focus:border-[#0078d4] transition"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
                     Official Web Portal Link
                   </label>
                   <input
@@ -1012,14 +951,14 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                     value={customWebsite}
                     onChange={(e) => setCustomWebsite(e.target.value)}
                     placeholder="https://portal.stjude.edu"
-                    className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40 focus:border-[#0078d4] transition"
                   />
                 </div>
               </div>
 
               {/* Academic Highlights */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
                   Academic Highlights (One per line)
                 </label>
                 <textarea
@@ -1027,13 +966,13 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                   value={customHighlights}
                   onChange={(e) => setCustomHighlights(e.target.value)}
                   placeholder="Advanced STEM Track Academy&#10;Accredited International Diploma&#10;Global Mentorship & Practical Labs"
-                  className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40 focus:border-[#0078d4] transition resize-none"
                 />
               </div>
 
               {/* About Text */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
                   About Our Institution Narrative
                 </label>
                 <textarea
@@ -1041,32 +980,32 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                   value={customAbout}
                   onChange={(e) => setCustomAbout(e.target.value)}
                   placeholder="Describe your campus environment, facilities, mentors and vision..."
-                  className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40 focus:border-[#0078d4] transition resize-none"
                 />
               </div>
 
               {saveSuccessMessage && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-center space-x-2">
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center justify-center space-x-2 font-heading">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Webpage Theme and Profile Updated Successfully!</span>
+                  <span>Profile Updated Successfully!</span>
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setIsCustomizing(false)}
-                  className="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  className="px-4 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer font-heading"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingTheme}
-                  className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white shadow-lg transition flex items-center disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white shadow-sm transition flex items-center cursor-pointer disabled:opacity-50 font-heading"
                   style={{ backgroundColor: activeTheme.primary }}
                 >
-                  {isSavingTheme ? "Saving Changes..." : "Save Webpage Theme"}
+                  {isSavingTheme ? "Saving..." : "Save Profile"}
                 </button>
               </div>
             </form>

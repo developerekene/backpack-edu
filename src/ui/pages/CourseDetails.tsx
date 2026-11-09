@@ -42,7 +42,6 @@ import { PublicCourseDetails } from "../components/PublicCourseDetails";
 import { EditCourseDetailsModal } from "../components/EditCourseDetailsModal";
 import { LiveKitCall } from "../components/LiveKitCall";
 import { CourseAttendance } from "../components/CourseAttendance";
-// import { ChatMessage } from "../../types";
 import { LunchGames } from "../components/LunchGames";
 import { CourseAssessments } from "../components/courseAssesment/CourseAssessments";
 import { CourseSchedule } from "../components/CourseSchedule";
@@ -77,7 +76,6 @@ const CourseDetails = () => {
     addMaterial,
     updateMaterial,
     deleteMaterial,
-    // sendMessage,
     enrollmentRequests,
     addEnrollmentRequest,
     updateEnrollmentRequest,
@@ -91,6 +89,7 @@ const CourseDetails = () => {
     deleteCourse,
   } = useAppContext();
   const { currentUser } = useAuth();
+  
   const [isCallActiveInApp, setIsCallActiveInApp] = useState(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -122,7 +121,6 @@ const CourseDetails = () => {
   });
 
   useEffect(() => {
-    if (!currentUser) return;
     const params = new URLSearchParams(
       location.search || window.location.search,
     );
@@ -140,7 +138,7 @@ const CourseDetails = () => {
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [location.search, courseId, currentUser]);
+  }, [location.search, courseId]);
 
   const [activeTab, setActiveTab] = useState<
     | "info"
@@ -155,6 +153,7 @@ const CourseDetails = () => {
     | "certificate"
     | "donations"
   >("info");
+  
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -187,14 +186,6 @@ const CourseDetails = () => {
       // Fallback
     }
   };
-
-  // Chat state
-  // const [chatMsg, setChatMsg] = useState("");
-  // const [chatAttachmentUrl, setChatAttachmentUrl] = useState("");
-  // const [chatAttachmentType, setChatAttachmentType] = useState<
-  //   "image" | "video" | "document" | undefined
-  // >(undefined);
-  // const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   // Materials state
   const [newMatTitle, setNewMatTitle] = useState("");
@@ -239,76 +230,53 @@ const CourseDetails = () => {
   const progressPercentage =
     totalTrackables > 0 ? (completedTrackables / totalTrackables) * 100 : 0;
 
-  // Access check logic: strictly false for unauthenticated users
-  const isSuperAdmin = currentUser?.role === "super_admin";
+  // Access check logic
   const isOrganization = currentUser?.role === "organization";
 
-  // Filter org member records only for valid authenticated user
-  const myOrgMemberRecords =
-    currentUser?.id || currentUser?.email
-      ? orgMembers.filter(
-          (m) =>
-            (currentUser.email &&
-              m.email &&
-              m.email.toLowerCase().trim() ===
-                currentUser.email.toLowerCase().trim()) ||
-            (currentUser.id && m.userId && m.userId === currentUser.id) ||
-            (currentUser.id && m.id && m.id === currentUser.id),
-        )
-      : [];
-
-  // Instructor access check (strictly requires authenticated user)
-  const hasInstructorAccess = Boolean(
-    currentUser?.id &&
-      (isSuperAdmin ||
-        myOrgMemberRecords.some(
-          (m) =>
-            m.role === "instructor" &&
-            (m.courseIds?.includes(courseId as string) ||
-              m.orgId === course?.orgId ||
-              `org_${m.orgId}` === course?.orgId ||
-              m.orgId === `org_${course?.orgId}`),
-        ) ||
-        (course?.instructorId && currentUser.id === course.instructorId) ||
-        (course?.instructors && course.instructors.includes(currentUser.id)) ||
-        (currentUser.role === "instructor" &&
-          ((course?.createdBy && course.createdBy === currentUser.id) ||
-            (course?.instructorName &&
-              currentUser.name &&
-              course.instructorName.toLowerCase().trim() ===
-                currentUser.name.toLowerCase().trim())))),
+  const myOrgMemberRecords = orgMembers.filter(
+    (m) =>
+      m.email?.toLowerCase().trim() ===
+        currentUser?.email?.toLowerCase().trim() ||
+      (currentUser?.id && m.userId === currentUser.id) ||
+      (currentUser?.id && m.id === currentUser.id),
   );
 
-  const myEnrollment = currentUser?.id
-    ? enrollmentRequests.find(
-        (r) => r.userId === currentUser.id && r.courseId === courseId,
-      )
-    : undefined;
+  const hasInstructorAccess =
+    myOrgMemberRecords.some(
+      (m) =>
+        m.role === "instructor" &&
+        (m.courseIds?.includes(courseId as string) ||
+          m.orgId === course?.orgId ||
+          `org_${m.orgId}` === course?.orgId ||
+          m.orgId === `org_${course?.orgId}`),
+    ) ||
+    currentUser?.id === course?.instructorId ||
+    Boolean(course?.instructors?.includes(currentUser?.id || "")) ||
+    (currentUser?.role === "instructor" &&
+      (course?.createdBy === currentUser?.id ||
+        (course?.instructorName &&
+          currentUser?.name &&
+          course.instructorName.toLowerCase().trim() ===
+            currentUser.name.toLowerCase().trim())));
 
-  const myInvite = currentUser?.id
-    ? myOrgMemberRecords.find(
-        (m) =>
-          m.status === "invited" &&
-          (m.courseIds?.includes(courseId as string) ||
-            m.orgId === course?.orgId),
-      )
-    : undefined;
-
-  // The organization owned or administered by the currently logged-in user
-  const myOrg = currentUser?.id
-    ? organizations.find(
-        (o) =>
-          o.ownerId === currentUser.id ||
-          o.id === currentUser.id ||
-          (o.adminUserIds && o.adminUserIds.includes(currentUser.id)),
-      )
-    : undefined;
-
-  // The organization that owns this course (strictly for branding & public display)
+  const myEnrollment = enrollmentRequests.find(
+    (r) => r.userId === currentUser?.id && r.courseId === courseId,
+  );
+  const myInvite = myOrgMemberRecords.find(
+    (m) =>
+      m.status === "invited" &&
+      (m.courseIds?.includes(courseId as string) || m.orgId === course?.orgId),
+  );
+  const myOrg = organizations.find(
+    (o) =>
+      o.ownerId === currentUser?.id ||
+      o.id === currentUser?.id ||
+      o.id === course?.orgId,
+  );
   const courseOrg =
     organizations.find(
       (o) => o.id === course?.orgId || o.ownerId === course?.orgId,
-    ) || (currentUser?.id ? myOrg : undefined);
+    ) || myOrg;
 
   const isVocationalDonationFunded =
     courseOrg?.orgType === "vocational" &&
@@ -322,121 +290,71 @@ const CourseDetails = () => {
       ? courseDonations.filter((d) => d.courseId === course.id)
       : [];
 
-  const isStudentApproved = Boolean(
-    currentUser?.id && myEnrollment?.status === "approved",
-  );
-  const isStudentPaidOrFree = Boolean(
-    currentUser?.id &&
-      (!course ||
-        course.price === 0 ||
-        isVocationalDonationFunded ||
-        myEnrollment?.paymentStatus === "paid" ||
-        Boolean(myEnrollment?.isSponsored)),
-  );
-  const hasStudentAccess = Boolean(
-    currentUser?.id && isStudentApproved && isStudentPaidOrFree,
-  );
+  const isStudentApproved = myEnrollment?.status === "approved";
+  const isStudentPaidOrFree =
+    !course ||
+    course.price === 0 ||
+    isVocationalDonationFunded ||
+    myEnrollment?.paymentStatus === "paid" ||
+    Boolean(myEnrollment?.isSponsored);
+  const hasStudentAccess = isStudentApproved && isStudentPaidOrFree;
 
-  // Organization access check (strictly requires authenticated user who owns/administers this course's org)
-  const hasOrgAccess = Boolean(
-    currentUser?.id &&
-      (isSuperAdmin ||
-        ((isOrganization ||
-          (myOrg && myOrg.adminUserIds?.includes(currentUser.id))) &&
-          (course?.orgId === currentUser.id ||
-            course?.orgId === `org_${currentUser.id}` ||
-            (course?.orgId &&
-              courseOrg &&
-              (course.orgId === courseOrg.id ||
-                course.orgId === courseOrg.ownerId) &&
-              (courseOrg.ownerId === currentUser.id ||
-                courseOrg.id === currentUser.id ||
-                (courseOrg.adminUserIds &&
-                  courseOrg.adminUserIds.includes(currentUser.id)))) ||
-            (myOrg &&
-              (course?.orgId === myOrg.id ||
-                course?.orgId === myOrg.ownerId ||
-                myOrg.adminUserIds?.includes(currentUser.id)))))),
-  );
+  const hasOrgAccess =
+    isOrganization &&
+    (course?.orgId === currentUser?.id ||
+      course?.orgId === `org_${currentUser?.id}` ||
+      (myOrg &&
+        (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)));
 
-  // Classroom access: STRICTLY FALSE if user is unauthenticated
-  const hasAccess = Boolean(
-    currentUser?.id &&
-      (isSuperAdmin ||
-        hasStudentAccess ||
-        hasInstructorAccess ||
-        hasOrgAccess ||
-        (course?.instructorId && currentUser.id === course.instructorId)),
-  );
+  const hasAccess =
+    hasStudentAccess ||
+    hasInstructorAccess ||
+    hasOrgAccess ||
+    Boolean(currentUser?.id === course?.instructorId);
+  const effectiveViewMode = hasAccess ? viewMode : "public";
 
-  // Effective view mode: Unauthenticated users ALWAYS see "public" view
-  const effectiveViewMode: "classroom" | "public" =
-    currentUser && hasAccess ? viewMode : "public";
+  const isEnrolledStudent =
+    myOrgMemberRecords.some(
+      (m) => m.role === "student" && m.courseIds?.includes(courseId as string),
+    ) ||
+    myEnrollment?.status === "approved" ||
+    (currentUser?.role === "student" && !hasInstructorAccess && !hasOrgAccess);
 
-  // Check if current user is an enrolled student for this course
-  const isEnrolledStudent = Boolean(
-    currentUser?.id &&
-      (myOrgMemberRecords.some(
-        (m) =>
-          m.role === "student" && m.courseIds?.includes(courseId as string),
-      ) ||
-        myEnrollment?.status === "approved" ||
-        (currentUser.role === "student" &&
-          !hasInstructorAccess &&
-          !hasOrgAccess)),
-  );
+  const isStudent =
+    isPreviewAsStudent ||
+    (!hasOrgAccess && !hasInstructorAccess && isEnrolledStudent);
 
-  // If instructor/organization activates "Preview as Student", isStudent becomes true
-  const isStudent = Boolean(
-    currentUser &&
-      (isPreviewAsStudent ||
-        (!hasOrgAccess && !hasInstructorAccess && isEnrolledStudent)),
-  );
-
-  const canStartVideoCall = Boolean(
-    currentUser?.id &&
-      !isStudent &&
-      (isSuperAdmin ||
-        hasOrgAccess ||
-        hasInstructorAccess ||
-        currentUser.role === "organization" ||
-        currentUser.role === "instructor"),
-  );
-
+  const canStartVideoCall =
+    !isStudent &&
+    (hasOrgAccess ||
+      hasInstructorAccess ||
+      currentUser?.role === "organization" ||
+      currentUser?.role === "instructor");
   const canManageSessions = Boolean(
-    currentUser?.id &&
-      !isStudent &&
-      (isSuperAdmin || isOrganization || hasOrgAccess || hasInstructorAccess),
+    !isStudent && (isOrganization || hasOrgAccess || hasInstructorAccess),
   );
-
   const canEditCourse = Boolean(
-    currentUser?.id &&
-      (isSuperAdmin ||
-        hasOrgAccess ||
-        hasInstructorAccess ||
-        (course?.instructorId && currentUser.id === course.instructorId) ||
-        (isOrganization &&
-          (course?.orgId === currentUser.id ||
-            course?.orgId === `org_${currentUser.id}` ||
-            (myOrg &&
-              (course?.orgId === myOrg.id ||
-                course?.orgId === myOrg.ownerId ||
-                myOrg.adminUserIds?.includes(currentUser.id)))))),
+    hasOrgAccess ||
+    hasInstructorAccess ||
+    currentUser?.id === course?.instructorId ||
+    (isOrganization &&
+      (course?.orgId === currentUser?.id ||
+        course?.orgId === `org_${currentUser?.id}` ||
+        (myOrg &&
+          (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)))),
   );
 
   const canDeleteCourse = Boolean(
-    currentUser?.id &&
-      (isSuperAdmin || currentUser.role === "organization") &&
-      course &&
-      (isSuperAdmin ||
-        course.orgId === currentUser.id ||
-        course.orgId === `org_${currentUser.id}` ||
-        course.createdBy === currentUser.id ||
-        course.orgId?.includes(currentUser.id) ||
-        (myOrg &&
-          (course.orgId === myOrg.id ||
-            course.orgId === myOrg.ownerId ||
-            course.orgId === `org_${myOrg.id}`))),
+    currentUser?.role === "organization" &&
+    course &&
+    (course.orgId === currentUser.id ||
+      course.orgId === `org_${currentUser.id}` ||
+      course.createdBy === currentUser.id ||
+      (currentUser.id && course.orgId?.includes(currentUser.id)) ||
+      (myOrg &&
+        (course.orgId === myOrg.id ||
+          course.orgId === myOrg.ownerId ||
+          course.orgId === `org_${myOrg.id}`))),
   );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
@@ -447,7 +365,6 @@ const CourseDetails = () => {
       ? myOrg?.name || currentUser?.name || "Organization"
       : currentUser?.name || "Participant";
 
-  // Check URL params for target event if coming from timetable or notification
   const targetEventId = useMemo(() => {
     if (typeof window === "undefined") return null;
     const params = new URLSearchParams(
@@ -482,13 +399,11 @@ const CourseDetails = () => {
   const handleStartCall = async () => {
     if (!courseId || !course) return;
 
-    // 1. If there is already an active live session for this course, join it without creating duplicate events
     if (liveCallActiveEvent) {
       setIsCallActiveInApp(true);
       return;
     }
 
-    // 2. If a target event was specified via URL or click, activate that existing event
     if (targetEventId) {
       const match = scheduleEvents.find(
         (e) => e.id === targetEventId && e.courseId === courseId,
@@ -513,7 +428,6 @@ const CourseDetails = () => {
       }
     }
 
-    // 3. If there is already an event scheduled for today for this course, activate that scheduled event!
     const todayStr = new Date().toISOString().split("T")[0];
     const todayScheduled = scheduleEvents.find(
       (e) => e.courseId === courseId && e.date === todayStr && !e.isActive,
@@ -539,7 +453,6 @@ const CourseDetails = () => {
       return;
     }
 
-    // 4. Otherwise, generate a single new session for on-demand live class
     const newEventId = `live_${courseId}_${Date.now()}`;
     const roomName = getLiveClassRoomName(
       { id: newEventId, courseId },
@@ -621,22 +534,22 @@ const CourseDetails = () => {
 
   if (!course)
     return (
-      <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+      <div className="text-center py-16 text-slate-500 dark:text-slate-400 font-body">
         Course not found.
       </div>
     );
 
   const renderAccessBlocker = () => (
-    <div className="max-w-2xl mx-auto py-16 text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
+    <div className="max-w-2xl mx-auto py-20 text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
       {myInvite ? (
         <>
-          <div className="w-16 h-16 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
+          <div className="w-16 h-16 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] rounded-2xl flex items-center justify-center mx-auto border border-[#0078d4]/20 shadow-xs">
             <Mail className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
             You Have Been Invited!
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
             <strong className="text-slate-900 dark:text-white">
               {courseOrg?.name || "The sponsoring institution"}
             </strong>{" "}
@@ -647,17 +560,17 @@ const CourseDetails = () => {
             .
           </p>
           {myInvite.inviteNote && (
-            <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl text-xs text-indigo-800 dark:text-indigo-300 max-w-md mx-auto border border-indigo-200 dark:border-indigo-800 text-left">
-              <span className="font-bold block mb-1">
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl text-sm text-slate-700 dark:text-slate-300 max-w-md mx-auto border border-slate-200 dark:border-slate-700 text-left font-body shadow-xs">
+              <span className="font-bold block mb-1 text-slate-900 dark:text-white">
                 Note from Institution:
               </span>
               "{myInvite.inviteNote}"
             </div>
           )}
-          <div>
+          <div className="pt-2">
             <button
               onClick={() => setShowJoinModal(true)}
-              className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
+              className="inline-flex items-center px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl font-bold transition shadow-sm hover:shadow-md text-sm cursor-pointer font-heading"
             >
               <UserCheck className="w-4 h-4 mr-2" /> Accept Invitation & Join
               Course
@@ -666,13 +579,13 @@ const CourseDetails = () => {
         </>
       ) : myEnrollment?.status === "pending" ? (
         <>
-          <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
+          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl flex items-center justify-center mx-auto border border-slate-200 dark:border-slate-700 shadow-xs">
             <Clock className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
             Application Under Review
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
             Your application for{" "}
             <strong className="text-slate-900 dark:text-white">
               {course.title}
@@ -684,24 +597,26 @@ const CourseDetails = () => {
             ) has been submitted and is currently being reviewed by the
             organization. No tuition payment is due until accepted.
           </p>
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center px-6 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-xl font-bold text-sm transition"
-          >
-            Return to Dashboard
-          </Link>
+          <div className="pt-2">
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center px-6 py-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm transition font-heading shadow-sm"
+            >
+              Return to Dashboard
+            </Link>
+          </div>
         </>
       ) : myEnrollment?.status === "approved" &&
         course.price > 0 &&
         myEnrollment?.paymentStatus !== "paid" ? (
         <>
-          <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/20">
+          <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800/60 shadow-xs">
             <CheckCircle className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
             Application Accepted!
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
             Congratulations! Your application for{" "}
             <strong className="text-slate-900 dark:text-white">
               {course.title}
@@ -709,25 +624,27 @@ const CourseDetails = () => {
             has been approved. Please complete your tuition payment below to
             unlock full classroom access.
           </p>
-          <button
-            onClick={() => setShowPaymentModal(true)}
-            className="inline-flex items-center px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-600/20 text-sm"
-          >
-            <CreditCard className="w-4 h-4 mr-2" /> Pay Tuition (
-            {course.currency} {course.price.toLocaleString()})
-          </button>
+          <div className="pt-2">
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="inline-flex items-center px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-sm hover:shadow-md text-sm cursor-pointer font-heading"
+            >
+              <CreditCard className="w-4 h-4 mr-2" /> Pay Tuition (
+              {course.currency || "NGN"} {course.price.toLocaleString()})
+            </button>
+          </div>
         </>
       ) : isReapplicationCandidate ? (
         <>
           {course.admissionStatus === "closed" ? (
             <>
-              <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center mx-auto border border-red-500/20">
+              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl flex items-center justify-center mx-auto border border-slate-200 dark:border-slate-700 shadow-xs">
                 <DoorClosed className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
                 Admissions Currently Closed
               </h2>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+              <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
                 Your application for the previous session was declined.
                 Admissions for{" "}
                 <strong className="text-slate-900 dark:text-white">
@@ -737,8 +654,8 @@ const CourseDetails = () => {
                 the organization opens the next admission session.
               </p>
               {myEnrollment.rejectionReason && (
-                <div className="max-w-md mx-auto p-3.5 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900/40 text-xs text-red-800 dark:text-red-300 text-left">
-                  <span className="font-bold block mb-1">
+                <div className="max-w-md mx-auto p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 text-left font-body shadow-2xs">
+                  <span className="font-bold block mb-1 text-slate-900 dark:text-white">
                     Feedback from Reviewer:
                   </span>
                   "{myEnrollment.rejectionReason}"
@@ -747,7 +664,7 @@ const CourseDetails = () => {
               <div className="pt-2">
                 <button
                   disabled
-                  className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+                  className="inline-flex items-center px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm cursor-not-allowed font-heading"
                 >
                   <DoorClosed className="w-4 h-4 mr-2" /> Admissions Closed
                   (Awaiting Next Intake)
@@ -756,66 +673,68 @@ const CourseDetails = () => {
             </>
           ) : (
             <>
-              <div className="w-16 h-16 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
+              <div className="w-16 h-16 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] rounded-2xl flex items-center justify-center mx-auto border border-[#0078d4]/20 shadow-xs">
                 <RotateCcw className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
                 Admissions Open — Reapply Now
               </h2>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+              <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
                 A new admission intake (
-                <strong className="text-indigo-600 dark:text-indigo-400">
+                <strong className="text-[#0078d4] dark:text-[#04a4ec]">
                   {course.activeSessionName || "Current Session"}
                 </strong>
                 ) is currently open! You can submit a fresh reapplication with
                 updated credentials.
               </p>
               {myEnrollment.rejectionReason && (
-                <div className="max-w-md mx-auto p-3.5 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-300 text-left">
-                  <span className="font-bold block mb-1">
+                <div className="max-w-md mx-auto p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 text-left font-body shadow-2xs">
+                  <span className="font-bold block mb-1 text-slate-900 dark:text-white">
                     Previous Session Feedback:
                   </span>
                   "{myEnrollment.rejectionReason}"
                 </div>
               )}
-              <button
-                onClick={() => {
-                  if (!currentUser) {
-                    navigate("/login");
-                    return;
-                  }
-                  if (currentUser.role === "organization") {
-                    setAlertConfig({
-                      isOpen: true,
-                      title: "Role Restriction",
-                      message:
-                        "Only student and instructor accounts can apply for courses.",
-                      type: "info",
-                      onConfirm: () => {
-                        setAlertConfig((prev) => ({ ...prev, isOpen: false }));
-                      },
-                    });
-                    return;
-                  }
-                  setShowEnrollModal(true);
-                }}
-                className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" /> Reapply for Admission (
-                {course.activeSessionName || "New Session"})
-              </button>
+              <div className="pt-2">
+                <button
+                  onClick={() => {
+                    if (!currentUser) {
+                      navigate("/login");
+                      return;
+                    }
+                    if (currentUser.role === "organization") {
+                      setAlertConfig({
+                        isOpen: true,
+                        title: "Role Restriction",
+                        message:
+                          "Only student and instructor accounts can apply for courses.",
+                        type: "info",
+                        onConfirm: () => {
+                          setAlertConfig((prev) => ({ ...prev, isOpen: false }));
+                        },
+                      });
+                      return;
+                    }
+                    setShowEnrollModal(true);
+                  }}
+                  className="inline-flex items-center px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl font-bold transition shadow-sm hover:shadow-md text-sm cursor-pointer font-heading"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" /> Reapply for Admission (
+                  {course.activeSessionName || "New Session"})
+                </button>
+              </div>
             </>
           )}
         </>
       ) : course.admissionStatus === "closed" ? (
         <>
-          <div className="w-16 h-16 bg-slate-500/10 text-slate-500 rounded-2xl flex items-center justify-center mx-auto border border-slate-500/20">
+          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl flex items-center justify-center mx-auto border border-slate-200 dark:border-slate-700 shadow-xs">
             <DoorClosed className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
             Admissions Currently Closed
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
             The sponsoring organization is not currently accepting new student
             applications for{" "}
             <strong className="text-slate-900 dark:text-white">
@@ -823,43 +742,47 @@ const CourseDetails = () => {
             </strong>
             . Please check back when the next admission session opens.
           </p>
-          <button
-            disabled
-            className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
-          >
-            <DoorClosed className="w-4 h-4 mr-2" /> Admissions Closed
-          </button>
+          <div className="pt-2">
+            <button
+              disabled
+              className="inline-flex items-center px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm cursor-not-allowed font-heading"
+            >
+              <DoorClosed className="w-4 h-4 mr-2" /> Admissions Closed
+            </button>
+          </div>
         </>
       ) : isOrganization ? (
         <>
-          <div className="w-16 h-16 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
-            <Book className="w-8 h-8" />
+          <div className="w-16 h-16 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] rounded-2xl flex items-center justify-center mx-auto border border-[#0078d4]/20 shadow-xs">
+            <Building className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
             Organization Account
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
             Organization accounts cannot enroll in courses. You can manage and
             view the classroom for your own institution's courses.
           </p>
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
-          >
-            Go to Organization Dashboard
-          </Link>
+          <div className="pt-2">
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl font-bold transition shadow-sm hover:shadow-md text-sm font-heading"
+            >
+              Go to Organization Dashboard
+            </Link>
+          </div>
         </>
       ) : (
         <>
-          <div className="w-16 h-16 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
+          <div className="w-16 h-16 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] rounded-2xl flex items-center justify-center mx-auto border border-[#0078d4]/20 shadow-xs">
             <Book className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
             Application Required
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed font-body">
             Submit an application for the{" "}
-            <strong className="text-indigo-600 dark:text-indigo-400">
+            <strong className="text-[#0078d4] dark:text-[#04a4ec]">
               {course.activeSessionName || "current intake session"}
             </strong>{" "}
             of{" "}
@@ -868,29 +791,31 @@ const CourseDetails = () => {
             </strong>
             . No tuition payment is charged today.
           </p>
-          <button
-            onClick={() => {
-              if (!currentUser) {
-                navigate("/login");
-                return;
-              }
-              if (currentUser.role === "organization") {
-                setAlertConfig({
-                  isOpen: true,
-                  title: "Role Restriction",
-                  message:
-                    "Only student and instructor accounts can apply for courses.",
-                  type: "info",
-                });
-                return;
-              }
-              setShowEnrollModal(true);
-            }}
-            className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
-          >
-            <Send className="w-4 h-4 mr-2" /> Apply (
-            {course.activeSessionName || "Current Session"})
-          </button>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                if (!currentUser) {
+                  navigate("/login");
+                  return;
+                }
+                if (currentUser.role === "organization") {
+                  setAlertConfig({
+                    isOpen: true,
+                    title: "Role Restriction",
+                    message:
+                      "Only student and instructor accounts can apply for courses.",
+                    type: "info",
+                  });
+                  return;
+                }
+                setShowEnrollModal(true);
+              }}
+              className="inline-flex items-center px-6 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl font-bold transition shadow-sm hover:shadow-md text-sm cursor-pointer font-heading"
+            >
+              <Send className="w-4 h-4 mr-2" /> Apply (
+              {course.activeSessionName || "Current Session"})
+            </button>
+          </div>
         </>
       )}
     </div>
@@ -928,31 +853,9 @@ const CourseDetails = () => {
     });
   };
 
-  // const handleSendMsg = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   if ((!chatMsg.trim() && !chatAttachmentUrl) || !currentUser) return;
-
-  //   const newMsg: ChatMessage = {
-  //     id: generateId("msg"),
-  //     courseId: course.id,
-  //     senderId: currentUser.id,
-  //     senderName: currentUser.name,
-  //     text: chatMsg,
-  //     timestamp: new Date().getTime(),
-  //     fileUrl: chatAttachmentUrl,
-  //     fileType: chatAttachmentType,
-  //   };
-
-  //   await sendMessage(newMsg);
-  //   setChatMessages([...chatMessages, newMsg]); // Local optimistic update
-  //   setChatMsg("");
-  //   setChatAttachmentUrl("");
-  //   setChatAttachmentType(undefined);
-  // };
-
   if (effectiveViewMode === "public") {
     return (
-      <div className="space-y-6 animate-in fade-in">
+      <div className="space-y-6 animate-in fade-in pb-16">
         <PublicCourseDetails
           course={course}
           courseOrg={courseOrg}
@@ -980,53 +883,17 @@ const CourseDetails = () => {
             }
             setShowEnrollModal(true);
           }}
-          onPayTuition={() => {
-            if (!currentUser) {
-              navigate("/login");
-              return;
-            }
-            setShowPaymentModal(true);
-          }}
-          onAcceptInvite={() => {
-            if (!currentUser) {
-              navigate("/login");
-              return;
-            }
-            setShowJoinModal(true);
-          }}
+          onPayTuition={() => setShowPaymentModal(true)}
+          onAcceptInvite={() => setShowJoinModal(true)}
           onDonate={() => setShowDonationModal(true)}
-          onManageSessions={() => {
-            if (!currentUser || !canManageSessions) {
-              navigate("/login");
-              return;
-            }
-            setShowSessionModal(true);
-          }}
+          onManageSessions={() => setShowSessionModal(true)}
           canManageSessions={canManageSessions}
           hasAccessToClassroom={hasAccess}
-          onGoToClassroom={() => {
-            if (!currentUser || !hasAccess) {
-              navigate("/login");
-              return;
-            }
-            setViewMode("classroom");
-          }}
+          onGoToClassroom={() => setViewMode("classroom")}
           canEditCourse={canEditCourse}
-          onEditCourse={() => {
-            if (!currentUser || !canEditCourse) {
-              navigate("/login");
-              return;
-            }
-            setShowEditCourseModal(true);
-          }}
+          onEditCourse={() => setShowEditCourseModal(true)}
           canDeleteCourse={canDeleteCourse}
-          onDeleteCourse={() => {
-            if (!currentUser || !canDeleteCourse) {
-              navigate("/login");
-              return;
-            }
-            setShowDeleteModal(true);
-          }}
+          onDeleteCourse={() => setShowDeleteModal(true)}
         />
 
         {showEditCourseModal && course && (
@@ -1120,57 +987,126 @@ const CourseDetails = () => {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
+    <div className="space-y-6 animate-in fade-in pb-16">
+      {/* ======================================================== */}
+      {/* 1. HERO HEADER (Enterprise Dashboard Style)              */}
+      {/* ======================================================== */}
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col md:flex-row md:items-start justify-between gap-6">
+        <div className="flex-1">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             {courseOrg && (
               <Link
                 to={`/org/${courseOrg.id || course.orgId}`}
-                className="inline-flex items-center text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20"
+                className="inline-flex items-center text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-[#0078d4] dark:hover:text-[#04a4ec] bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 transition font-heading"
               >
-                <Building className="w-3.5 h-3.5 mr-1" /> {courseOrg.name}
+                <Building className="w-3.5 h-3.5 mr-1.5" /> {courseOrg.name}
               </Link>
             )}
             <span
-              className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-lg border ${
+              className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wider font-heading ${
                 isAdmissionOpen
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                  ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
               }`}
             >
               {isAdmissionOpen ? (
                 <>
                   <DoorOpen className="w-3.5 h-3.5 mr-1 text-emerald-500" />
-                  Admission: Open (
-                  {course.activeSessionName || "Current Session"})
+                  Admission: Open
                 </>
               ) : (
                 <>
-                  <DoorClosed className="w-3.5 h-3.5 mr-1 text-red-500" />
+                  <DoorClosed className="w-3.5 h-3.5 mr-1" />
                   Admission: Closed
                 </>
               )}
             </span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+          
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mb-2.5 font-heading tracking-tight">
             {course.title}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 max-w-2xl">
+          
+          <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl font-body leading-relaxed line-clamp-2">
             {course.description}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {isVocationalDonationFunded && (
-            <>
+        {/* Action Buttons Container */}
+        <div className="flex flex-wrap items-center justify-start md:justify-end gap-2.5 shrink-0 min-w-[280px]">
+          
+          {/* Group 1: Core/Live Actions (Primary Focus) */}
+          <div className="flex w-full sm:w-auto items-center gap-2 order-1 md:order-2">
+            {liveCallActiveEvent
+              ? !isCallActiveInApp && (
+                  <button
+                    onClick={() => setIsCallActiveInApp(true)}
+                    className="w-full sm:w-auto flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm hover:shadow-md animate-pulse font-heading cursor-pointer"
+                  >
+                    <Video className="w-4 h-4 mr-2" /> Join Live Class
+                  </button>
+                )
+              : canStartVideoCall && (
+                  <button
+                    onClick={handleStartCall}
+                    className="w-full sm:w-auto flex items-center justify-center px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm hover:shadow-md font-heading cursor-pointer"
+                  >
+                    <Video className="w-4 h-4 mr-2" /> Start Live Class
+                  </button>
+                )}
+          </div>
+
+          {/* Group 2: Secondary / Admin Actions */}
+          <div className="flex flex-wrap w-full sm:w-auto items-center justify-start md:justify-end gap-2 order-2 md:order-1">
+            {isVocationalDonationFunded && (
               <button
                 onClick={() => setShowDonationModal(true)}
-                className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs shadow-md shadow-emerald-600/20"
+                className="flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs shadow-xs cursor-pointer font-heading"
               >
-                <HeartHandshake className="w-4 h-4 mr-1.5" />
-                Sponsor / Donate
+                <HeartHandshake className="w-3.5 h-3.5 mr-1.5" />
+                Sponsor
               </button>
+            )}
+
+            {/* Preview as Student toggle */}
+            {(hasOrgAccess || hasInstructorAccess || canEditCourse) && (
+              <button
+                onClick={() => setIsPreviewAsStudent((prev) => !prev)}
+                className={`flex items-center px-3.5 py-2 font-bold rounded-xl transition text-xs border shadow-2xs cursor-pointer font-heading ${
+                  isPreviewAsStudent
+                    ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/60"
+                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                }`}
+                title={
+                  isPreviewAsStudent
+                    ? "Exit student preview mode"
+                    : "Preview course as an enrolled student (Read-Only Mode)"
+                }
+              >
+                {isPreviewAsStudent ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+                    Exit Preview
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                    Student View
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={() => setViewMode("public")}
+              className="flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer font-heading"
+              title="View public course details & syllabus"
+            >
+              <BookOpen className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+              Public Page
+            </button>
+            
+            {isVocationalDonationFunded && (
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(
@@ -1179,184 +1115,123 @@ const CourseDetails = () => {
                   setLinkCopied(true);
                   setTimeout(() => setLinkCopied(false), 2500);
                 }}
-                className="flex items-center px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600"
+                className="flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer font-heading"
                 title="Copy public donation link"
               >
                 {linkCopied ? (
                   <>
-                    <Check className="w-3.5 h-3.5 mr-1 text-emerald-500" />
-                    Copied Link
+                    <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+                    Copied
                   </>
                 ) : (
                   <>
-                    <Share2 className="w-3.5 h-3.5 mr-1 text-indigo-500" />
-                    Share Campaign
+                    <Share2 className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                    Share
                   </>
                 )}
               </button>
-            </>
-          )}
+            )}
 
-          {/* Preview as Student toggle button for Instructors and Organization Admins */}
-          {(hasOrgAccess || hasInstructorAccess || canEditCourse) && (
-            <button
-              onClick={() => setIsPreviewAsStudent((prev) => !prev)}
-              className={`flex items-center px-4 py-2 font-bold rounded-xl transition text-xs border shadow-sm cursor-pointer ${
-                isPreviewAsStudent
-                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
-                  : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-600"
-              }`}
-              title={
-                isPreviewAsStudent
-                  ? "Exit student preview mode"
-                  : "Preview course as an enrolled student (Read-Only Mode)"
-              }
-            >
-              {isPreviewAsStudent ? (
-                <>
-                  <EyeOff className="w-4 h-4 mr-1.5 text-amber-500" />
-                  Exit Student Preview
-                </>
-              ) : (
-                <>
-                  <Eye className="w-4 h-4 mr-1.5 text-indigo-500" />
-                  Preview as Student
-                </>
-              )}
-            </button>
-          )}
+            {canEditCourse && !isStudent && (
+              <button
+                onClick={() => setShowEditCourseModal(true)}
+                className="flex items-center p-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-[#0078d4] dark:hover:text-[#04a4ec] border border-slate-200 dark:border-slate-700 rounded-xl transition shadow-2xs cursor-pointer"
+                title="Edit Course Information"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            )}
 
-          <button
-            onClick={() => setViewMode("public")}
-            className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600 shadow-sm"
-            title="View public course details & syllabus"
-          >
-            <BookOpen className="w-4 h-4 mr-1.5 text-indigo-500" />
-            Public Course Page
-          </button>
+            {canManageSessions && !isStudent && (
+              <button
+                onClick={() => setShowSessionModal(true)}
+                className="flex items-center p-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-[#0078d4] dark:hover:text-[#04a4ec] border border-slate-200 dark:border-slate-700 rounded-xl transition shadow-2xs cursor-pointer"
+                title="Manage Admission Sessions"
+              >
+                <Settings2 className="w-4 h-4" />
+              </button>
+            )}
 
-          {canEditCourse && !isStudent && (
-            <button
-              onClick={() => setShowEditCourseModal(true)}
-              className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs shadow-xs cursor-pointer"
-              title="Edit course details, description, prerequisites, FAQs, and syllabus"
-            >
-              <Edit3 className="w-4 h-4 mr-1.5" />
-              Edit Course Information
-            </button>
-          )}
-
-          {canManageSessions && !isStudent && (
-            <button
-              onClick={() => setShowSessionModal(true)}
-              className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600 shadow-sm cursor-pointer"
-            >
-              <Settings2 className="w-4 h-4 mr-1.5 text-indigo-500" />
-              Manage Admission Sessions
-            </button>
-          )}
-
-          {canDeleteCourse && !isStudent && (
-            <button
-              type="button"
-              onClick={() => setShowDeleteModal(true)}
-              className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition text-xs shadow-xs cursor-pointer"
-              title="Delete this course permanently"
-            >
-              <Trash2 className="w-4 h-4 mr-1.5" />
-              Delete Course
-            </button>
-          )}
-
-          {/* Live class controls for students and instructors */}
-          {liveCallActiveEvent
-            ? !isCallActiveInApp && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsCallActiveInApp(true)}
-                    className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm animate-pulse"
-                  >
-                    <Video className="w-4 h-4 mr-2" /> Join Live Class
-                  </button>
-                </div>
-              )
-            : canStartVideoCall && (
-                <button
-                  onClick={handleStartCall}
-                  className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm"
-                >
-                  <Video className="w-4 h-4 mr-2" /> Start Live Class
-                </button>
-              )}
+            {canDeleteCourse && !isStudent && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center p-2 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-400 hover:text-red-600 border border-slate-200 dark:border-slate-700 rounded-xl transition shadow-2xs cursor-pointer"
+                title="Delete this course permanently"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Student Preview Mode Active Banner */}
       {isPreviewAsStudent && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-purple-500/10 border-2 border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs animate-in fade-in">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
               <Eye className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-slate-900 dark:text-white text-sm">
+                <span className="font-bold text-slate-900 dark:text-white text-sm font-heading">
                   Student Preview Mode Active
                 </span>
-                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full uppercase">
-                  Read-Only View
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-200/50 dark:bg-amber-800/50 px-2 py-0.5 rounded-full uppercase tracking-wider font-heading">
+                  Read-Only
                 </span>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                You are previewing this course exactly as an enrolled student
-                experiences it. All editing controls are disabled.
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-body">
+                You are previewing this course exactly as an enrolled student experiences it. Editing controls are disabled.
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setIsPreviewAsStudent(false)}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shrink-0 shadow-sm cursor-pointer"
+            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shrink-0 shadow-sm cursor-pointer font-heading"
           >
             <EyeOff className="w-4 h-4" />
-            <span>Exit Student Preview</span>
+            <span>Exit Preview</span>
           </button>
         </div>
       )}
 
       {/* Prominent Live Class Alert Banner */}
       {liveCallActiveEvent && !isCallActiveInApp && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-red-600 via-rose-600 to-indigo-600 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg border border-red-500/30">
+        <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center space-x-3">
-            <span className="w-3.5 h-3.5 rounded-full bg-white animate-ping shrink-0" />
+            <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+              <span className="w-3.5 h-3.5 rounded-full bg-rose-500 animate-ping absolute" />
+              <Video className="w-5 h-5 relative z-10" />
+            </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="px-2 py-0.5 bg-white/20 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
-                  LIVE SESSION ACTIVE
+                <span className="px-2 py-0.5 bg-rose-200/50 dark:bg-rose-800/50 text-rose-700 dark:text-rose-300 rounded-full text-[10px] font-extrabold uppercase tracking-wider font-heading">
+                  Live Session Active
                 </span>
-                <h3 className="font-bold text-base text-white">
-                  {liveCallActiveEvent.title ||
-                    "Live Class Session In Progress"}
-                </h3>
               </div>
-              <p className="text-xs text-white/80 mt-0.5">
-                Students and instructors are currently connected in this live
-                virtual classroom.
+              <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white font-heading mt-0.5">
+                {liveCallActiveEvent.title || "Live Class Session In Progress"}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-body">
+                Students and instructors are currently connected in the virtual classroom.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0 w-full sm:w-auto">
             <button
               onClick={() =>
                 handleCopyClassUrl(getEffectiveRoomName(liveCallActiveEvent))
               }
-              className="px-3.5 py-2.5 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-xl transition flex items-center justify-center border border-white/30"
+              className="flex-1 sm:flex-none px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer font-heading"
               title="Copy direct join link to share with students or guests"
             >
               {copiedClassLink ? (
-                <Check className="w-4 h-4 mr-1.5 text-emerald-300" />
+                <Check className="w-4 h-4 mr-1.5 text-emerald-500" />
               ) : (
-                <Share2 className="w-4 h-4 mr-1.5" />
+                <Share2 className="w-4 h-4 mr-1.5 text-slate-400" />
               )}
               <span>
                 {copiedClassLink ? "Copied Link!" : "Copy Class Link"}
@@ -1364,9 +1239,9 @@ const CourseDetails = () => {
             </button>
             <button
               onClick={() => setIsCallActiveInApp(true)}
-              className="px-5 py-2.5 bg-white text-red-600 hover:bg-slate-100 font-extrabold text-sm rounded-xl transition shadow-md flex items-center justify-center shrink-0"
+              className="flex-1 sm:flex-none px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-sm hover:shadow-md flex items-center justify-center shrink-0 cursor-pointer font-heading"
             >
-              <Video className="w-4 h-4 mr-2 text-red-600" />
+              <Video className="w-4 h-4 mr-2" />
               Join Live Class Now
             </button>
           </div>
@@ -1387,110 +1262,117 @@ const CourseDetails = () => {
         </div>
       )}
 
-      <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-700 pb-px overflow-x-auto">
+      {/* ======================================================== */}
+      {/* 2. TABS NAVIGATION (Custom Tailwind Minimal Scrollbar)    */}
+      {/* ======================================================== */}
+      <div className="flex space-x-4 border-b border-slate-200 dark:border-slate-800 pb-px overflow-x-auto [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full">
         <button
           onClick={() => setActiveTab("info")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "info" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "info" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <Info className="w-4 h-4 mr-2" /> Requirements
+          <Info className={`w-4 h-4 mr-1.5 ${activeTab === "info" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> Requirements
         </button>
         <button
           onClick={() => setActiveTab("modules")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "modules" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "modules" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <Book className="w-4 h-4 mr-2" /> Modules
+          <Book className={`w-4 h-4 mr-1.5 ${activeTab === "modules" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> Modules
         </button>
         <button
           onClick={() => setActiveTab("materials")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "materials" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "materials" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <FileText className="w-4 h-4 mr-2" /> Library & Materials
+          <FileText className={`w-4 h-4 mr-1.5 ${activeTab === "materials" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> Library & Materials
         </button>
         <button
           onClick={() => setActiveTab("assessments")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "assessments" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "assessments" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <Award className="w-4 h-4 mr-2" />{" "}
+          <Award className={`w-4 h-4 mr-1.5 ${activeTab === "assessments" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} />{" "}
           {isStudent ? "Transcripts" : "Assessments"}
         </button>
         <button
           onClick={() => setActiveTab("certificate")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "certificate" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "certificate" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <Award className="w-4 h-4 mr-2" /> Certificate
+          <Award className={`w-4 h-4 mr-1.5 ${activeTab === "certificate" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> Certificate
         </button>
         <button
           onClick={() => setActiveTab("schedule")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "schedule" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "schedule" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <Calendar className="w-4 h-4 mr-2" /> Timetable
+          <Calendar className={`w-4 h-4 mr-1.5 ${activeTab === "schedule" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> Timetable
         </button>
         <button
           onClick={() => setActiveTab("attendance")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "attendance" ? "text-[#0078d4] dark:text-[#04a4ec] border-b-2 border-[#0078d4] dark:border-[#04a4ec] font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "attendance" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <Timer className="w-4 h-4 mr-2 text-[#0078d4]" /> Attendance & Engagement
+          <Timer className={`w-4 h-4 mr-1.5 ${activeTab === "attendance" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> Attendance & Engagement
         </button>
         {isVocationalDonationFunded && (
           <button
             onClick={() => setActiveTab("donations")}
-            className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "donations" ? "text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+            className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "donations" ? "text-emerald-600 dark:text-emerald-400 border-emerald-600 dark:border-emerald-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
           >
-            <HeartHandshake className="w-4 h-4 mr-2 text-emerald-500" />{" "}
-            Sponsorship & Donations
-            <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <HeartHandshake className={`w-4 h-4 mr-1.5 ${activeTab === "donations" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`} />{" "}
+            Sponsorships
+            <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${activeTab === "donations" ? "bg-emerald-100 dark:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300" : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"}`}>
               {courseDonationList.length}
             </span>
           </button>
         )}
         <button
           onClick={() => setActiveTab("chat")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "chat" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "chat" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <MessageSquare className="w-4 h-4 mr-2" /> Discussions
+          <MessageSquare className={`w-4 h-4 mr-1.5 ${activeTab === "chat" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> Discussions
         </button>
         {!isStudent && (
           <button
             onClick={() => setActiveTab("people")}
-            className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "people" ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+            className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "people" ? "text-[#0078d4] dark:text-[#04a4ec] border-[#0078d4] dark:border-[#04a4ec]" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
           >
-            <Users className="w-4 h-4 mr-2" /> People & Invites
+            <Users className={`w-4 h-4 mr-1.5 ${activeTab === "people" ? "text-[#0078d4] dark:text-[#04a4ec]" : "text-slate-400"}`} /> People & Invites
           </button>
         )}
         <button
           onClick={() => setActiveTab("lunch")}
-          className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === "lunch" ? "text-pink-600 dark:text-pink-400 border-b-2 border-pink-600 dark:border-pink-400 font-semibold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`}
+          className={`pb-3 font-semibold text-sm flex items-center transition-colors whitespace-nowrap cursor-pointer font-heading border-b-2 ${activeTab === "lunch" ? "text-pink-600 dark:text-pink-400 border-pink-600 dark:border-pink-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border-transparent"}`}
         >
-          <Rocket className="w-4 h-4 mr-2" /> Launch Box
+          <Rocket className={`w-4 h-4 mr-1.5 ${activeTab === "lunch" ? "text-pink-600 dark:text-pink-400" : "text-slate-400"}`} /> Launch Box
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 min-h-[400px]">
+      {/* ======================================================== */}
+      {/* 3. TAB CONTENT AREA (Unboxed Flow)                        */}
+      {/* ======================================================== */}
+      <div className="py-6 min-h-[500px]">
         {!hasAccess && isStudent && activeTab !== "info" ? (
           renderAccessBlocker()
         ) : (
           <>
             {activeTab === "info" && (
-              <div className="p-6 md:p-8 space-y-8 animate-in fade-in">
+              <div className="space-y-8 animate-in fade-in">
                 <div>
                   {!hasAccess && isStudent && renderAccessBlocker()}
 
                   {/* Vocational Donation Funding & Admission Gate Banner */}
                   {isVocationalDonationFunded && gate && (
-                    <div className="mb-8 p-6 bg-gradient-to-br from-emerald-50 via-teal-50 to-indigo-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-indigo-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-4 shadow-sm">
+                    <div className="mb-8 p-6 sm:p-8 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-5 shadow-sm">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2.5 text-emerald-800 dark:text-emerald-300 font-bold">
-                          <HeartHandshake className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-base">
-                            Vocational Tuition Covered by Donations &
-                            Sponsorships
+                        <div className="flex items-center space-x-3 text-slate-900 dark:text-white font-bold font-heading">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center shrink-0">
+                             <HeartHandshake className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <span className="text-lg">
+                            Vocational Tuition Covered by Donations
                           </span>
                         </div>
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold self-start sm:self-auto uppercase tracking-wider font-heading ${
                             gate.canAdmitMore
-                              ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
-                              : "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                              ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                              : "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
                           }`}
                         >
                           {gate.canAdmitMore
@@ -1499,7 +1381,7 @@ const CourseDetails = () => {
                         </span>
                       </div>
 
-                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-body">
                         Tuition fees for students in this course are completely
                         funded by community donors and sponsors. Admitted
                         students pay <strong>$0 tuition</strong>. As community
@@ -1507,56 +1389,56 @@ const CourseDetails = () => {
                         progressively until reaching the session limit.
                       </p>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700/50 text-center shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-heading mb-1">
                             Raised
                           </span>
-                          <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                          <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 font-heading">
                             {gate.currency}{" "}
                             {gate.totalDonations.toLocaleString()}
                           </span>
                         </div>
-                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700/50 text-center shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-heading mb-1">
                             Cost / Student
                           </span>
-                          <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                          <span className="text-lg font-extrabold text-slate-900 dark:text-white font-heading">
                             {gate.currency}{" "}
                             {formatPriceWithDecimals(
                               getEffectivePrice(gate.tuitionCostPerStudent),
                             )}
                           </span>
                         </div>
-                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700/50 text-center shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-heading mb-1">
                             Funded Seats
                           </span>
-                          <span className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">
+                          <span className="text-lg font-extrabold text-[#0078d4] dark:text-[#04a4ec] font-heading">
                             {gate.maxAdmissibleStudents} max
                           </span>
                         </div>
-                        <div className="p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700/50 text-center shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-heading mb-1">
                             Enrolled
                           </span>
-                          <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                          <span className="text-lg font-extrabold text-slate-900 dark:text-white font-heading">
                             {gate.currentlyAdmittedCount}
                           </span>
                         </div>
                       </div>
 
-                      <div className="pt-2 flex flex-wrap items-center gap-3">
+                      <div className="pt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 dark:border-slate-700/50">
                         <button
                           onClick={() => setShowDonationModal(true)}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center"
+                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-sm flex items-center cursor-pointer font-heading"
                         >
-                          <HeartHandshake className="w-3.5 h-3.5 mr-1.5" />
-                          Donate/Sponsor
+                          <HeartHandshake className="w-4 h-4 mr-2" />
+                          Donate or Sponsor
                         </button>
                         <button
                           onClick={() => setActiveTab("donations")}
-                          className="px-4 py-2 bg-white/80 hover:bg-white dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition border border-emerald-200 dark:border-emerald-800"
+                          className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs sm:text-sm transition border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer font-heading"
                         >
                           View Donor Hall & Sponsorships →
                         </button>
@@ -1564,16 +1446,16 @@ const CourseDetails = () => {
                     </div>
                   )}
 
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 font-heading">
                     Admission & Guidelines
                   </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-6">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Payment Availability
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm h-full">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 font-heading flex items-center">
+                          <CreditCard className="w-4 h-4 mr-2 text-slate-300" /> Payment Availability
                         </h3>
-                        <p className="text-slate-900 dark:text-white font-medium bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50">
+                        <p className="text-slate-900 dark:text-white text-sm font-medium font-body">
                           {course.paymentTermsAllowed === "both"
                             ? "One-time & Installment Plans Available"
                             : course.paymentTermsAllowed === "installment"
@@ -1581,13 +1463,16 @@ const CourseDetails = () => {
                               : "One-Time Payment Only"}
                         </p>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Student Admission Guidelines
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm h-full">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 font-heading flex items-center">
+                           <BookOpen className="w-4 h-4 mr-2 text-slate-300" /> Student Admission Guidelines
                         </h3>
-                        <div className="text-slate-900 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 leading-relaxed">
+                        <div className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed font-body">
                           {course.requirements ? (
-                            <ul className="space-y-1.5 list-disc pl-5">
+                            <ul className="space-y-2 list-disc pl-5">
                               {course.requirements
                                 .split("\n")
                                 .filter(Boolean)
@@ -1603,20 +1488,21 @@ const CourseDetails = () => {
                         </div>
                       </div>
                     </div>
+                    
                     <div className="space-y-6">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Enrollment Procedure
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm h-full">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 font-heading flex items-center">
+                          <Send className="w-4 h-4 mr-2 text-slate-300" /> Enrollment Procedure
                         </h3>
-                        <div className="text-slate-900 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 leading-relaxed">
+                        <div className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed font-body">
                           {course.applicationProcess ? (
-                            <ol className="space-y-2">
+                            <ol className="space-y-3">
                               {course.applicationProcess
                                 .split("\n")
                                 .filter(Boolean)
                                 .map((step, idx) => (
                                   <li key={idx} className="flex items-start">
-                                    <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center mr-2 mt-0.5 shrink-0">
+                                    <span className="w-5 h-5 rounded-md bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] text-[10px] font-bold flex items-center justify-center mr-2.5 mt-0.5 shrink-0 font-heading">
                                       {idx + 1}
                                     </span>
                                     <span>{step.replace(/^\d+\.\s*/, "")}</span>
@@ -1630,13 +1516,16 @@ const CourseDetails = () => {
                           )}
                         </div>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
-                          Instructor Qualifications
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm h-full">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 font-heading flex items-center">
+                          <Award className="w-4 h-4 mr-2 text-slate-300" /> Instructor Qualifications
                         </h3>
-                        <div className="text-slate-900 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 leading-relaxed">
+                        <div className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed font-body">
                           {course.instructorRequirements ? (
-                            <ul className="space-y-1.5 list-disc pl-5">
+                            <ul className="space-y-2 list-disc pl-5">
                               {course.instructorRequirements
                                 .split("\n")
                                 .filter(Boolean)
@@ -1656,19 +1545,22 @@ const CourseDetails = () => {
                 </div>
               </div>
             )}
+            
             {activeTab === "modules" && (
-              <CourseModulesTab
-                course={course}
-                isStudent={isStudent}
-                isPreview={isPreviewAsStudent}
-                onTogglePreview={setIsPreviewAsStudent}
-              />
+              <div className="animate-in fade-in">
+                <CourseModulesTab
+                  course={course}
+                  isStudent={isStudent}
+                  isPreview={isPreviewAsStudent}
+                  onTogglePreview={setIsPreviewAsStudent}
+                />
+              </div>
             )}
 
             {activeTab === "materials" && (
-              <div className="p-6">
+              <div className="animate-in fade-in">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white font-heading">
                     Library & Resources
                   </h2>
                 </div>
@@ -1676,10 +1568,10 @@ const CourseDetails = () => {
                 {!isStudent && (
                   <form
                     onSubmit={handleAddMaterial}
-                    className="mb-8 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4"
+                    className="mb-8 p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4 shadow-sm"
                   >
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 font-heading">
                         Material Title
                       </label>
                       <input
@@ -1687,12 +1579,12 @@ const CourseDetails = () => {
                         required
                         value={newMatTitle}
                         onChange={(e) => setNewMatTitle(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 text-sm text-slate-900 dark:text-white"
+                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 focus:border-[#0078d4] transition font-body"
                         placeholder="e.g. Course Syllabus PDF"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 font-heading">
                         Resource URL or Upload
                       </label>
                       <div className="flex items-center gap-2">
@@ -1701,10 +1593,10 @@ const CourseDetails = () => {
                           required={!newMatUrl}
                           value={newMatUrl}
                           onChange={(e) => setNewMatUrl(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 text-sm text-slate-900 dark:text-white"
+                          className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 focus:border-[#0078d4] transition font-body"
                           placeholder="https://..."
                         />
-                        <div className="shrink-0 h-[38px] flex items-center">
+                        <div className="shrink-0 h-[42px] flex items-center">
                           <FileUpload
                             label="Upload"
                             accept=".pdf,.doc,.docx,.txt"
@@ -1715,7 +1607,7 @@ const CourseDetails = () => {
                     </div>
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm font-medium flex items-center h-[38px] shrink-0"
+                      className="px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-sm font-bold flex items-center h-[42px] shrink-0 transition shadow-sm font-heading cursor-pointer"
                     >
                       <Upload className="w-4 h-4 mr-2" /> Add Material
                     </button>
@@ -1724,25 +1616,28 @@ const CourseDetails = () => {
 
                 <div className="space-y-3">
                   {courseMaterials.length === 0 ? (
-                    <p className="text-slate-500 dark:text-slate-400 text-center py-8">
-                      No materials have been uploaded yet.
-                    </p>
+                    <div className="text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800">
+                      <FileText className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+                      <p className="text-slate-500 dark:text-slate-400 text-sm font-body">
+                        No materials have been uploaded yet.
+                      </p>
+                    </div>
                   ) : (
                     courseMaterials.map((mat) => (
                       <div
                         key={mat.id}
-                        className="flex items-center p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-slate-500 rounded-xl transition-colors group"
+                        className="flex items-center p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] dark:hover:border-[#04a4ec] rounded-xl transition-all shadow-sm group"
                       >
                         <a
                           href={mat.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center flex-1"
+                          className="flex items-center flex-1 min-w-0"
                         >
-                          <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-lg flex items-center justify-center mr-4 group-hover:bg-indigo-500 group-hover:text-slate-900 dark:text-white transition-colors shrink-0">
+                          <div className="w-10 h-10 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] rounded-xl flex items-center justify-center mr-4 group-hover:bg-[#0078d4] group-hover:text-white transition-colors shrink-0">
                             <Paperclip className="w-5 h-5" />
                           </div>
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             {editingMaterialId === mat.id ? (
                               <input
                                 type="text"
@@ -1750,7 +1645,7 @@ const CourseDetails = () => {
                                 onChange={(e) =>
                                   setEditingMaterialTitle(e.target.value)
                                 }
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-slate-900 dark:text-white mb-1"
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-[#0078d4]/30 focus:outline-none rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-white mb-1 font-body"
                                 onClick={(e) => e.preventDefault()}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
@@ -1764,30 +1659,30 @@ const CourseDetails = () => {
                                 autoFocus
                               />
                             ) : (
-                              <p className="font-medium text-slate-900 dark:text-white">
+                              <p className="font-semibold text-sm text-slate-900 dark:text-white truncate font-heading group-hover:text-[#0078d4] dark:group-hover:text-[#04a4ec] transition-colors">
                                 {mat.title}
                               </p>
                             )}
-                            <p className="text-xs text-slate-500">
-                              {mat.type.toUpperCase()}
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-heading mt-0.5">
+                              {mat.type}
                             </p>
                           </div>
                         </a>
 
                         {!isStudent && (
-                          <div className="flex items-center space-x-2 ml-4">
+                          <div className="flex items-center space-x-2 ml-4 shrink-0">
                             {editingMaterialId === mat.id ? (
                               <>
                                 <button
                                   onClick={() => handleUpdateMaterial(mat.id!)}
-                                  className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                                  className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
                                   title="Save"
                                 >
                                   <CheckCircle className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => setEditingMaterialId(null)}
-                                  className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                                  className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
                                   title="Cancel"
                                 >
                                   <X className="w-4 h-4" />
@@ -1801,7 +1696,7 @@ const CourseDetails = () => {
                                     setEditingMaterialId(mat.id ?? null);
                                     setEditingMaterialTitle(mat.title);
                                   }}
-                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                  className="p-2 text-slate-400 hover:text-[#0078d4] hover:bg-[#d6e9f8]/50 rounded-lg transition-colors cursor-pointer"
                                   title="Edit Name"
                                 >
                                   <Pencil className="w-4 h-4" />
@@ -1813,7 +1708,7 @@ const CourseDetails = () => {
                                       handleDeleteMaterial(mat.id);
                                     }
                                   }}
-                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                   title="Delete Material"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1829,136 +1724,36 @@ const CourseDetails = () => {
               </div>
             )}
 
-            {/* {activeTab === "chat" && (
-              <div className="flex flex-col h-[500px]">
-                <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Class Discussion
-                  </h2>
-                </div>
-                <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-900/50">
-                  {chatMessages.length === 0 ? (
-                    <p className="text-center text-slate-500 mt-10">
-                      Start the conversation!
-                    </p>
-                  ) : (
-                    chatMessages.map((msg, i) => {
-                      const isMe = msg.senderId === currentUser?.id;
-                      return (
-                        <div
-                          key={i}
-                          className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-                        >
-                          <span className="text-xs text-slate-500 mb-1">
-                            {isMe ? "You" : msg.senderName}
-                          </span>
-                          <div
-                            className={`px-4 py-2 rounded-2xl max-w-[70%] ${isMe ? "bg-indigo-600 text-slate-900 dark:text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-200"}`}
-                          >
-                            {msg.text && <div className="mb-1">{msg.text}</div>}
-                            {msg.fileUrl && (
-                              <div className="mt-2">
-                                {msg.fileType === "image" ? (
-                                  <img
-                                    src={msg.fileUrl}
-                                    alt="attachment"
-                                    className="max-w-full rounded-lg max-h-48 object-cover"
-                                  />
-                                ) : msg.fileType === "video" ? (
-                                  <video
-                                    src={msg.fileUrl}
-                                    controls
-                                    className="max-w-full rounded-lg max-h-48"
-                                  />
-                                ) : (
-                                  <a
-                                    href={msg.fileUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center text-sm underline opacity-90 hover:opacity-100"
-                                  >
-                                    <Paperclip className="w-4 h-4 mr-1" /> View
-                                    Document
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-b-2xl">
-                  {chatAttachmentUrl && (
-                    <div className="mb-3 flex items-center bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg">
-                      <span className="text-xs text-slate-600 dark:text-slate-300 mr-auto truncate">
-                        Attached: {chatAttachmentType}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setChatAttachmentUrl("");
-                          setChatAttachmentType(undefined);
-                        }}
-                        className="p-1 hover:bg-slate-600 rounded text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                  <form onSubmit={handleSendMsg} className="flex space-x-2">
-                    <FileUpload
-                      label=""
-                      onUpload={(url, type) => {
-                        setChatAttachmentUrl(url);
-                        setChatAttachmentType(type);
-                      }}
-                    />
-                    <input
-                      type="text"
-                      value={chatMsg}
-                      onChange={(e) => setChatMsg(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!chatMsg.trim() && !chatAttachmentUrl}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-slate-900 dark:text-white rounded-lg transition-colors flex items-center justify-center"
-                    >
-                      <Send className="w-5 h-5" />
-                    </button>
-                  </form>
-                </div>
-              </div>
-            )} */}
-
             {activeTab === "chat" && (
-              <CourseDiscussions courseId={course.id} isStudent={isStudent} />
+              <div className="animate-in fade-in">
+                 <CourseDiscussions courseId={course.id} isStudent={isStudent} />
+              </div>
             )}
 
             {activeTab === "people" && !isStudent && (
-              <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-900">
+              <div className="animate-in fade-in">
                 <OrgUserOnboarding courseId={course.id} />
               </div>
             )}
 
             {activeTab === "assessments" && (
-              <div className="p-4 sm:p-6 bg-slate-950">
+              <div className="animate-in fade-in">
                 <CourseAssessments courseId={course.id} isStudent={isStudent} />
               </div>
             )}
+            
             {activeTab === "certificate" && (
-              <CourseCertificate
-                course={course}
-                isStudent={isStudent}
-                progress={progressPercentage}
-              />
+              <div className="animate-in fade-in">
+                <CourseCertificate
+                  course={course}
+                  isStudent={isStudent}
+                  progress={progressPercentage}
+                />
+              </div>
             )}
 
             {activeTab === "schedule" && (
-              <div className="p-4 sm:p-6 bg-slate-950">
+              <div className="animate-in fade-in">
                 <CourseSchedule
                   courseId={course.id}
                   isStudent={isStudent}
@@ -1995,17 +1790,17 @@ const CourseDetails = () => {
             )}
 
             {activeTab === "donations" && (
-              <div className="p-6 md:p-8 space-y-8 animate-in fade-in">
+              <div className="animate-in fade-in space-y-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
                   <div>
-                    <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1">
+                    <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 font-bold text-[11px] uppercase tracking-wider mb-1.5 font-heading">
                       <HeartHandshake className="w-4 h-4" />
                       <span>Community Sponsorship & Donation Campaign</span>
                     </div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
                       Vocational Tuition Funding Hall
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-2xl font-body">
                       This course is tuition-free for admitted students, powered
                       directly by generous individual donors and corporate
                       sponsors.
@@ -2014,7 +1809,7 @@ const CourseDetails = () => {
 
                   <button
                     onClick={() => setShowDonationModal(true)}
-                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm transition shadow-lg shadow-emerald-600/20 flex items-center justify-center self-start md:self-auto"
+                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm transition shadow-sm hover:shadow-md flex items-center justify-center self-start md:self-auto cursor-pointer font-heading"
                   >
                     <HeartHandshake className="w-4 h-4 mr-2" />
                     Make a Donation / Sponsor
@@ -2023,15 +1818,15 @@ const CourseDetails = () => {
 
                 {gate && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="p-5 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800">
-                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 block uppercase">
+                    <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-heading">
                         Total Raised
                       </span>
-                      <div className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">
+                      <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 font-heading">
                         {gate.currency} {gate.totalDonations.toLocaleString()}
                       </div>
                       {course.donationTargetAmount && (
-                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
+                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 font-body">
                           Goal: {gate.currency}{" "}
                           {course.donationTargetAmount.toLocaleString()} (
                           {Math.min(
@@ -2047,44 +1842,44 @@ const CourseDetails = () => {
                       )}
                     </div>
 
-                    <div className="p-5 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800">
-                      <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 block uppercase">
+                    <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-heading">
                         Tuition Cost / Student
                       </span>
-                      <div className="text-2xl font-extrabold text-indigo-700 dark:text-indigo-300 mt-1">
+                      <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 font-heading">
                         {gate.currency}{" "}
                         {gate.tuitionCostPerStudent.toLocaleString()}
                       </div>
-                      <div className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-1">
+                      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 font-body">
                         Covers training, tools & certification
                       </div>
                     </div>
 
-                    <div className="p-5 bg-teal-50 dark:bg-teal-950/40 rounded-2xl border border-teal-200 dark:border-teal-800">
-                      <span className="text-xs font-bold text-teal-700 dark:text-teal-300 block uppercase">
+                    <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-heading">
                         Funded Admission Spots
                       </span>
-                      <div className="text-2xl font-extrabold text-teal-700 dark:text-teal-300 mt-1">
+                      <div className="text-2xl font-extrabold text-[#0078d4] dark:text-[#04a4ec] mt-1 font-heading">
                         {gate.currentlyAdmittedCount} /{" "}
                         {gate.maxAdmissibleStudents}
                       </div>
-                      <div className="text-[11px] text-teal-600 dark:text-teal-400 mt-1">
+                      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 font-body">
                         {gate.remainingSpots > 0
                           ? `${gate.remainingSpots} seats open right now`
                           : "All funded seats filled"}
                       </div>
                     </div>
 
-                    <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-                      <span className="text-xs font-bold text-slate-500 block uppercase">
+                    <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-heading">
                         Next Seat Unlocks At
                       </span>
-                      <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
+                      <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 font-heading">
                         {gate.nextSeatNeededAmount > 0
                           ? `+${gate.currency} ${gate.nextSeatNeededAmount.toLocaleString()}`
                           : "Session Full"}
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
+                      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 font-body">
                         {gate.nextSeatNeededAmount > 0
                           ? "additional donations needed"
                           : "maximum batch limit reached"}
@@ -2094,21 +1889,21 @@ const CourseDetails = () => {
                 )}
 
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-5 font-heading">
                     Pledges & Sponsoring Contributors (
                     {courseDonationList.length})
                   </h3>
 
                   {courseDonationList.length === 0 ? (
-                    <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-                      <HeartHandshake className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                    <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                      <HeartHandshake className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+                      <p className="text-sm font-medium text-slate-600 dark:text-slate-400 font-body">
                         Be the first generous contributor to sponsor students
                         for this course!
                       </p>
                       <button
                         onClick={() => setShowDonationModal(true)}
-                        className="mt-4 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm inline-flex items-center"
+                        className="mt-4 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm inline-flex items-center cursor-pointer font-heading"
                       >
                         <HeartHandshake className="w-3.5 h-3.5 mr-1.5" />
                         Sponsor a Seat
@@ -2119,11 +1914,11 @@ const CourseDetails = () => {
                       {courseDonationList.map((donation) => (
                         <div
                           key={donation.id}
-                          className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3"
+                          className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-sm"
                         >
                           <div className="flex items-start justify-between">
                             <div>
-                              <div className="font-bold text-slate-900 dark:text-white flex items-center">
+                              <div className="font-bold text-slate-900 dark:text-white flex items-center font-heading">
                                 <span>
                                   {donation.donorName || "Anonymous Donor"}
                                 </span>
@@ -2133,7 +1928,7 @@ const CourseDetails = () => {
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[11px] text-slate-400">
+                              <span className="text-[11px] text-slate-400 font-body block mt-0.5">
                                 {new Date(
                                   donation.createdAt,
                                 ).toLocaleDateString(undefined, {
@@ -2144,24 +1939,24 @@ const CourseDetails = () => {
                               </span>
                             </div>
 
-                            <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-sm border border-emerald-500/20">
+                            <span className="px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-extrabold text-sm border border-emerald-200 dark:border-emerald-800/60 font-heading shrink-0">
                               {donation.currency}{" "}
                               {donation.amount.toLocaleString()}
                             </span>
                           </div>
 
                           {donation.message && (
-                            <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-white/70 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                            <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 font-body leading-relaxed">
                               "{donation.message}"
                             </p>
                           )}
 
-                          <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                          <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px] font-heading">
                             <span
-                              className={`px-2 py-0.5 rounded-md font-semibold ${
+                              className={`px-2.5 py-1 rounded-md font-bold uppercase tracking-wider ${
                                 donation.donationType === "sponsorship"
-                                  ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  ? "bg-[#d6e9f8]/60 text-[#0078d4] dark:bg-[#0078d4]/15 dark:text-[#04a4ec] border border-[#0078d4]/20"
+                                  : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60"
                               }`}
                             >
                               {donation.donationType === "sponsorship"
@@ -2171,7 +1966,7 @@ const CourseDetails = () => {
 
                             {donation.sponsoredStudentEmails &&
                               donation.sponsoredStudentEmails.length > 0 && (
-                                <span className="text-slate-500">
+                                <span className="text-slate-500 font-medium font-body truncate max-w-[200px]" title={donation.sponsoredStudentEmails.join(", ")}>
                                   Sponsored:{" "}
                                   {donation.sponsoredStudentEmails.join(", ")}
                                 </span>
@@ -2186,13 +1981,15 @@ const CourseDetails = () => {
             )}
 
             {activeTab === "lunch" && (
-              <div className="p-4 sm:p-6">
+              <div className="animate-in fade-in">
                 <LunchGames />
               </div>
             )}
           </>
         )}
       </div>
+      
+      {/* MODALS */}
       {showEnrollModal && (
         <EnrollmentModal
           course={course}
