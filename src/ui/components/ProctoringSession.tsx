@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Camera, Monitor, ShieldAlert, CheckCircle, Clock, HeartHandshake, AlertTriangle } from "lucide-react";
+import { Camera, Monitor, ShieldAlert, CheckCircle, Clock, HeartHandshake, AlertTriangle, Mic, ShieldCheck, EyeOff } from "lucide-react";
 import { useAccessibility } from "../../store/AccessibilityContext";
 
 export const ProctoringSession = ({
@@ -15,6 +15,8 @@ export const ProctoringSession = ({
 }) => {
   const { examTimeMultiplier, openAccessibilityModal } = useAccessibility();
   const [isProctoring, setIsProctoring] = useState(false);
+  const [malpracticeCount, setMalpracticeCount] = useState<number>(0);
+  const [lastMalpracticeTime, setLastMalpracticeTime] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -40,6 +42,31 @@ export const ProctoringSession = ({
 
     return () => clearInterval(timer);
   }, [isProctoring, onTimeExpired]);
+
+  // Anti-cheating malpractice monitor (tab switch / window focus blur)
+  useEffect(() => {
+    if (!isProctoring) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setMalpracticeCount((prev) => prev + 1);
+        setLastMalpracticeTime(new Date().toLocaleTimeString());
+      }
+    };
+
+    const handleBlur = () => {
+      setMalpracticeCount((prev) => prev + 1);
+      setLastMalpracticeTime(new Date().toLocaleTimeString());
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [isProctoring]);
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -67,11 +94,13 @@ export const ProctoringSession = ({
       }
 
       setSecondsRemaining(effectiveMinutes * 60);
+      setMalpracticeCount(0);
+      setLastMalpracticeTime(null);
       setIsProctoring(true);
     } catch (err) {
       console.error("Proctoring error:", err);
       alert(
-        "Camera, Microphone, and Screen Share permissions are required to take this assessment.",
+        "Camera, Microphone, and Screen Access permissions are strictly required to start this assessment session.",
       );
     }
   };
@@ -104,12 +133,27 @@ export const ProctoringSession = ({
         <ShieldAlert className="w-12 h-12 text-amber-500 mx-auto" />
         <div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-            Proctored Assessment: {assessmentTitle}
+            Anti-Malpractice Proctored Session: {assessmentTitle}
           </h3>
           <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 max-w-md mx-auto">
-            This assessment requires screen, camera, and microphone monitoring
-            to ensure academic integrity.
+            This quiz/exam requires active camera, microphone, and screen monitoring to ensure academic integrity and prevent exam malpractices.
           </p>
+        </div>
+
+        {/* Monitoring Devices Checklist */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-lg mx-auto text-left text-xs">
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center space-x-2">
+            <Camera className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Webcam Feed</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center space-x-2">
+            <Mic className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Audio Mic</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center space-x-2">
+            <Monitor className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Screen Share</span>
+          </div>
         </div>
 
         {/* Accommodation Timer Banner */}
@@ -127,13 +171,13 @@ export const ProctoringSession = ({
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <button
             onClick={startProctoring}
-            className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-amber-500/20 flex items-center justify-center text-xs sm:text-sm"
+            className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-amber-500/20 flex items-center justify-center text-xs sm:text-sm cursor-pointer"
           >
-            <Camera className="w-4 h-4 mr-2" /> Start Proctored Session
+            <ShieldCheck className="w-4 h-4 mr-2" /> Start Proctored Session
           </button>
           <button
             onClick={() => openAccessibilityModal("accommodations")}
-            className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
+            className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
           >
             <HeartHandshake className="w-4 h-4 text-indigo-500" />
             <span>Accommodation Settings</span>
@@ -146,16 +190,24 @@ export const ProctoringSession = ({
   const isLowTime = secondsRemaining <= 300 && secondsRemaining > 0;
 
   return (
-    <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-6 space-y-4">
+    <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-6 space-y-4 shadow-2xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-white flex items-center">
-            <CheckCircle className="w-4 h-4 text-emerald-500 mr-2" /> Session
-            Monitored: {assessmentTitle}
+          <h3 className="text-base font-bold text-white flex items-center space-x-2">
+            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>Session Monitored: {assessmentTitle}</span>
           </h3>
-          <p className="text-xs text-emerald-400/80">
-            Screen, camera, and microphone are recording.
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px]">
+            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center">
+              <Camera className="w-3 h-3 mr-1" /> Camera Active
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center">
+              <Mic className="w-3 h-3 mr-1" /> Audio Mic Live
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center">
+              <Monitor className="w-3 h-3 mr-1" /> Screen Captured
+            </span>
+          </div>
         </div>
 
         {/* Live Countdown Clock */}
@@ -178,12 +230,23 @@ export const ProctoringSession = ({
 
           <button
             onClick={stopProctoring}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition"
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition cursor-pointer"
           >
-            End Session
+            End Monitoring
           </button>
         </div>
       </div>
+
+      {/* Malpractice Warning Banner */}
+      {malpracticeCount > 0 && (
+        <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-200 flex items-start space-x-2.5 animate-in fade-in">
+          <EyeOff className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold block">⚠️ Anti-Malpractice Warning: Focus Shift Detected ({malpracticeCount})</span>
+            Switched application or left exam window at {lastMalpracticeTime}. This event has been recorded in the proctoring transcript.
+          </div>
+        </div>
+      )}
 
       {isLowTime && (
         <div className="p-2.5 bg-red-500/20 border border-red-500/30 rounded-xl text-xs text-red-200 flex items-center space-x-2">
@@ -192,7 +255,7 @@ export const ProctoringSession = ({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-800 relative aspect-video">
           <video
             ref={videoRef}
@@ -201,8 +264,8 @@ export const ProctoringSession = ({
             muted
             className="w-full h-full object-cover"
           />
-          <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[11px] text-white flex items-center">
-            <Camera className="w-3 h-3 mr-1" /> Camera & Mic
+          <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded-lg text-[11px] text-emerald-400 font-bold flex items-center border border-emerald-500/30">
+            <Camera className="w-3 h-3 mr-1" /> Webcam & Audio Mic
           </div>
         </div>
         <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-800 relative aspect-video">
@@ -213,8 +276,8 @@ export const ProctoringSession = ({
             muted
             className="w-full h-full object-cover"
           />
-          <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[11px] text-white flex items-center">
-            <Monitor className="w-3 h-3 mr-1" /> Screen Capture
+          <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded-lg text-[11px] text-emerald-400 font-bold flex items-center border border-emerald-500/30">
+            <Monitor className="w-3 h-3 mr-1" /> Desktop Screen Capture
           </div>
         </div>
       </div>

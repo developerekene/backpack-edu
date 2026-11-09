@@ -41,6 +41,8 @@ import {
   DiscussionResource,
   CourseDonation,
   OrgPlanTier,
+  TeacherDutyRecord,
+  TeacherDutyType,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
@@ -152,6 +154,25 @@ interface AppState {
     checkOutTime?: string;
     location?: string;
   }) => Promise<void>;
+  teacherDutyRecords: TeacherDutyRecord[];
+  addTeacherDutyRecord: (record: TeacherDutyRecord) => Promise<void>;
+  updateTeacherDutyRecord: (
+    id: string,
+    updates: Partial<TeacherDutyRecord>,
+  ) => Promise<void>;
+  checkInTeacherDuty: (params: {
+    teacherId: string;
+    teacherName: string;
+    teacherEmail?: string;
+    orgId: string;
+    mode: "physical" | "online" | "hybrid";
+    location?: string;
+    dutyType: TeacherDutyType;
+    workNotes?: string;
+    courseId?: string;
+    courseTitle?: string;
+  }) => Promise<TeacherDutyRecord>;
+  checkOutTeacherDuty: (dutyId: string, workNotes?: string) => Promise<void>;
   sendMessage: (msg: ChatMessage) => Promise<void>;
   addDiscussionChannel: (channel: DiscussionChannel) => Promise<void>;
   addDiscussionMessage: (message: DiscussionMessage) => Promise<void>;
@@ -287,6 +308,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
   >(() => loadCache("course.attendance", []));
+  const [teacherDutyRecords, setTeacherDutyRecords] = useState<
+    TeacherDutyRecord[]
+  >(() => loadCache("teacher.duty", []));
   const [assessments, setAssessments] = useState<Assessment[]>(() =>
     loadCache("course.assessments", []),
   );
@@ -1944,6 +1968,137 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Teacher Work Hours & Duty Records (stored in backpack/{targetId}.user.teacher.duty & cached locally)
+  const addTeacherDutyRecord = async (record: TeacherDutyRecord) => {
+    const dutyId = record.id || `duty_${Date.now()}_${record.teacherId}`;
+    const cleaned = sanitizeForFirestore({ ...record, id: dutyId });
+    const targetUid = currentUser?.id || "";
+
+    if (targetUid) {
+      await updateBackpackUserField<TeacherDutyRecord>(
+        targetUid,
+        "teacher.duty",
+        (list) => [...list.filter((r) => r.id !== dutyId), cleaned],
+      );
+    }
+    setTeacherDutyRecords((prev) => {
+      const next = [...prev.filter((r) => r.id !== dutyId), cleaned];
+      try {
+        localStorage.setItem("bp_cache_teacher.duty", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const updateTeacherDutyRecord = async (
+    id: string,
+    updates: Partial<TeacherDutyRecord>,
+  ) => {
+    const targetUid = currentUser?.id || "";
+    const cleanedUpdates = sanitizeForFirestore({
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (targetUid) {
+      await updateBackpackUserField<TeacherDutyRecord>(
+        targetUid,
+        "teacher.duty",
+        (list) =>
+          list.map((r) => (r.id === id ? { ...r, ...cleanedUpdates } : r)),
+      );
+    }
+    setTeacherDutyRecords((prev) => {
+      const next = prev.map((r) =>
+        r.id === id ? { ...r, ...cleanedUpdates } : r,
+      );
+      try {
+        localStorage.setItem("bp_cache_teacher.duty", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const checkInTeacherDuty = async (params: {
+    teacherId: string;
+    teacherName: string;
+    teacherEmail?: string;
+    orgId: string;
+    mode: "physical" | "online" | "hybrid";
+    location?: string;
+    dutyType: TeacherDutyType;
+    workNotes?: string;
+    courseId?: string;
+    courseTitle?: string;
+  }): Promise<TeacherDutyRecord> => {
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    const checkInTime = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const newRecord: TeacherDutyRecord = {
+      id: `duty_${Date.now()}_${params.teacherId}`,
+      orgId: params.orgId,
+      teacherId: params.teacherId,
+      teacherName: params.teacherName,
+      teacherEmail: params.teacherEmail,
+      date: today,
+      checkInTime,
+      mode: params.mode,
+      location: params.location || (params.mode === "online" ? "Virtual Academic Station" : "Campus Faculty Station"),
+      dutyType: params.dutyType,
+      status: "on_duty",
+      workNotes: params.workNotes || "",
+      courseId: params.courseId,
+      courseTitle: params.courseTitle,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    await addTeacherDutyRecord(newRecord);
+    return newRecord;
+  };
+
+  const checkOutTeacherDuty = async (dutyId: string, workNotes?: string) => {
+    const now = new Date();
+    const checkOutTime = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const existing = teacherDutyRecords.find((r) => r.id === dutyId);
+    let totalMinutes = 0;
+    if (existing?.checkInTime) {
+      try {
+        const [timePart, ampm] = existing.checkInTime.split(" ");
+        const [hStr, mStr] = timePart.split(":");
+        let hours = parseInt(hStr, 10);
+        if (ampm === "PM" && hours < 12) hours += 12;
+        if (ampm === "AM" && hours === 12) hours = 0;
+        const checkInDate = new Date();
+        checkInDate.setHours(hours, parseInt(mStr, 10), 0, 0);
+        const diffMs = Math.max(0, now.getTime() - checkInDate.getTime());
+        totalMinutes = Math.max(1, Math.round(diffMs / (1000 * 60)));
+      } catch {
+        totalMinutes = 60;
+      }
+    }
+
+    await updateTeacherDutyRecord(dutyId, {
+      checkOutTime,
+      status: "completed",
+      totalMinutes: totalMinutes || 60,
+      workNotes: workNotes !== undefined ? workNotes : existing?.workNotes,
+      updatedAt: now.toISOString(),
+    });
+  };
+
   // Assessments (stored in backpack/{targetId}.user.assessments)
   const addAssessment = async (assessment: Assessment) => {
     const cleaned = sanitizeForFirestore(assessment);
@@ -2532,6 +2687,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         updateAttendanceRecord,
         deleteAttendanceRecord,
         recordLiveOnlineEngagement,
+        teacherDutyRecords,
+        addTeacherDutyRecord,
+        updateTeacherDutyRecord,
+        checkInTeacherDuty,
+        checkOutTeacherDuty,
         sendMessage,
         addDiscussionChannel,
         addDiscussionMessage,

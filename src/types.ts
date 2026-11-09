@@ -394,6 +394,52 @@ export interface UserProgress {
 
 export type AttendanceMode = "physical" | "online";
 export type AttendanceStatus = "present" | "late" | "absent" | "excused";
+export type TeacherDutyType =
+  | "teaching"
+  | "office_hours"
+  | "grading"
+  | "lab_supervision"
+  | "department_duty"
+  | "general_duty";
+export type TeacherDutyStatus = "on_duty" | "completed" | "delayed";
+
+export interface TeacherDutyRecord {
+  id: string;
+  orgId: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail?: string;
+  date: string; // YYYY-MM-DD
+  checkInTime: string; // e.g. "08:15 AM"
+  checkOutTime?: string; // e.g. "04:30 PM"
+  totalMinutes?: number;
+  mode: "physical" | "online" | "hybrid";
+  location?: string; // e.g. "Campus Block B Faculty Room", "Virtual Academic Station"
+  dutyType: TeacherDutyType;
+  status: TeacherDutyStatus;
+  workNotes?: string;
+  courseId?: string;
+  courseTitle?: string;
+  verifiedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TruancySummary {
+  studentId: string;
+  studentName: string;
+  studentEmail?: string;
+  courseId: string;
+  courseTitle: string;
+  totalSessions: number;
+  attendedSessions: number;
+  unexcusedAbsences: number;
+  excusedAbsences: number;
+  lateArrivals: number;
+  attendanceRate: number; // 0 - 100 percentage
+  truancyLevel: "good" | "warning" | "critical";
+  lastAbsenceDate?: string;
+}
 
 export interface AttendanceEntry {
   id?: string;
@@ -402,13 +448,21 @@ export interface AttendanceEntry {
   userEmail?: string;
   role: "student" | "instructor";
   status: AttendanceStatus;
-  checkInTime?: string; // e.g. "08:30" or ISO string
-  checkOutTime?: string; // e.g. "12:45" or ISO string
+  checkInTime?: string; // e.g. "08:30 AM" or ISO string
+  checkOutTime?: string; // e.g. "12:45 PM" or ISO string
   durationMinutes: number; // engagement duration in minutes
-  location?: string; // e.g. "Campus Hall A", "Chemistry Lab", "Online Live Classroom"
+  location?: string; // e.g. "Campus Hall A", "Online Live Classroom"
   verifiedBy?: string; // admin or instructor name
-  method?: "manual" | "qr_kiosk" | "live_online" | "self_clock";
+  method?: "manual" | "duty_terminal" | "live_online" | "verification_code" | "self_clock" | "campus_terminal";
   notes?: string;
+  truancyWarning?: boolean;
+  excuseReason?:
+    | "medical"
+    | "authorized_leave"
+    | "family_emergency"
+    | "school_event"
+    | "technical_disruption";
+  excuseNotes?: string;
 }
 
 export interface AttendanceRecord {
@@ -424,6 +478,9 @@ export interface AttendanceRecord {
   startTime?: string;
   endTime?: string;
   expectedDurationMinutes?: number;
+  verificationCode?: string; // 6-digit session pin for student roll call
+  schoolType?: "physical" | "online" | "hybrid";
+  truancyThresholdPercent?: number; // e.g. 75
   entries?: AttendanceEntry[];
   instructorEngagement?: {
     instructorId: string;
@@ -432,6 +489,8 @@ export interface AttendanceRecord {
     checkOutTime?: string;
     durationMinutes: number;
     status: AttendanceStatus;
+    dutyType?: TeacherDutyType;
+    workNotes?: string;
   };
   totalAttendees?: number;
   avgEngagementMinutes?: number;

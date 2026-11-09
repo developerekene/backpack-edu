@@ -1,26 +1,5 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
-import {
-  ArrowRight,
-  Globe,
-  Share2,
-  Mail,
-  MessageCircle,
-  Heart,
-} from "lucide-react";
-
-const resources = [
-  { name: "About Us", link: "/about" },
-  { name: "Careers", link: "/careers" },
-  { name: "Impact Report", link: "/impact-report" },
-  { name: "Privacy Policy", link: "/privacy-policy" },
-  {
-    name: "Terms of Service",
-    link: "/terms-of-service",
-  },
-  { name: "Events", link: "/events" },
-];
 
 const Footer: React.FC = () => {
   return (
@@ -70,7 +49,7 @@ const Footer: React.FC = () => {
           <Link to="/events" className="hover:text-[#0078d4]">Events</Link>
           <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             v0.1.9
-          </span>¸
+          </span>
         </div>
       </div>
     </footer>

@@ -23,6 +23,7 @@ import {
   CalendarDays,
   LogIn,
   UserPlus,
+  Timer,
 } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { useAccessibility } from "../../store/AccessibilityContext";
@@ -354,6 +355,16 @@ export const Navbar = () => {
                         <span>Dashboard</span>
                       </Link>
 
+                      {/* Attendance & Engagement Hub */}
+                      <Link
+                        to="/attendance"
+                        onClick={closeMore}
+                        className={moreItemStyle("/attendance")}
+                      >
+                        <Timer className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                        <span>Attendance</span>
+                      </Link>
+
                       {/* Launch Box */}
                       <Link
                         to="/lunch"
@@ -583,6 +594,16 @@ export const Navbar = () => {
               className={getMobileLinkStyle("/dashboard")}
             >
               Dashboard
+            </Link>
+          )}
+
+          {currentUser && (
+            <Link
+              to="/attendance"
+              onClick={closeMenu}
+              className={getMobileLinkStyle("/attendance")}
+            >
+              Attendance
             </Link>
           )}
 

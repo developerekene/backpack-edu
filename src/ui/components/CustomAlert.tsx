@@ -20,9 +20,9 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
   isOpen,
   title,
   message,
-  confirmText = "Delete",
+  confirmText = "Confirm",
   cancelText = "Cancel",
-  type = "danger",
+  type = "warning",
   onConfirm,
   onCancel,
 }) => {
@@ -37,6 +37,11 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const isDeleteAction =
+    (confirmText && confirmText.toLowerCase().includes("delete")) ||
+    (title && title.toLowerCase().includes("delete")) ||
+    (message && message.toLowerCase().includes("permanently delete"));
 
   const handleConfirm = async () => {
     if (!onConfirm) {
@@ -76,7 +81,7 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
               {message}
             </p>
 
-            {(type === "danger" || (confirmText && confirmText.toLowerCase().includes("delete")) || (title && title.toLowerCase().includes("delete"))) && (
+            {isDeleteAction && (
               <div className="mb-5 p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-left flex items-start space-x-2.5">
                 <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">

@@ -1,13 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Globe,
   ShieldCheck,
   ChevronRight,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   Copy,
-  Info,
   Building2,
   ArrowRight,
   ExternalLink,
@@ -28,10 +26,13 @@ export const DomainVerificationCard: React.FC<DomainVerificationCardProps> = ({
   const [step, setStep] = useState<"input" | "instructions" | "success">(
     organization.isDomainVerified ? "success" : "input"
   );
-  const [method, setStepMethod] = useState<"dns" | "meta" | "html">("dns");
+  const [method] = useState<"dns" | "meta" | "html">("dns");
   const [error, setError] = useState("");
 
-  const verificationToken = organization.domainVerificationToken || `backpack-verify-${Math.random().toString(36).substring(2, 15)}`;
+  const verificationToken = useMemo(
+    () => organization.domainVerificationToken || `backpack-verify-${organization.id || "org"}`,
+    [organization.domainVerificationToken, organization.id]
+  );
 
   const handleStartVerification = async () => {
     if (!domain.trim()) {
@@ -49,7 +50,7 @@ export const DomainVerificationCard: React.FC<DomainVerificationCardProps> = ({
         isDomainVerified: false,
       });
       setStep("instructions");
-    } catch (err) {
+    } catch {
       setError("Failed to initialize verification. Please try again.");
     } finally {
       setIsVerifying(false);
@@ -68,7 +69,7 @@ export const DomainVerificationCard: React.FC<DomainVerificationCardProps> = ({
           domainVerificationMethod: method,
         });
         setStep("success");
-      } catch (err) {
+      } catch {
         setError("Verification failed. DNS record not found yet. It may take up to 24 hours for DNS changes to propagate.");
       } finally {
         setIsVerifying(false);

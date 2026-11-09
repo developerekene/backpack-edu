@@ -50,12 +50,13 @@ const getPaystackHeaders = (preferLive = true) => {
 
 // Dynamic retrieval of secret keys from Keysafe Render URL for subaccounts and payment splits
 async function fetchSecretKeys() {
-  const modes = ["live"];
+  const modes = ["live", "test"];
   
   const subaccountUrls = [
     "https://keysafe-ntia.onrender.com/subaccount",
     "https://keysafe-ntia.onrender.com/api/subaccount",
     "https://keysafe-ntia.onrender.com/api/payments/subaccount",
+    "https://keysafe-ntia.onrender.com/api/paystack/subaccount",
   ];
 
   const splitUrls = [
@@ -63,12 +64,79 @@ async function fetchSecretKeys() {
     "https://keysafe-ntia.onrender.com/api/split-payment",
     "https://keysafe-ntia.onrender.com/api/payments/split-payment",
     "https://keysafe-ntia.onrender.com/api/payments/paystack-split-init",
+    "https://keysafe-ntia.onrender.com/api/paystack/initialize-split",
+  ];
+
+  const directKeyUrls = [
+    "https://keysafe-ntia.onrender.com/api/paystack/key",
+    "https://keysafe-ntia.onrender.com/api/key",
+    "https://keysafe-ntia.onrender.com/api/keys",
+    "https://keysafe-ntia.onrender.com/api/payments/key",
   ];
 
   const tasks: Promise<void>[] = [];
 
   for (const mode of modes) {
-    // 1. Subaccount endpoints
+    // 1. Direct Key endpoints
+    for (const url of directKeyUrls) {
+      tasks.push(
+        (async () => {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const response = await fetch(url, {
+              method: "GET",
+              signal: controller.signal,
+              headers: { 
+                "Accept": "application/json",
+                "X-Paystack-Mode": mode,
+                "X-Environment-Mode": mode,
+              },
+            });
+            clearTimeout(timeoutId);
+
+            const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key") || response.headers.get("x-paystack-live-secret-key");
+            if (headerKey && headerKey.startsWith("sk_")) {
+              if (headerKey.startsWith("sk_live_")) {
+                PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+                console.log(`[KeySafe] Successfully loaded LIVE secret key from Render header.`);
+              } else if (headerKey.startsWith("sk_test_")) {
+                PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
+              }
+            }
+
+            const json = await response.json().catch(() => null);
+            if (json) {
+              const extractedKey = (
+                json.secret_key ||
+                json.paystack_secret_key ||
+                json.paystackSecretKey ||
+                json.PAYSTACK_LIVE_SECRET_KEY ||
+                json.PAYSTACK_TEST_SECRET_KEY ||
+                json.live_secret_key ||
+                json.key ||
+                json.data?.secret_key ||
+                json.data?.key ||
+                ""
+              ).trim();
+
+              if (extractedKey && extractedKey.startsWith("sk_")) {
+                if (extractedKey.startsWith("sk_live_")) {
+                  PAYSTACK_LIVE_SECRET_KEY = extractedKey;
+                  console.log(`[KeySafe] Successfully loaded LIVE secret key from Render direct endpoint.`);
+                } else if (extractedKey.startsWith("sk_test_")) {
+                  PAYSTACK_TEST_SECRET_KEY = extractedKey;
+                }
+              }
+            }
+          } catch {
+            // Background key fetch retry gracefully
+          }
+        })()
+      );
+    }
+
+    // 2. Subaccount endpoints (send valid payload to avoid 422 error)
     for (const url of subaccountUrls) {
       tasks.push(
         (async () => {
@@ -84,14 +152,21 @@ async function fetchSecretKeys() {
                 "X-Environment-Mode": mode,
                 "X-Context-Mode": mode,
               },
-              body: JSON.stringify({}),
+              body: JSON.stringify({
+                business_name: "Backpack System Vault",
+                settlement_bank: "058",
+                account_number: "0000000000",
+                percentage_charge: 15,
+                mode,
+              }),
             });
             clearTimeout(timeoutId);
 
-            const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key");
+            const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key") || response.headers.get("x-paystack-live-secret-key");
             if (headerKey && headerKey.startsWith("sk_")) {
               if (headerKey.startsWith("sk_live_")) {
                 PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+                console.log(`[KeySafe] Loaded LIVE secret key from subaccount header.`);
               } else if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
               }
@@ -103,7 +178,9 @@ async function fetchSecretKeys() {
                 json.secret_key ||
                 json.paystack_secret_key ||
                 json.paystackSecretKey ||
+                json.PAYSTACK_LIVE_SECRET_KEY ||
                 json.PAYSTACK_TEST_SECRET_KEY ||
+                json.live_secret_key ||
                 json.key ||
                 json.data?.secret_key ||
                 json.data?.key ||
@@ -113,6 +190,7 @@ async function fetchSecretKeys() {
               if (extractedKey && extractedKey.startsWith("sk_")) {
                 if (extractedKey.startsWith("sk_live_")) {
                   PAYSTACK_LIVE_SECRET_KEY = extractedKey;
+                  console.log(`[KeySafe] Loaded LIVE secret key from subaccount endpoint.`);
                 } else if (extractedKey.startsWith("sk_test_")) {
                   PAYSTACK_TEST_SECRET_KEY = extractedKey;
                 }
@@ -125,7 +203,7 @@ async function fetchSecretKeys() {
       );
     }
 
-    // 2. Split payment endpoints
+    // 3. Split payment endpoints
     for (const url of splitUrls) {
       tasks.push(
         (async () => {
@@ -146,18 +224,17 @@ async function fetchSecretKeys() {
                 amount: 1000,
                 subaccount_code: "ACCT_vault_sync",
                 mode,
-              })
+              }),
             });
             clearTimeout(timeoutId);
 
-            const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key");
+            const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key") || response.headers.get("x-paystack-live-secret-key");
             if (headerKey && headerKey.startsWith("sk_")) {
               if (headerKey.startsWith("sk_live_")) {
                 PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded live secret key from header`);
+                console.log(`[KeySafe] Loaded LIVE secret key from split header.`);
               } else if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded test secret key from header`);
               }
             }
 
@@ -169,6 +246,7 @@ async function fetchSecretKeys() {
                 json.paystackSecretKey ||
                 json.PAYSTACK_LIVE_SECRET_KEY ||
                 json.PAYSTACK_TEST_SECRET_KEY ||
+                json.live_secret_key ||
                 json.key ||
                 json.data?.secret_key ||
                 json.data?.key ||
@@ -178,10 +256,9 @@ async function fetchSecretKeys() {
               if (extractedKey && extractedKey.startsWith("sk_")) {
                 if (extractedKey.startsWith("sk_live_")) {
                   PAYSTACK_LIVE_SECRET_KEY = extractedKey;
-                  console.log(`[KeySafe] Loaded live secret key from split endpoint`);
+                  console.log(`[KeySafe] Loaded LIVE secret key from split endpoint.`);
                 } else if (extractedKey.startsWith("sk_test_")) {
                   PAYSTACK_TEST_SECRET_KEY = extractedKey;
-                  console.log(`[KeySafe] Loaded test secret key from split endpoint`);
                 }
               }
             }

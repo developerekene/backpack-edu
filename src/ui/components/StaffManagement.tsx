@@ -3,15 +3,12 @@ import {
   Users,
   UserPlus,
   Mail,
-  Shield,
   Trash2,
   CheckCircle2,
   X,
   Loader2,
   Plus,
   AlertCircle,
-  MoreVertical,
-  Key,
 } from "lucide-react";
 import { Organization, OrganizationAdmin } from "../../types";
 import { useAppContext } from "../../store/AppContext";
@@ -21,19 +18,21 @@ interface StaffManagementProps {
   organization: Organization;
 }
 
+const generateTempPassword = () => "pass_" + Math.random().toString(36).substring(2, 10);
+
 export const StaffManagement: React.FC<StaffManagementProps> = ({
   organization,
 }) => {
   const { updateOrganization } = useAppContext();
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newStaff, setNewStaff] = useState({
+  const [newStaff, setNewStaff] = useState(() => ({
     name: "",
     email: "",
-    password: Math.random().toString(36).substring(2, 10), // Auto-generate temp password
+    password: generateTempPassword(),
     role: "staff" as "admin" | "staff",
     permissions: ["attendance_edit", "course_edit"] as string[],
-  });
+  }));
   const [error, setError] = useState("");
   const [lastAddedStaff, setLastAddedStaff] = useState<OrganizationAdmin | null>(null);
 
@@ -63,11 +62,11 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
       setNewStaff({
         name: "",
         email: "",
-        password: Math.random().toString(36).substring(2, 10),
+        password: generateTempPassword(),
         role: "staff",
         permissions: ["attendance_edit", "course_edit"],
       });
-    } catch (err) {
+    } catch {
       setError("Failed to add staff member. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -80,7 +79,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     try {
       const updatedAdmins = (organization.admins || []).filter(a => a.id !== staffId);
       await updateOrganization(organization.id, { admins: updatedAdmins });
-    } catch (err) {
+    } catch {
       alert("Failed to remove staff member.");
     }
   };
@@ -298,7 +297,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                         <button
                           key={r}
                           type="button"
-                          onClick={() => setNewStaff({ ...newStaff, role: r as any })}
+                          onClick={() => setNewStaff({ ...newStaff, role: r as "admin" | "staff" })}
                           className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition capitalize ${
                             newStaff.role === r
                               ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400"

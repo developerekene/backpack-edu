@@ -86,15 +86,17 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState(false);
 
-  // Check if current user is the owner of this organization
+  // Check if current user is the owner or admin of this organization
   const isOwner = useMemo(() => {
-    if (!currentUser) return false;
+    if (!currentUser?.id) return false;
     return (
+      currentUser.role === "super_admin" ||
       currentUser.id === orgUserId || 
       currentUser.id === orgData?.ownerId || 
       currentUser.id === orgData?.id ||
       orgUserId === `org_${currentUser.id}` ||
-      orgData?.id === `org_${currentUser.id}`
+      orgData?.id === `org_${currentUser.id}` ||
+      Boolean(orgData?.adminUserIds && orgData.adminUserIds.includes(currentUser.id))
     );
   }, [currentUser, orgUserId, orgData]);
 

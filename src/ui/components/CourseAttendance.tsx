@@ -1,7 +1,11 @@
 import React, { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
+import { useAuth } from "../../store/AuthContext";
 import { Course, AttendanceRecord, AttendanceEntry, AttendanceStatus, AttendanceMode } from "../../types";
 import { generateId } from "../../lib/id";
+import { TeacherDutyModal } from "./TeacherDutyModal";
+import { ClassRollCallModal } from "./ClassRollCallModal";
 import {
   Clock,
   CheckCircle2,
@@ -19,6 +23,9 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Users,
+  ShieldCheck,
+  ArrowRight,
 } from "lucide-react";
 
 interface CourseAttendanceProps {
@@ -30,6 +37,7 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
   course,
   isStudent = false,
 }) => {
+  const { currentUser } = useAuth();
   const {
     attendanceRecords,
     addAttendanceRecord,
@@ -37,7 +45,36 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
     deleteAttendanceRecord,
     orgMembers,
     enrollmentRequests,
+    organizations,
   } = useAppContext();
+
+  // Enrolled student requests
+  const enrolledStudentRequests = useMemo(() => {
+    return enrollmentRequests.filter(
+      (r) => r.courseId === course.id && r.status === "approved"
+    );
+  }, [enrollmentRequests, course.id]);
+
+  // Associated course check
+  const isUserAssociatedWithCourse = useMemo(() => {
+    if (!currentUser) return false;
+    if (currentUser.role === "super_admin" || currentUser.role === "organization") return true;
+    const userOrg = organizations.find(
+      (o) =>
+        o.ownerId === currentUser.id ||
+        o.id === currentUser.id ||
+        (o.adminUserIds && o.adminUserIds.includes(currentUser.id))
+    );
+    if (userOrg && course.orgId === userOrg.id) return true;
+    if (
+      course.instructorId === currentUser.id ||
+      course.createdBy === currentUser.id ||
+      course.instructors?.includes(currentUser.id)
+    ) return true;
+    if (enrolledStudentRequests.some((r) => r.userId === currentUser.id)) return true;
+    if (course.enrolledStudentIds?.includes(currentUser.id)) return true;
+    return false;
+  }, [currentUser, course, enrolledStudentRequests, organizations]);
 
   // Active sub-tab: "physical", "online", or "all"
   const [activeMode, setActiveMode] = useState<AttendanceMode | "all">("physical");
@@ -50,23 +87,17 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
 
   // Modal states
   const [showTakeAttendanceModal, setShowTakeAttendanceModal] = useState(false);
-  const [showKioskModal, setShowKioskModal] = useState(false);
+  const [showTerminalModal, setShowTerminalModal] = useState(false);
+  const [showDutyModal, setShowDutyModal] = useState(false);
+  const [showRollCallModal, setShowRollCallModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
 
-  // Kiosk self-clock state
-  const [kioskFeedback, setKioskFeedback] = useState<{
+  // Terminal self-clock state
+  const [terminalFeedback, setTerminalFeedback] = useState<{
     userName: string;
     action: "in" | "out";
     duration?: string;
   } | null>(null);
-
-  // Get all potential participants for this course
-  // 1. Enrolled students
-  const enrolledStudentRequests = useMemo(() => {
-    return enrollmentRequests.filter(
-      (r) => r.courseId === course.id && r.status === "approved"
-    );
-  }, [enrollmentRequests, course.id]);
 
   const courseOrgMembers = useMemo(() => {
     return orgMembers.filter(
@@ -484,8 +515,8 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
     setShowTakeAttendanceModal(false);
   };
 
-  // Kiosk Self-Clock Action (for 100% physical schools)
-  const handleKioskClock = async (user: { id: string; name: string; role: "student" | "instructor" }, action: "in" | "out") => {
+  // Campus Terminal Self-Clock Action (for physical campus attendance)
+  const handleTerminalClock = async (user: { id: string; name: string; role: "student" | "instructor" }, action: "in" | "out") => {
     const today = new Date().toISOString().split("T")[0];
     const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -495,9 +526,9 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
     );
 
     if (!todayRecord) {
-      const recId = generateId(`att_kiosk_${course.id}`);
+      const recId = generateId(`att_term_${course.id}`);
       const newEntry: AttendanceEntry = {
-        id: generateId(`kiosk_${user.id}`),
+        id: generateId(`term_${user.id}`),
         userId: user.id,
         userName: user.name,
         role: user.role,
@@ -505,8 +536,8 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         checkInTime: nowTime,
         checkOutTime: action === "out" ? nowTime : undefined,
         durationMinutes: 0,
-        location: "Campus Entrance / Kiosk Station",
-        method: "qr_kiosk",
+        location: "Campus Attendance Station",
+        method: "duty_terminal",
       };
 
       const freshRecord: AttendanceRecord = {
@@ -525,12 +556,12 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
 
       await addAttendanceRecord(freshRecord);
 
-      setKioskFeedback({
+      setTerminalFeedback({
         userName: user.name,
         action,
         duration: action === "out" ? "Recorded" : undefined,
       });
-      setTimeout(() => setKioskFeedback(null), 4000);
+      setTimeout(() => setTerminalFeedback(null), 4000);
       return;
     }
 
@@ -560,15 +591,15 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         updatedAt: new Date().toISOString(),
       });
 
-      setKioskFeedback({
+      setTerminalFeedback({
         userName: user.name,
         action,
         duration: action === "out" ? formatMins(durationMins) : undefined,
       });
-      setTimeout(() => setKioskFeedback(null), 4000);
+      setTimeout(() => setTerminalFeedback(null), 4000);
     } else {
       const newEntry: AttendanceEntry = {
-        id: generateId(`kiosk_${user.id}`),
+        id: generateId(`term_${user.id}`),
         userId: user.id,
         userName: user.name,
         role: user.role,
@@ -576,8 +607,8 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         checkInTime: nowTime,
         checkOutTime: action === "out" ? nowTime : undefined,
         durationMinutes: 0,
-        location: "Campus Entrance / Kiosk Station",
-        method: "qr_kiosk",
+        location: "Campus Attendance Station",
+        method: "duty_terminal",
       };
 
       await updateAttendanceRecord(todayRecord.id!, {
@@ -586,12 +617,12 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         updatedAt: new Date().toISOString(),
       });
 
-      setKioskFeedback({
+      setTerminalFeedback({
         userName: user.name,
         action,
         duration: action === "out" ? "Recorded" : undefined,
       });
-      setTimeout(() => setKioskFeedback(null), 4000);
+      setTimeout(() => setTerminalFeedback(null), 4000);
     }
   };
 
@@ -700,34 +731,74 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         </div>
       </div>
 
+      {/* Institutional Attendance Hub Banner */}
+      <div className="p-3.5 bg-gradient-to-r from-[#0078d4]/10 via-blue-500/10 to-indigo-500/10 rounded-2xl border border-[#0078d4]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center space-x-2">
+          <ShieldCheck className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
+          <span className="text-slate-700 dark:text-slate-300">
+            Need institutional truancy tracking, student attendance pins, or staff work timesheets?
+          </span>
+        </div>
+        <Link
+          to="/attendance"
+          className="text-[#0078d4] dark:text-[#04a4ec] font-bold hover:underline flex items-center space-x-1 shrink-0"
+        >
+          <span>Open School Attendance Hub</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+
       {/* Action Toolbar */}
+      {!isUserAssociatedWithCourse && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-800 dark:text-amber-300 font-medium flex items-center space-x-2">
+          <ShieldCheck className="w-5 h-5 text-amber-500 shrink-0" />
+          <span>You are not enrolled in or associated with this course. Taking roll call and self check-in are reserved for enrolled students, course instructors, and administrators of this course.</span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
         <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-          {/* Take Attendance Button (Instructors & Organizations) */}
-          {!isStudent && (
+          {/* Quick Roll Call Modal Trigger for Instructors/Staff */}
+          {!isStudent && isUserAssociatedWithCourse && (
             <button
-              onClick={() => handleOpenTakeAttendanceModal()}
+              onClick={() => setShowRollCallModal(true)}
               className="px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center shadow-sm cursor-pointer font-heading"
             >
-              <Plus className="w-4 h-4 mr-1.5" />
-              <span>
-                {activeMode === "physical"
-                  ? "Take Physical Attendance"
-                  : activeMode === "online"
-                  ? "Record Online Class Attendance"
-                  : "Record New Attendance Session"}
-              </span>
+              <Users className="w-4 h-4 mr-1.5" />
+              <span>Roll Call</span>
             </button>
           )}
 
-          {/* Physical Kiosk Button */}
-          {(activeMode === "physical" || activeMode === "all") && !isStudent && (
+          {/* Student 1-Click Self Check-In */}
+          {isStudent && isUserAssociatedWithCourse && (
             <button
-              onClick={() => setShowKioskModal(true)}
+              onClick={() => setShowRollCallModal(true)}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center shadow-sm cursor-pointer font-heading"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-1.5" />
+              <span>Self Class Check-In</span>
+            </button>
+          )}
+
+          {/* Duty Timesheet Button */}
+          {!isStudent && isUserAssociatedWithCourse && (
+            <button
+              onClick={() => setShowDutyModal(true)}
+              className="px-3.5 py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 rounded-xl text-xs sm:text-sm font-bold transition flex items-center cursor-pointer font-heading"
+            >
+              <Briefcase className="w-4 h-4 mr-1.5" />
+              <span>Duty Timesheet</span>
+            </button>
+          )}
+
+          {/* Offline check-in Button */}
+          {(activeMode === "physical" || activeMode === "all") && !isStudent && isUserAssociatedWithCourse && (
+            <button
+              onClick={() => setShowTerminalModal(true)}
               className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-xl text-xs sm:text-sm font-bold transition flex items-center cursor-pointer font-heading"
             >
               <Building2 className="w-4 h-4 mr-1.5" />
-              <span>Physical Kiosk / Self-Clock Station</span>
+              <span>Offline check-in</span>
             </button>
           )}
 
@@ -1311,8 +1382,8 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         </div>
       )}
 
-      {/* Modal: Physical School Kiosk Station (Self Check-in / Out) */}
-      {showKioskModal && (
+      {/* Modal: Physical Campus Attendance Terminal */}
+      {showTerminalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 text-center max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0">
@@ -1320,15 +1391,15 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                 <Building2 className="w-6 h-6 text-amber-500" />
                 <div className="text-left">
                   <h3 className="font-extrabold text-lg text-slate-900 dark:text-white font-heading">
-                    100% Physical Campus Kiosk
+                    Offline check-in
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Stationary Check-In & Check-Out Terminal for Students and Instructors
+                    Stationary Check-In & Check-Out Terminal for Learners and Faculty
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setShowKioskModal(false)}
+                onClick={() => setShowTerminalModal(false)}
                 className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="w-5 h-5" />
@@ -1346,11 +1417,11 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
             </div>
 
             {/* Feedback notification toast */}
-            {kioskFeedback && (
+            {terminalFeedback && (
               <div className="p-3.5 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-center space-x-2 animate-in zoom-in-95">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <span>
-                  {kioskFeedback.userName} successfully clocked {kioskFeedback.action === "in" ? "IN (Arrival Recorded)" : `OUT (Engagement Duration: ${kioskFeedback.duration || "Saved"})`}!
+                  {terminalFeedback.userName} successfully clocked {terminalFeedback.action === "in" ? "IN (Arrival Recorded)" : `OUT (Engagement Duration: ${terminalFeedback.duration || "Saved"})`}!
                 </span>
               </div>
             )}
@@ -1395,14 +1466,14 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
 
                     <div className="flex items-center space-x-2 shrink-0">
                       <button
-                        onClick={() => handleKioskClock(u, "in")}
+                        onClick={() => handleTerminalClock(u, "in")}
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-xs cursor-pointer"
                       >
                         <Clock className="w-3.5 h-3.5 mr-1" />
                         Clock In
                       </button>
                       <button
-                        onClick={() => handleKioskClock(u, "out")}
+                        onClick={() => handleTerminalClock(u, "out")}
                         className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-xs cursor-pointer"
                       >
                         <Timer className="w-3.5 h-3.5 mr-1" />
@@ -1416,14 +1487,34 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
 
             <div className="border-t border-slate-100 dark:border-slate-800 pt-3 shrink-0">
               <button
-                onClick={() => setShowKioskModal(false)}
+                onClick={() => setShowTerminalModal(false)}
                 className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition font-heading"
               >
-                Exit Kiosk Mode
+                Close Terminal
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Class Roll Call Modal */}
+      {showRollCallModal && (
+        <ClassRollCallModal
+          isOpen={showRollCallModal}
+          onClose={() => setShowRollCallModal(false)}
+          targetCourse={course}
+          initialMode={activeMode === "online" ? "online" : "physical"}
+        />
+      )}
+
+      {/* Teacher Duty Terminal Modal */}
+      {showDutyModal && (
+        <TeacherDutyModal
+          isOpen={showDutyModal}
+          onClose={() => setShowDutyModal(false)}
+          preselectedCourseId={course.id}
+          preselectedCourseTitle={course.title}
+        />
       )}
     </div>
   );

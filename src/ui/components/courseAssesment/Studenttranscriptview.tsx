@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Assessment, Submission } from "../../../types";
-import { Award, Paperclip, X, CheckCircle2, Circle, Info, Accessibility, Volume2 } from "lucide-react";
+import { Award, Paperclip, X, CheckCircle2, Circle, Info, Accessibility, Volume2, ShieldAlert } from "lucide-react";
 import { ProctoringSession } from "../ProctoringSession";
 import { FileUpload } from "../FileUpload";
 import { generateId } from "../../../lib/id";
@@ -311,13 +311,14 @@ export function StudentTranscriptView({
 
                 {!sub && (
                   <div className="mt-4 pt-4 border-t border-slate-800">
-                    {(ass.type === "exam" || ass.type === "test") &&
+                    {(ass.type === "exam" || ass.type === "test" || ass.type === "quiz") &&
                     activeProctoringId !== ass.id ? (
                       <button
                         onClick={() => setActiveProctoringId(ass.id)}
-                        className="w-full px-4 py-3 bg-amber-600 hover:bg-amber-500 text-slate-900 dark:text-white rounded-lg font-bold transition flex items-center justify-center"
+                        className="w-full px-4 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition flex items-center justify-center space-x-2 cursor-pointer shadow-md"
                       >
-                        Start Monitored Session
+                        <ShieldAlert className="w-4 h-4" />
+                        <span>Start Proctored Session (Camera, Mic & Screen Monitoring)</span>
                       </button>
                     ) : hasStructuredQuestions ? (
                       <div className="space-y-4">
@@ -355,7 +356,7 @@ export function StudentTranscriptView({
                           </div>
                         </div>
 
-                        {(ass.type === "exam" || ass.type === "test") &&
+                        {(ass.type === "exam" || ass.type === "test" || ass.type === "quiz") &&
                           activeProctoringId === ass.id && (
                             <ProctoringSession
                               assessmentTitle={ass.title}

@@ -27,12 +27,15 @@ import {
   Sparkles,
   Timer,
   Video,
+  Briefcase,
+  ArrowRight,
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
 import { CoursePaymentModal } from "../components/CoursePaymentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
+import { TeacherDutyModal } from "../components/TeacherDutyModal";
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
@@ -61,8 +64,10 @@ const Dashboard = () => {
     assessments,
     submissions,
     attendanceRecords,
+    teacherDutyRecords,
   } = useAppContext();
   const { currentUser } = useAuth();
+  const [showDutyModal, setShowDutyModal] = useState(false);
   const [selectedReviewReq, setSelectedReviewReq] =
     useState<EnrollmentRequest | null>(null);
   const [paymentModalReq, setPaymentModalReq] =
@@ -844,6 +849,8 @@ const Dashboard = () => {
           }
         });
 
+        const activeTeachersCount = teacherDutyRecords.filter((r) => r.status === "on_duty").length;
+
         return (
           <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
@@ -851,17 +858,35 @@ const Dashboard = () => {
                 <div className="flex items-center space-x-2">
                   <Timer className="w-5 h-5 text-[#0078d4] dark:text-[#04a4ec]" />
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white font-heading">
-                    Attendance & Engagement Command Center
+                    School Attendance Command Center
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Live engagement duration and attendance records across 100% physical campus operations and online live courses.
+                  Faculty duty shift timekeeping, classroom roll calls, student truancy tracking, and verified attendance terminals.
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <span className="px-3 py-1 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold rounded-full border border-[#0078d4]/20">
-                  {relevantAttendance.length} Total Sessions Logged
-                </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {activeTeachersCount > 0 && (
+                  <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/20 flex items-center">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
+                    {activeTeachersCount} Faculty On Duty
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowDutyModal(true)}
+                  className="px-3.5 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs cursor-pointer"
+                >
+                  <Briefcase className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Duty Timesheet</span>
+                </button>
+                <Link
+                  to="/attendance"
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center border border-slate-200 dark:border-slate-600"
+                >
+                  <span>Open School Attendance Hub</span>
+                  <ArrowRight className="w-3.5 h-3.5 ml-1 text-[#0078d4]" />
+                </Link>
               </div>
             </div>
 
@@ -871,7 +896,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 text-amber-700 dark:text-amber-400 font-bold text-xs uppercase tracking-wider">
                     <Building2 className="w-4 h-4" />
-                    <span>100% Physical Campus Attendance</span>
+                    <span>Physical Campus Attendance & Duty</span>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-extrabold">
                     {physicalRecords.length} Physical Records
@@ -883,24 +908,22 @@ const Dashboard = () => {
                     {(totalPhysicalMins / 60).toFixed(1)}
                   </span>
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">
-                    Hours of In-Person Engagement Logged
+                    Hours of In-Person Lecture Engagement Logged
                   </span>
                 </div>
 
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Track student arrivals, instructor lecture and office hours, physical room check-ins, and self-clocking kiosk terminals.
+                  Track student classroom roll calls, instructor teaching and office hours, physical room check-ins, and campus attendance terminals.
                 </p>
 
                 <div className="pt-1 flex items-center space-x-2">
-                  {myCourses.length > 0 && (
-                    <Link
-                      to={`/course/${myCourses[0].id}`}
-                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs"
-                    >
-                      <Timer className="w-3.5 h-3.5 mr-1" />
-                      Manage Campus Attendance
-                    </Link>
-                  )}
+                  <Link
+                    to="/attendance"
+                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs"
+                  >
+                    <Timer className="w-3.5 h-3.5 mr-1" />
+                    Manage Campus Attendance
+                  </Link>
                 </div>
               </div>
 
@@ -909,7 +932,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 text-indigo-700 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
                     <Video className="w-4 h-4" />
-                    <span>Online Course Live Attendance</span>
+                    <span>Online Virtual Class Attendance</span>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 text-[10px] font-extrabold">
                     {onlineRecords.length} Online Records
@@ -926,19 +949,17 @@ const Dashboard = () => {
                 </div>
 
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Automatic timekeeping for students and instructors in live video lectures with live attendance duration computation.
+                  Automatic timekeeping for students and faculty in live video lectures with live engagement duration computation.
                 </p>
 
                 <div className="pt-1 flex items-center space-x-2">
-                  {myCourses.length > 0 && (
-                    <Link
-                      to={`/course/${myCourses[0].id}`}
-                      className="px-3.5 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs"
-                    >
-                      <Video className="w-3.5 h-3.5 mr-1" />
-                      View Online Class Logs
-                    </Link>
-                  )}
+                  <Link
+                    to="/attendance"
+                    className="px-3.5 py-1.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center shadow-xs"
+                  >
+                    <Video className="w-3.5 h-3.5 mr-1" />
+                    View Online Class Logs
+                  </Link>
                 </div>
               </div>
             </div>
@@ -1345,6 +1366,14 @@ const Dashboard = () => {
           setShowOrgUpgradeModal(false);
         }}
       />
+
+      {/* Faculty Duty Terminal Modal */}
+      {showDutyModal && (
+        <TeacherDutyModal
+          isOpen={showDutyModal}
+          onClose={() => setShowDutyModal(false)}
+        />
+      )}
 
       {/* Course Delete Confirmation Modal */}
       {courseToDelete && (

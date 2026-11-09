@@ -172,7 +172,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const user = userCredential.user;
 
     let userRole: Role = cleanEmail === "ekenehq@gmail.com" ? "super_admin" : "student";
-    let orgId: string | undefined = undefined;
 
     try {
       const docSnap = await getDoc(doc(db, "backpack", user.uid));
@@ -192,7 +191,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           userRole = "super_admin";
         } else {
           userRole = personalInfo?.role || "student";
-          orgId = personalInfo?.orgId;
         }
       } else {
         // Check if this is an organization staff member (org_admin)

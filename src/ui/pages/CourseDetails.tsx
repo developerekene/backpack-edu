@@ -122,6 +122,7 @@ const CourseDetails = () => {
   });
 
   useEffect(() => {
+    if (!currentUser) return;
     const params = new URLSearchParams(
       location.search || window.location.search,
     );
@@ -139,7 +140,7 @@ const CourseDetails = () => {
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [location.search, courseId]);
+  }, [location.search, courseId, currentUser]);
 
   const [activeTab, setActiveTab] = useState<
     | "info"
@@ -238,53 +239,76 @@ const CourseDetails = () => {
   const progressPercentage =
     totalTrackables > 0 ? (completedTrackables / totalTrackables) * 100 : 0;
 
-  // Access check logic
+  // Access check logic: strictly false for unauthenticated users
+  const isSuperAdmin = currentUser?.role === "super_admin";
   const isOrganization = currentUser?.role === "organization";
 
-  const myOrgMemberRecords = orgMembers.filter(
-    (m) =>
-      m.email?.toLowerCase().trim() ===
-        currentUser?.email?.toLowerCase().trim() ||
-      (currentUser?.id && m.userId === currentUser.id) ||
-      (currentUser?.id && m.id === currentUser.id),
+  // Filter org member records only for valid authenticated user
+  const myOrgMemberRecords =
+    currentUser?.id || currentUser?.email
+      ? orgMembers.filter(
+          (m) =>
+            (currentUser.email &&
+              m.email &&
+              m.email.toLowerCase().trim() ===
+                currentUser.email.toLowerCase().trim()) ||
+            (currentUser.id && m.userId && m.userId === currentUser.id) ||
+            (currentUser.id && m.id && m.id === currentUser.id),
+        )
+      : [];
+
+  // Instructor access check (strictly requires authenticated user)
+  const hasInstructorAccess = Boolean(
+    currentUser?.id &&
+      (isSuperAdmin ||
+        myOrgMemberRecords.some(
+          (m) =>
+            m.role === "instructor" &&
+            (m.courseIds?.includes(courseId as string) ||
+              m.orgId === course?.orgId ||
+              `org_${m.orgId}` === course?.orgId ||
+              m.orgId === `org_${course?.orgId}`),
+        ) ||
+        (course?.instructorId && currentUser.id === course.instructorId) ||
+        (course?.instructors && course.instructors.includes(currentUser.id)) ||
+        (currentUser.role === "instructor" &&
+          ((course?.createdBy && course.createdBy === currentUser.id) ||
+            (course?.instructorName &&
+              currentUser.name &&
+              course.instructorName.toLowerCase().trim() ===
+                currentUser.name.toLowerCase().trim())))),
   );
 
-  const hasInstructorAccess =
-    myOrgMemberRecords.some(
-      (m) =>
-        m.role === "instructor" &&
-        (m.courseIds?.includes(courseId as string) ||
-          m.orgId === course?.orgId ||
-          `org_${m.orgId}` === course?.orgId ||
-          m.orgId === `org_${course?.orgId}`),
-    ) ||
-    currentUser?.id === course?.instructorId ||
-    Boolean(course?.instructors?.includes(currentUser?.id || "")) ||
-    (currentUser?.role === "instructor" &&
-      (course?.createdBy === currentUser?.id ||
-        (course?.instructorName &&
-          currentUser?.name &&
-          course.instructorName.toLowerCase().trim() ===
-            currentUser.name.toLowerCase().trim())));
+  const myEnrollment = currentUser?.id
+    ? enrollmentRequests.find(
+        (r) => r.userId === currentUser.id && r.courseId === courseId,
+      )
+    : undefined;
 
-  const myEnrollment = enrollmentRequests.find(
-    (r) => r.userId === currentUser?.id && r.courseId === courseId,
-  );
-  const myInvite = myOrgMemberRecords.find(
-    (m) =>
-      m.status === "invited" &&
-      (m.courseIds?.includes(courseId as string) || m.orgId === course?.orgId),
-  );
-  const myOrg = organizations.find(
-    (o) =>
-      o.ownerId === currentUser?.id ||
-      o.id === currentUser?.id ||
-      o.id === course?.orgId,
-  );
+  const myInvite = currentUser?.id
+    ? myOrgMemberRecords.find(
+        (m) =>
+          m.status === "invited" &&
+          (m.courseIds?.includes(courseId as string) ||
+            m.orgId === course?.orgId),
+      )
+    : undefined;
+
+  // The organization owned or administered by the currently logged-in user
+  const myOrg = currentUser?.id
+    ? organizations.find(
+        (o) =>
+          o.ownerId === currentUser.id ||
+          o.id === currentUser.id ||
+          (o.adminUserIds && o.adminUserIds.includes(currentUser.id)),
+      )
+    : undefined;
+
+  // The organization that owns this course (strictly for branding & public display)
   const courseOrg =
     organizations.find(
       (o) => o.id === course?.orgId || o.ownerId === course?.orgId,
-    ) || myOrg;
+    ) || (currentUser?.id ? myOrg : undefined);
 
   const isVocationalDonationFunded =
     courseOrg?.orgType === "vocational" &&
@@ -298,73 +322,121 @@ const CourseDetails = () => {
       ? courseDonations.filter((d) => d.courseId === course.id)
       : [];
 
-  const isStudentApproved = myEnrollment?.status === "approved";
-  const isStudentPaidOrFree =
-    !course ||
-    course.price === 0 ||
-    isVocationalDonationFunded ||
-    myEnrollment?.paymentStatus === "paid" ||
-    Boolean(myEnrollment?.isSponsored);
-  const hasStudentAccess = isStudentApproved && isStudentPaidOrFree;
+  const isStudentApproved = Boolean(
+    currentUser?.id && myEnrollment?.status === "approved",
+  );
+  const isStudentPaidOrFree = Boolean(
+    currentUser?.id &&
+      (!course ||
+        course.price === 0 ||
+        isVocationalDonationFunded ||
+        myEnrollment?.paymentStatus === "paid" ||
+        Boolean(myEnrollment?.isSponsored)),
+  );
+  const hasStudentAccess = Boolean(
+    currentUser?.id && isStudentApproved && isStudentPaidOrFree,
+  );
 
-  const hasOrgAccess =
-    isOrganization &&
-    (course?.orgId === currentUser?.id ||
-      course?.orgId === `org_${currentUser?.id}` ||
-      (myOrg &&
-        (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)));
+  // Organization access check (strictly requires authenticated user who owns/administers this course's org)
+  const hasOrgAccess = Boolean(
+    currentUser?.id &&
+      (isSuperAdmin ||
+        ((isOrganization ||
+          (myOrg && myOrg.adminUserIds?.includes(currentUser.id))) &&
+          (course?.orgId === currentUser.id ||
+            course?.orgId === `org_${currentUser.id}` ||
+            (course?.orgId &&
+              courseOrg &&
+              (course.orgId === courseOrg.id ||
+                course.orgId === courseOrg.ownerId) &&
+              (courseOrg.ownerId === currentUser.id ||
+                courseOrg.id === currentUser.id ||
+                (courseOrg.adminUserIds &&
+                  courseOrg.adminUserIds.includes(currentUser.id)))) ||
+            (myOrg &&
+              (course?.orgId === myOrg.id ||
+                course?.orgId === myOrg.ownerId ||
+                myOrg.adminUserIds?.includes(currentUser.id)))))),
+  );
 
-  const hasAccess =
-    hasStudentAccess ||
-    hasInstructorAccess ||
-    hasOrgAccess ||
-    Boolean(currentUser?.id === course?.instructorId);
-  const effectiveViewMode = hasAccess ? viewMode : "public";
+  // Classroom access: STRICTLY FALSE if user is unauthenticated
+  const hasAccess = Boolean(
+    currentUser?.id &&
+      (isSuperAdmin ||
+        hasStudentAccess ||
+        hasInstructorAccess ||
+        hasOrgAccess ||
+        (course?.instructorId && currentUser.id === course.instructorId)),
+  );
+
+  // Effective view mode: Unauthenticated users ALWAYS see "public" view
+  const effectiveViewMode: "classroom" | "public" =
+    currentUser && hasAccess ? viewMode : "public";
 
   // Check if current user is an enrolled student for this course
-  const isEnrolledStudent =
-    myOrgMemberRecords.some(
-      (m) => m.role === "student" && m.courseIds?.includes(courseId as string),
-    ) ||
-    myEnrollment?.status === "approved" ||
-    (currentUser?.role === "student" && !hasInstructorAccess && !hasOrgAccess);
+  const isEnrolledStudent = Boolean(
+    currentUser?.id &&
+      (myOrgMemberRecords.some(
+        (m) =>
+          m.role === "student" && m.courseIds?.includes(courseId as string),
+      ) ||
+        myEnrollment?.status === "approved" ||
+        (currentUser.role === "student" &&
+          !hasInstructorAccess &&
+          !hasOrgAccess)),
+  );
 
   // If instructor/organization activates "Preview as Student", isStudent becomes true
-  const isStudent =
-    isPreviewAsStudent ||
-    (!hasOrgAccess && !hasInstructorAccess && isEnrolledStudent);
-
-  const canStartVideoCall =
-    !isStudent &&
-    (hasOrgAccess ||
-      hasInstructorAccess ||
-      currentUser?.role === "organization" ||
-      currentUser?.role === "instructor");
-  const canManageSessions = Boolean(
-    !isStudent && (isOrganization || hasOrgAccess || hasInstructorAccess),
+  const isStudent = Boolean(
+    currentUser &&
+      (isPreviewAsStudent ||
+        (!hasOrgAccess && !hasInstructorAccess && isEnrolledStudent)),
   );
+
+  const canStartVideoCall = Boolean(
+    currentUser?.id &&
+      !isStudent &&
+      (isSuperAdmin ||
+        hasOrgAccess ||
+        hasInstructorAccess ||
+        currentUser.role === "organization" ||
+        currentUser.role === "instructor"),
+  );
+
+  const canManageSessions = Boolean(
+    currentUser?.id &&
+      !isStudent &&
+      (isSuperAdmin || isOrganization || hasOrgAccess || hasInstructorAccess),
+  );
+
   const canEditCourse = Boolean(
-    hasOrgAccess ||
-    hasInstructorAccess ||
-    currentUser?.id === course?.instructorId ||
-    (isOrganization &&
-      (course?.orgId === currentUser?.id ||
-        course?.orgId === `org_${currentUser?.id}` ||
-        (myOrg &&
-          (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)))),
+    currentUser?.id &&
+      (isSuperAdmin ||
+        hasOrgAccess ||
+        hasInstructorAccess ||
+        (course?.instructorId && currentUser.id === course.instructorId) ||
+        (isOrganization &&
+          (course?.orgId === currentUser.id ||
+            course?.orgId === `org_${currentUser.id}` ||
+            (myOrg &&
+              (course?.orgId === myOrg.id ||
+                course?.orgId === myOrg.ownerId ||
+                myOrg.adminUserIds?.includes(currentUser.id)))))),
   );
 
   const canDeleteCourse = Boolean(
-    currentUser?.role === "organization" &&
-    course &&
-    (course.orgId === currentUser.id ||
-      course.orgId === `org_${currentUser.id}` ||
-      course.createdBy === currentUser.id ||
-      (currentUser.id && course.orgId?.includes(currentUser.id)) ||
-      (myOrg &&
-        (course.orgId === myOrg.id ||
-          course.orgId === myOrg.ownerId ||
-          course.orgId === `org_${myOrg.id}`))),
+    currentUser?.id &&
+      (isSuperAdmin || currentUser.role === "organization") &&
+      course &&
+      (isSuperAdmin ||
+        course.orgId === currentUser.id ||
+        course.orgId === `org_${currentUser.id}` ||
+        course.createdBy === currentUser.id ||
+        course.orgId?.includes(currentUser.id) ||
+        (myOrg &&
+          (course.orgId === myOrg.id ||
+            course.orgId === myOrg.ownerId ||
+            course.orgId === `org_${myOrg.id}`))),
   );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
@@ -908,17 +980,53 @@ const CourseDetails = () => {
             }
             setShowEnrollModal(true);
           }}
-          onPayTuition={() => setShowPaymentModal(true)}
-          onAcceptInvite={() => setShowJoinModal(true)}
+          onPayTuition={() => {
+            if (!currentUser) {
+              navigate("/login");
+              return;
+            }
+            setShowPaymentModal(true);
+          }}
+          onAcceptInvite={() => {
+            if (!currentUser) {
+              navigate("/login");
+              return;
+            }
+            setShowJoinModal(true);
+          }}
           onDonate={() => setShowDonationModal(true)}
-          onManageSessions={() => setShowSessionModal(true)}
+          onManageSessions={() => {
+            if (!currentUser || !canManageSessions) {
+              navigate("/login");
+              return;
+            }
+            setShowSessionModal(true);
+          }}
           canManageSessions={canManageSessions}
           hasAccessToClassroom={hasAccess}
-          onGoToClassroom={() => setViewMode("classroom")}
+          onGoToClassroom={() => {
+            if (!currentUser || !hasAccess) {
+              navigate("/login");
+              return;
+            }
+            setViewMode("classroom");
+          }}
           canEditCourse={canEditCourse}
-          onEditCourse={() => setShowEditCourseModal(true)}
+          onEditCourse={() => {
+            if (!currentUser || !canEditCourse) {
+              navigate("/login");
+              return;
+            }
+            setShowEditCourseModal(true);
+          }}
           canDeleteCourse={canDeleteCourse}
-          onDeleteCourse={() => setShowDeleteModal(true)}
+          onDeleteCourse={() => {
+            if (!currentUser || !canDeleteCourse) {
+              navigate("/login");
+              return;
+            }
+            setShowDeleteModal(true);
+          }}
         />
 
         {showEditCourseModal && course && (
