@@ -94,40 +94,6 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     details?: any;
   } | null>(null);
 
-  // Key configuration state
-  const [showKeyConfig, setShowKeyConfig] = useState(false);
-  const [customKeyInput, setCustomKeyInput] = useState("");
-  const [keyConfigNotice, setKeyConfigNotice] = useState<string | null>(null);
-  const [savingKey, setSavingKey] = useState(false);
-
-  const handleSaveSecretKey = async () => {
-    if (!customKeyInput.trim() || !customKeyInput.trim().startsWith("sk_")) {
-      setKeyConfigNotice("Please enter a valid Paystack secret key starting with sk_live_ or sk_test_.");
-      return;
-    }
-    setSavingKey(true);
-    setKeyConfigNotice(null);
-    try {
-      const res = await centralApiClient("/api/paystack/configure-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secretKey: customKeyInput.trim() }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setKeyConfigNotice(`✅ ${json.message || "Paystack secret key configured successfully!"}`);
-        setCustomKeyInput("");
-      } else {
-        setKeyConfigNotice(`❌ ${json.message || "Failed to configure key."}`);
-      }
-    } catch {
-      setKeyConfigNotice("❌ Network error configuring Paystack secret key.");
-    } finally {
-      setSavingKey(false);
-    }
-  };
-
-
   // Verify Live Status of Subaccount directly with payment API
   const handleVerifyLiveStatus = async (codeToVerify?: string) => {
     const targetCode = codeToVerify || currentSubaccount?.subaccount_code;
@@ -798,49 +764,6 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
           </form>
         </div>
       )}
-
-      {/* Secret Key & Live Gateway Settings Option */}
-      <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
-        <button
-          type="button"
-          onClick={() => setShowKeyConfig((prev) => !prev)}
-          className="flex items-center justify-between w-full text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition cursor-pointer"
-        >
-          <div className="flex items-center space-x-2">
-            <Lock className="w-4 h-4 text-indigo-500" />
-            <span>⚙️ Configure Paystack Live Secret Key / Direct API Gateway</span>
-          </div>
-          <ChevronDown className={`w-4 h-4 transition-transform ${showKeyConfig ? "rotate-180" : ""}`} />
-        </button>
-
-        {showKeyConfig && (
-          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-              If the backend URL hasn't loaded your Paystack live key automatically, you can configure your active live secret key (<code className="font-mono text-indigo-600 dark:text-indigo-400">sk_live_...</code>) below. It will be cached on the server to execute subaccount creation and payment splits instantly.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="password"
-                value={customKeyInput}
-                onChange={(e) => setCustomKeyInput(e.target.value)}
-                placeholder="sk_live_..."
-                className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-              />
-              <button
-                type="button"
-                disabled={savingKey}
-                onClick={handleSaveSecretKey}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer shrink-0"
-              >
-                {savingKey ? "Saving..." : "Set Live Secret Key"}
-              </button>
-            </div>
-            {keyConfigNotice && (
-              <p className="text-xs font-semibold">{keyConfigNotice}</p>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Provider Revenue Split Details & Visualizer at the bottom */}
       <ProviderRevenueBreakdownVisualizer

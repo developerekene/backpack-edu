@@ -21,23 +21,24 @@ app.get("/ads.txt", (_req, res) => {
 });
 
 // Paystack Secret Keys - Dynamic Vault Sync + Environment initialization
-let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "";
+// let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "";
 let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";
 
 // Helper for Paystack API headers - Strictly enforces LIVE mode
-const getPaystackHeaders = (preferLive = true) => {
-  const secretKey = preferLive
-    ? (PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || "")
-    : (PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY || PAYSTACK_LIVE_SECRET_KEY || "");
-  
+const getPaystackHeaders = () => {
+  const secretKey =
+    PAYSTACK_LIVE_SECRET_KEY ||
+    process.env.PAYSTACK_LIVE_SECRET_KEY ||
+    process.env.PAYSTACK_SECRET_KEY ||
+    process.env.VITE_PAYSTACK_LIVE_SECRET_KEY ||
+    "";
+
   if (!secretKey) {
     return null;
   }
-  
-  const isLive = preferLive || secretKey.startsWith("sk_live_");
-  const mode = isLive ? "live" : "test";
+
   const masked = secretKey.length > 10 ? secretKey.substring(0, 7) + "..." + secretKey.substring(secretKey.length - 4) : "configured";
-  console.log(`[Paystack API] Using ${mode} secret key: ${masked}`);
+  console.log(`[Paystack API] Using live secret key: ${masked}`);
 
   return {
     Authorization: `Bearer ${secretKey}`,
@@ -50,7 +51,7 @@ const getPaystackHeaders = (preferLive = true) => {
 
 // Dynamic retrieval of secret keys from Keysafe Render URL for subaccounts and payment splits
 async function fetchSecretKeys() {
-  const modes = ["live", "test"];
+  const modes = ["live"]; // Test mode disabled: ["live", "test"]
   
   const subaccountUrls = [
     "https://keysafe-ntia.onrender.com/subaccount",
@@ -100,9 +101,9 @@ async function fetchSecretKeys() {
               if (headerKey.startsWith("sk_live_")) {
                 PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
                 console.log(`[KeySafe] Successfully loaded LIVE secret key from Render header.`);
-              } else if (headerKey.startsWith("sk_test_")) {
+              } /* else if (headerKey.startsWith("sk_test_")) {
                 PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
-              }
+              } */
             }
 
             const json = await response.json().catch(() => null);
@@ -112,7 +113,7 @@ async function fetchSecretKeys() {
                 json.paystack_secret_key ||
                 json.paystackSecretKey ||
                 json.PAYSTACK_LIVE_SECRET_KEY ||
-                json.PAYSTACK_TEST_SECRET_KEY ||
+                // json.PAYSTACK_TEST_SECRET_KEY ||
                 json.live_secret_key ||
                 json.key ||
                 json.data?.secret_key ||
@@ -124,9 +125,9 @@ async function fetchSecretKeys() {
                 if (extractedKey.startsWith("sk_live_")) {
                   PAYSTACK_LIVE_SECRET_KEY = extractedKey;
                   console.log(`[KeySafe] Successfully loaded LIVE secret key from Render direct endpoint.`);
-                } else if (extractedKey.startsWith("sk_test_")) {
+                } /* else if (extractedKey.startsWith("sk_test_")) {
                   PAYSTACK_TEST_SECRET_KEY = extractedKey;
-                }
+                } */
               }
             }
           } catch {
@@ -286,29 +287,6 @@ async function startKeyRefresh() {
 }
 
 startKeyRefresh();
-
-// --- Configure Key endpoint for in-app configuration ---
-app.post("/api/paystack/configure-key", (req, res) => {
-  const { secretKey } = req.body;
-  if (!secretKey || typeof secretKey !== "string") {
-    return res.status(400).json({ success: false, message: "secretKey is required." });
-  }
-  const cleanKey = secretKey.trim();
-  if (cleanKey.startsWith("sk_live_")) {
-    PAYSTACK_LIVE_SECRET_KEY = cleanKey;
-  } else if (cleanKey.startsWith("sk_test_")) {
-    PAYSTACK_TEST_SECRET_KEY = cleanKey;
-  } else {
-    PAYSTACK_LIVE_SECRET_KEY = cleanKey;
-  }
-  const maskedKey = cleanKey.substring(0, 7) + "..." + cleanKey.substring(cleanKey.length - 4);
-  console.log(`[Paystack] Manually configured key: ${maskedKey}`);
-  return res.json({
-    success: true,
-    maskedKey,
-    message: `Configured key ${maskedKey} successfully.`,
-  });
-});
 
 // Supported Paystack Countries
 const PAYSTACK_SUPPORTED_COUNTRIES = [
@@ -499,9 +477,13 @@ app.get(["/api/paystack/resolve-account", "/api/resolve-account", "/api/bank/res
   try {
     console.log(`[Gateway] Resolving bank account ${cleanAcc} with bank ${cleanBank} via proxy resolve API`);
     const resolveRes = await fetch(
-      `https://keysafe-ntia.onrender.com/api/bank/resolve?account_number=${encodeURIComponent(cleanAcc)}&bank_code=${encodeURIComponent(cleanBank)}`,
+      `https://keysafe-ntia.onrender.com/api/bank/resolve?account_number=${encodeURIComponent(cleanAcc)}&bank_code=${encodeURIComponent(cleanBank)}&mode=live`,
       {
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          "X-Paystack-Mode": "live",
+          "X-Environment-Mode": "live",
+        },
         signal: AbortSignal.timeout(25000),
       }
     );
@@ -523,27 +505,11 @@ app.get(["/api/paystack/resolve-account", "/api/resolve-account", "/api/bank/res
       }
     }
 
-    // Handle Paystack test mode daily limit of 3 live bank resolves exceeded
     const errMsg = resolveJson.detail?.message || resolveJson.message || "";
-    if (resolveRes.status === 429 || errMsg.toLowerCase().includes("limit") || errMsg.toLowerCase().includes("exceeded")) {
-      console.warn(`[Gateway] Paystack daily test limit reached: ${errMsg}`);
-      const fallbackName = (req.query.business_name || req.query.account_name || req.query.suggested_name || "OKOLI EKENE EJIKEME").toString().trim();
-      RESOLVED_ACCOUNTS_CACHE.set(cacheKey, fallbackName);
-      RESOLVED_ACCOUNTS_CACHE.set(cleanAcc, fallbackName);
-      return res.json({
-        success: true,
-        account_name: fallbackName,
-        account_number: cleanAcc,
-        bank_name: cleanBank,
-        verified: true,
-        notice: "Account verified successfully.",
-      });
-    }
-
-    if (resolveJson.message) {
-      return res.status(400).json({
+    if (errMsg) {
+      return res.status(resolveRes.status >= 400 ? resolveRes.status : 400).json({
         success: false,
-        message: resolveJson.message,
+        message: errMsg,
       });
     }
   } catch (proxyErr: unknown) {
@@ -553,23 +519,10 @@ app.get(["/api/paystack/resolve-account", "/api/resolve-account", "/api/bank/res
       return res.status(408).json({
         success: false,
         isTimeout: true,
-        message: "Payment verification gateway took longer than expected to respond. Please click 'Verify Name' again or enter your account holder name directly below.",
+        message: "Payment verification gateway took longer than expected to respond. Please try again.",
       });
     }
     console.warn("[Gateway] Error in proxy account resolution:", proxyErr);
-  }
-
-  // Fallback for valid account numbers in test mode if query has business/legal name
-  if (cleanAcc.length >= 10 && req.query.business_name) {
-    const fallbackName = String(req.query.business_name).trim();
-    RESOLVED_ACCOUNTS_CACHE.set(cacheKey, fallbackName);
-    return res.json({
-      success: true,
-      account_name: fallbackName,
-      account_number: cleanAcc,
-      bank_name: cleanBank,
-      verified: true,
-    });
   }
 
   return res.status(400).json({
@@ -578,8 +531,8 @@ app.get(["/api/paystack/resolve-account", "/api/resolve-account", "/api/bank/res
   });
 });
 
-// --- 3. POST /api/paystack/subaccount ---
-app.post("/api/paystack/subaccount", async (req, res) => {
+// --- 3. POST /api/paystack/subaccount, /api/subaccount, /subaccount ---
+app.post(["/api/paystack/subaccount", "/api/subaccount", "/subaccount"], async (req, res) => {
   const {
     business_name,
     settlement_bank,
@@ -606,9 +559,9 @@ app.post("/api/paystack/subaccount", async (req, res) => {
 
   // 1. Delegate directly to KeySafe Render endpoints
   const renderSubaccountPaths = [
-    "https://keysafe-ntia.onrender.com/subaccount",
-    "https://keysafe-ntia.onrender.com/api/subaccount",
-    "https://keysafe-ntia.onrender.com/api/payments/subaccount"
+    "https://keysafe-ntia.onrender.com/subaccount?mode=live",
+    "https://keysafe-ntia.onrender.com/api/subaccount?mode=live",
+    "https://keysafe-ntia.onrender.com/api/payments/subaccount?mode=live"
   ];
 
   for (const url of renderSubaccountPaths) {
@@ -710,8 +663,8 @@ app.post("/api/paystack/subaccount", async (req, res) => {
   });
 });
 
-// --- GET /api/paystack/subaccount/:code ---
-app.get("/api/paystack/subaccount/:code", async (req, res) => {
+// --- GET /api/paystack/subaccount/:code, /api/subaccount/:code, /subaccount/:code ---
+app.get(["/api/paystack/subaccount/:code", "/api/subaccount/:code", "/subaccount/:code"], async (req, res) => {
   const { code } = req.params;
 
   if (!code || !code.startsWith("ACCT_")) {
@@ -865,10 +818,10 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
 
   // 1. Delegate directly to KeySafe Render proxy endpoint
   const renderSplitPaths = [
-    "https://keysafe-ntia.onrender.com/split-payment",
-    "https://keysafe-ntia.onrender.com/api/split-payment",
-    "https://keysafe-ntia.onrender.com/api/payments/split-payment",
-    "https://keysafe-ntia.onrender.com/api/payments/paystack-split-init"
+    "https://keysafe-ntia.onrender.com/split-payment?mode=live",
+    "https://keysafe-ntia.onrender.com/api/split-payment?mode=live",
+    "https://keysafe-ntia.onrender.com/api/payments/split-payment?mode=live",
+    "https://keysafe-ntia.onrender.com/api/payments/paystack-split-init?mode=live"
   ];
 
   for (const url of renderSplitPaths) {
@@ -1103,9 +1056,9 @@ app.post("/api/livekit/token", async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    paystackConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY),
-    liveKeyConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY),
-    testKeyConfigured: !!PAYSTACK_TEST_SECRET_KEY,
+    paystackConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY),
+    liveKeyConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY),
+    // testKeyConfigured: !!PAYSTACK_TEST_SECRET_KEY,
     headers: getPaystackHeaders(true),
     mode: "live",
   });

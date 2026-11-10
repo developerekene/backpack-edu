@@ -7,13 +7,7 @@ export const SERVICE_ID = "service_o1jbklr";
 export const TEMPLATE_ID = "template_p8h58ur";
 export const PUBLIC_KEY = "hcj3DsJ8MfNfUrE8J";
 
-// Live key and Test key:
-export const PAYSTACK_TEST_PUBLIC_KEY =
-  import.meta.env.VITE_PAYSTACK_TEST_PUBLIC_KEY ||
-  import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
-  "pk_test_db0145199289f83c428d57cf70755142bb0b8b28";
-
-// Live key definition:
+// Live key definition (test keys deactivated):
 export const PAYSTACK_LIVE_PUBLIC_KEY =
   import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY ||
   import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ||
@@ -177,28 +171,12 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
   const handleError = (error: any) => {
     console.error("Paystack Payment error:", error);
 
-    // If error is caused by an unlinked / mode-mismatched subaccount:
+    // If error is caused by an unlinked / invalid subaccount in live mode:
     if (!subaccountRetried && targetSubaccount && isInvalidSubaccountError(error)) {
       subaccountRetried = true;
-      const alternateKey = activePublicKey === PAYSTACK_LIVE_PUBLIC_KEY ? PAYSTACK_TEST_PUBLIC_KEY : PAYSTACK_LIVE_PUBLIC_KEY;
       console.warn(
-        `[Paystack Mode Guard] Subaccount "${targetSubaccount}" was rejected with key ${activePublicKey.slice(0, 8)}... Retrying with alternate mode key (${alternateKey.slice(0, 8)}...)...`
+        `[Paystack Live Mode] Subaccount "${targetSubaccount}" was rejected with live key ${activePublicKey.slice(0, 8)}... Falling back to direct live payment.`
       );
-
-      txConfig.key = alternateKey;
-      txConfig.metadata = {
-        ...(txConfig.metadata || {}),
-        mode_switched: true,
-        subaccount_code: targetSubaccount,
-      };
-
-      try {
-        const fallbackPaystack = new PaystackPop();
-        fallbackPaystack.newTransaction(txConfig);
-        return;
-      } catch {
-        // Fallback retry attempt
-      }
 
       // If mode switch also rejects, fall back to direct payment with original key
       delete txConfig.subaccount;
