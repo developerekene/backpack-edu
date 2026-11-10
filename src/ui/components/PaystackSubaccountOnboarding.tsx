@@ -14,6 +14,7 @@ import {
   Building2,
   Search,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { PaystackSubaccount } from "../../types";
 import { ProviderRevenueBreakdownVisualizer } from "./ProviderRevenueBreakdownVisualizer";
@@ -39,8 +40,11 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     : null;
 
   const [savedSubaccount, setSavedSubaccount] = useState<PaystackSubaccount | undefined>(undefined);
+  const [deletedLocally, setDeletedLocally] = useState(false);
 
-  const currentSubaccount = savedSubaccount || myOrg?.paystackSubaccount || currentUser?.paystackSubaccount;
+  const currentSubaccount = deletedLocally
+    ? undefined
+    : (savedSubaccount || myOrg?.paystackSubaccount || currentUser?.paystackSubaccount);
 
   const [isEditing, setIsEditing] = useState(!currentSubaccount);
   const [bankSearch, setBankSearch] = useState("");
@@ -93,6 +97,49 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     details?: any;
   } | null>(null);
+
+  const [deletingSubaccount, setDeletingSubaccount] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Permanently delete/disconnect subaccount from both app and Paystack
+  const handleDeleteSubaccount = async () => {
+    if (!currentSubaccount?.subaccount_code) return;
+    setDeletingSubaccount(true);
+    setSubaccountError("");
+    setSuccessMessage("");
+
+    try {
+      const res = await centralApiClient(
+        `/api/paystack/subaccount/${encodeURIComponent(currentSubaccount.subaccount_code)}`,
+        { method: "DELETE" }
+      );
+      const json = await res.json().catch(() => ({}));
+
+      if (isOrg && myOrg) {
+        await updateOrganization(myOrg.id, { paystackSubaccount: null as unknown as undefined });
+      }
+      if (currentUser) {
+        await updateCurrentUser({ paystackSubaccount: null as unknown as undefined });
+      }
+
+      setDeletedLocally(true);
+      setSavedSubaccount(undefined);
+      setSelectedBankCode("");
+      setSelectedBankName("");
+      setAccountNumber("");
+      setResolvedAccountName("");
+      setLiveVerificationNotice(null);
+      setShowDeleteConfirm(false);
+      setIsEditing(true);
+      setSuccessMessage(
+        json.message || "Subaccount permanently removed from the app and Paystack."
+      );
+    } catch {
+      setSubaccountError("Failed to delete subaccount. Please try again.");
+    } finally {
+      setDeletingSubaccount(false);
+    }
+  };
 
   // Verify Live Status of Subaccount directly with payment API
   const handleVerifyLiveStatus = async (codeToVerify?: string) => {
@@ -407,8 +454,48 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                 >
                   Edit Bank Details
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={deletingSubaccount}
+                  className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Subaccount</span>
+                </button>
               </div>
             </div>
+
+            {/* Delete Confirmation Banner */}
+            {showDeleteConfirm && (
+              <div className="mt-4 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="text-xs text-rose-800 dark:text-rose-200">
+                  <p className="font-bold">Permanently delete this subaccount?</p>
+                  <p className="mt-0.5 text-rose-700 dark:text-rose-300">
+                    This will remove {currentSubaccount.subaccount_code} from your organization profile and deactivate it on Paystack.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={deletingSubaccount}
+                    className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteSubaccount}
+                    disabled={deletingSubaccount}
+                    className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {deletingSubaccount ? "Deleting..." : "Confirm Delete"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Live Verification Notice */}
             <div className="mt-4 pt-4 border-t border-emerald-200/60 dark:border-emerald-800/40">

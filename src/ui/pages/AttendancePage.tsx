@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { Course, AttendanceEntry, AttendanceMode } from "../../types";
+import { useEventContext } from "../../store/EventContext";
+import { Course, AttendanceEntry, AttendanceMode, AttendanceRecord } from "../../types";
 import { TeacherDutyModal } from "../components/TeacherDutyModal";
 import { ClassRollCallModal } from "../components/ClassRollCallModal";
 import {
@@ -30,6 +31,7 @@ export const AttendancePage: React.FC = () => {
     organizations,
     addAttendanceRecord,
   } = useAppContext();
+  const { events } = useEventContext();
 
   // Role detection
   const isSuperAdmin = currentUser?.role === "super_admin";
@@ -67,10 +69,13 @@ export const AttendancePage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  // My Courses (for instructor or student)
+  // My Courses (strictly filtered for instructor, organization, or student)
   const myCourses = useMemo(() => {
     if (!currentUser) return [];
-    if (isSchoolStaff) {
+    if (isSuperAdmin) {
+      return courses;
+    }
+    if (isOrganization || isOrgAdmin) {
       return courses.filter(
         (c) =>
           c.orgId === currentUser.id ||
@@ -87,32 +92,26 @@ export const AttendancePage: React.FC = () => {
       );
     }
     // Student enrolled courses
-    const approvedCourseIds = enrollmentRequests
-      .filter((r) => r.userId === currentUser.id && r.status === "approved")
+    const activeCourseIds = enrollmentRequests
+      .filter((r) => r.userId === currentUser.id && r.status !== "rejected")
       .map((r) => r.courseId);
-    return courses.filter((c) => approvedCourseIds.includes(c.id));
-  }, [currentUser, courses, isSchoolStaff, isInstructor, userOrg, enrollmentRequests]);
-
-  // Relevant Attendance Records
-  const relevantAttendanceRecords = useMemo(() => {
-    if (isSchoolStaff) {
-      return attendanceRecords.filter((r) =>
-        courses.some(
-          (c) =>
-            (c.orgId === currentUser?.id || (userOrg && c.orgId === userOrg.id)) &&
-            c.id === r.courseId
-        ) || (r.orgId && (r.orgId === currentUser?.id || (userOrg && r.orgId === userOrg.id)))
-      );
-    }
-    if (isInstructor) {
-      const myCourseIds = myCourses.map((c) => c.id);
-      return attendanceRecords.filter((r) => myCourseIds.includes(r.courseId));
-    }
-    // Student: filter records where student has an entry
-    return attendanceRecords.filter((r) =>
-      r.entries?.some((e) => e.userId === currentUser?.id)
+    return courses.filter(
+      (c) =>
+        activeCourseIds.includes(c.id) ||
+        currentUser.enrolledCourseIds?.includes(c.id) ||
+        currentUser.courseIds?.includes(c.id)
     );
-  }, [isSchoolStaff, isInstructor, attendanceRecords, courses, currentUser, userOrg, myCourses]);
+  }, [currentUser, courses, isOrganization, isOrgAdmin, isSuperAdmin, isInstructor, userOrg, enrollmentRequests]);
+
+  // Relevant Attendance Records (strictly associated with user/organization courses)
+  const relevantAttendanceRecords = useMemo(() => {
+    if (isSuperAdmin) return attendanceRecords;
+    const myCourseIds = new Set(myCourses.map((c) => c.id));
+    return attendanceRecords.filter((r) =>
+      myCourseIds.has(r.courseId) ||
+      (r.orgId && (r.orgId === currentUser?.id || (userOrg && r.orgId === userOrg.id)))
+    );
+  }, [isSuperAdmin, myCourses, attendanceRecords, currentUser, userOrg]);
 
   // Relevant Teacher Duty Records
   const relevantTeacherDutyRecords = useMemo(() => {
@@ -232,9 +231,9 @@ export const AttendancePage: React.FC = () => {
     return list;
   }, [myCourses, courses, enrollmentRequests, isStudent, currentUser, attendanceRecords]);
 
-  // Critical truancy cases count
+  // At-risk truancy cases count (Persistent >=10% & Severe >=50% absence)
   const criticalTruancyCount = useMemo(() => {
-    return truancyReport.filter((t) => t.truancyLevel === "critical").length;
+    return truancyReport.filter((t) => t.truancyLevel === "critical" || t.truancyLevel === "warning").length;
   }, [truancyReport]);
 
   // Overall student attendance rate
@@ -254,10 +253,83 @@ export const AttendancePage: React.FC = () => {
     return relevantTeacherDutyRecords.filter((r) => r.status === "on_duty").length;
   }, [relevantTeacherDutyRecords]);
 
+  // Active today's scheduled class events and roll calls for student 1-tap check-in
+  const activeStudentSessions = useMemo(() => {
+    if (!isStudent || !currentUser) return [];
+    const today = new Date().toISOString().split("T")[0];
+    const studentCourseIds = new Set(myCourses.map((c) => c.id));
+    const items: Array<{
+      id: string;
+      title: string;
+      courseTitle: string;
+      courseId: string;
+      pin: string;
+      mode: "physical" | "online";
+      location?: string;
+      time?: string;
+      isCheckedIn: boolean;
+    }> = [];
+
+    // 1. Active roll calls created by instructors today
+    attendanceRecords.forEach((rec) => {
+      if (rec.date === today && (studentCourseIds.has(rec.courseId) || studentCourseIds.size === 0)) {
+        const isCheckedIn = (rec.entries || []).some(
+          (e) => e.userId === currentUser.id && (e.status === "present" || e.status === "late")
+        );
+        const pin = rec.verificationCode || String(100000 + (Math.abs(rec.id.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 900000));
+        items.push({
+          id: rec.id,
+          title: rec.sessionTitle || "Live Roll Call Session",
+          courseTitle: rec.courseTitle || "Course",
+          courseId: rec.courseId,
+          pin,
+          mode: rec.mode || "physical",
+          location: rec.location || "Classroom",
+          time: rec.startTime || "Today",
+          isCheckedIn,
+        });
+      }
+    });
+
+    // 2. Scheduled class events today for student courses
+    events.forEach((evt) => {
+      const evtDate = evt.date ? evt.date.split("T")[0] : today;
+      const matchesCourse = evt.courseId ? studentCourseIds.has(evt.courseId) : true;
+      if (evtDate === today && matchesCourse) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const evtPin = (evt as any).verificationCode || String(100000 + (Math.abs(evt.id.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 900000));
+        
+        const matchingRecord = attendanceRecords.find(
+          (r) => r.verificationCode === evtPin && r.date === today
+        );
+        const isCheckedIn = matchingRecord
+          ? (matchingRecord.entries || []).some(
+              (e) => e.userId === currentUser.id && (e.status === "present" || e.status === "late")
+            )
+          : false;
+
+        if (!items.some((i) => i.pin === evtPin)) {
+          items.push({
+            id: `evt_${evt.id}`,
+            title: evt.title,
+            courseTitle: evt.courseTitle || "Scheduled Class Event",
+            courseId: evt.courseId || "event_course",
+            pin: evtPin,
+            mode: evt.mode === "onsite" ? "physical" : "online",
+            location: evt.location || "Scheduled Venue",
+            time: evt.startTime || evt.time || "Scheduled Class",
+            isCheckedIn,
+          });
+        }
+      }
+    });
+
+    return items;
+  }, [isStudent, currentUser, myCourses, attendanceRecords, events]);
+
   // Student pin self-verification handler
-  const handleStudentPinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const pin = studentPinInput.trim();
+  const performPinVerification = async (pinToVerify: string) => {
+    const pin = pinToVerify.trim();
     if (!pin || pin.length < 4) {
       setStudentPinFeedback({ type: "error", message: "Please enter a valid session attendance code." });
       return;
@@ -269,10 +341,64 @@ export const AttendancePage: React.FC = () => {
       (r) => r.verificationCode === pin && r.date === today
     );
 
+    // If no direct attendance record exists yet, check if a scheduled class event for today matches this PIN
+    if (!match) {
+      const matchingEvent = events.find((evt) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const evtPin = (evt as any).verificationCode || String(100000 + (Math.abs(evt.id.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 900000));
+        const evtDate = evt.date ? evt.date.split("T")[0] : today;
+        return evtPin === pin && evtDate === today;
+      });
+
+      if (matchingEvent) {
+        const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const newRecord: AttendanceRecord = {
+          id: `att_event_${matchingEvent.id}_${Date.now()}`,
+          courseId: matchingEvent.courseId || "event_course",
+          courseTitle: matchingEvent.courseTitle || matchingEvent.title,
+          date: today,
+          mode: matchingEvent.mode === "onsite" ? "physical" : "online",
+          sessionTitle: matchingEvent.title,
+          location: matchingEvent.location || "Scheduled Class Event",
+          startTime: nowTime,
+          verificationCode: pin,
+          entries: [
+            {
+              id: `entry_${currentUser?.id}_${Date.now()}`,
+              userId: currentUser?.id || "guest",
+              userName: currentUser?.name || "Student",
+              userEmail: currentUser?.email,
+              role: "student",
+              status: "present",
+              checkInTime: nowTime,
+              durationMinutes: 60,
+              location: matchingEvent.location || "Scheduled Class Event",
+              method: "verification_code",
+              verifiedBy: "1-Tap Session Verification",
+            },
+          ],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        try {
+          await addAttendanceRecord(newRecord);
+          setStudentPinFeedback({
+            type: "success",
+            message: `✓ 1-Tap Check-In Recorded! Attendance verified for scheduled event "${matchingEvent.title}".`,
+          });
+          setStudentPinInput("");
+          return;
+        } catch {
+          // Fallback
+        }
+      }
+    }
+
     if (!match) {
       setStudentPinFeedback({
         type: "error",
-        message: "No active lecture session found matching this verification code for today. Check with your instructor.",
+        message: "Check-in unavailable. Students cannot check in unless an instructor starts an active roll call session with a PIN or a scheduled class event is currently active.",
       });
       return;
     }
@@ -303,7 +429,7 @@ export const AttendancePage: React.FC = () => {
         durationMinutes: match.expectedDurationMinutes || 60,
         location: match.location || "Classroom",
         method: "verification_code",
-        verifiedBy: "Self Code Verification",
+        verifiedBy: "1-Tap Session Verification",
       };
       updatedEntries = [...existingEntries, newEntry];
     }
@@ -322,13 +448,18 @@ export const AttendancePage: React.FC = () => {
 
       setStudentPinFeedback({
         type: "success",
-        message: `Verified attendance for ${match.courseTitle || "class"} (${match.sessionTitle || "Lecture"}). Presence recorded onto your student transcript!`,
+        message: `✓ Verified attendance for ${match.courseTitle || "class"} (${match.sessionTitle || "Lecture"}). Recorded onto student transcript!`,
       });
       setStudentPinInput("");
       setTimeout(() => setStudentPinFeedback(null), 5000);
     } catch {
       setStudentPinFeedback({ type: "error", message: "Failed to submit attendance verification. Try again." });
     }
+  };
+
+  const handleStudentPinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    performPinVerification(studentPinInput);
   };
 
   // Export Academic Broadsheet (CSV)
@@ -461,7 +592,7 @@ export const AttendancePage: React.FC = () => {
             {isSchoolStaff
               ? "School Attendance Management"
               : isInstructor
-              ? "Roll Call Register"
+              ? "Attendance Register"
               : "My Academic Attendance & Class Standing"}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
@@ -487,13 +618,13 @@ export const AttendancePage: React.FC = () => {
 
               <button
                 onClick={() => {
-                  const target = myCourses[0] || courses[0];
+                  const target = myCourses[0];
                   if (target) {
                     setTargetRollCallCourse(target);
                     setShowRollCallModal(true);
                   }
                 }}
-                disabled={myCourses.length === 0 && courses.length === 0}
+                disabled={myCourses.length === 0}
                 className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs shadow-md shadow-emerald-600/20 flex items-center space-x-2 disabled:opacity-50"
               >
                 <Users className="w-4 h-4" />
@@ -551,7 +682,7 @@ export const AttendancePage: React.FC = () => {
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span className="font-bold uppercase tracking-wider text-[10px]">Truancy Monitoring</span>
             <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-extrabold">
-              ≥3 Absences
+              ≥10% Absence
             </span>
           </div>
           <div className="flex items-baseline space-x-2">
@@ -563,7 +694,7 @@ export const AttendancePage: React.FC = () => {
             </span>
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Automated alerts for learners approaching or exceeding maximum unexcused absences.
+            Automated alerts for learners approaching or exceeding maximum unexcused absences. Persistent (≥10%) and severe (≥50%) absence tracking for school truancy intervention.
           </p>
         </div>
 
@@ -611,29 +742,30 @@ export const AttendancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* STUDENT ROLE SPECIAL PANEL: Verification Code Entry */}
+      {/* STUDENT ROLE SPECIAL PANEL: Verification Code & 1-Tap Check-In */}
       {isStudent && (
-        <div className="bg-gradient-to-r from-[#0078d4]/10 via-blue-500/10 to-indigo-500/10 rounded-3xl p-6 sm:p-8 border border-[#0078d4]/20 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-[#0078d4]/10 via-blue-500/10 to-indigo-500/10 rounded-3xl p-6 sm:p-8 border border-[#0078d4]/20 space-y-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center space-x-2">
                 <KeyRound className="w-5 h-5 text-[#0078d4] dark:text-[#04a4ec]" />
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-heading">
-                  Student Verified Class Check-In
+                  Student 1-Tap & Code Verified Class Check-In
                 </h3>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-xl leading-relaxed">
-                If you are currently attending an in-person physical lecture or a live stream, enter the 6-digit session pin provided by your instructor to instantly record verified attendance.
+                Check in for active scheduled class events or instructor roll call sessions in <strong>1 tap</strong> below. Scheduled sessions automatically connect to unique 6-digit PIN codes.
               </p>
             </div>
 
-            <form onSubmit={handleStudentPinSubmit} className="flex items-center space-x-2 w-full sm:w-auto">
+            {/* Manual PIN Form fallback */}
+            <form onSubmit={handleStudentPinSubmit} className="flex items-center space-x-2 w-full md:w-auto">
               <input
                 type="text"
                 maxLength={6}
                 value={studentPinInput}
                 onChange={(e) => setStudentPinInput(e.target.value.replace(/\D/g, ""))}
-                placeholder="6-digit pin"
+                placeholder="6-digit PIN"
                 className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-mono tracking-widest font-bold w-36 text-center focus:outline-hidden focus:ring-2 focus:ring-[#0078d4]"
               />
               <button
@@ -641,9 +773,85 @@ export const AttendancePage: React.FC = () => {
                 className="px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white font-bold rounded-xl transition text-xs shadow-md shadow-[#0078d4]/20 flex items-center space-x-1.5 shrink-0"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Verify Presence</span>
+                <span>Verify Code</span>
               </button>
             </form>
+          </div>
+
+          {/* Active Today's Class Sessions & Events for 1-Tap Check-In */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Active Today's Class Sessions &amp; Events</span>
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Auto-connected PIN Session Verification
+              </span>
+            </div>
+
+            {activeStudentSessions.length === 0 ? (
+              <div className="p-4 bg-white/80 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/80 text-xs text-slate-500 dark:text-slate-400 text-center">
+                No live roll call or scheduled class event active right now. When an instructor starts a roll call or a class event begins, your 1-Tap check-in button will appear here.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {activeStudentSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 shadow-xs hover:border-[#0078d4]/40 transition"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold flex items-center ${
+                            session.mode === "online"
+                              ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                              : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                          }`}
+                        >
+                          {session.mode === "online" ? (
+                            <Video className="w-3 h-3 mr-1" />
+                          ) : (
+                            <Building2 className="w-3 h-3 mr-1" />
+                          )}
+                          <span>{session.mode === "online" ? "Online Live" : "Physical Campus"}</span>
+                        </span>
+                        <span className="text-[11px] font-mono text-[#0078d4] dark:text-[#04a4ec] font-bold bg-[#0078d4]/10 px-2 py-0.5 rounded-md">
+                          PIN: {session.pin}
+                        </span>
+                      </div>
+
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {session.title}
+                      </h4>
+
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {session.courseTitle} • {session.time} {session.location ? `(${session.location})` : ""}
+                      </p>
+                    </div>
+
+                    <div className="shrink-0">
+                      {session.isCheckedIn ? (
+                        <span className="px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs flex items-center space-x-1 border border-emerald-500/20">
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                          <span>Checked In</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => performPinVerification(session.pin)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl transition text-xs shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>⚡ 1-Tap Check-In</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {studentPinFeedback && (
@@ -832,13 +1040,14 @@ export const AttendancePage: React.FC = () => {
               {(isSchoolStaff || isInstructor) && (
                 <button
                   onClick={() => {
-                    const target = myCourses[0] || courses[0];
+                    const target = myCourses[0];
                     if (target) {
                       setTargetRollCallCourse(target);
                       setShowRollCallModal(true);
                     }
                   }}
-                  className="px-4 py-2 bg-[#0078d4] text-white font-bold rounded-xl text-xs hover:bg-[#006cbd] transition inline-flex items-center space-x-1.5"
+                  disabled={myCourses.length === 0}
+                  className="px-4 py-2 bg-[#0078d4] text-white font-bold rounded-xl text-xs hover:bg-[#006cbd] transition inline-flex items-center space-x-1.5 disabled:opacity-50"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Take First Class Attendance</span>
@@ -973,14 +1182,14 @@ export const AttendancePage: React.FC = () => {
                   School Truancy Early Intervention Dashboard
                 </h4>
                 <p className="text-xs text-red-700 dark:text-red-300 mt-1 max-w-xl leading-relaxed">
-                  Students falling below the institutional 75% attendance threshold or with 3 or more consecutive unexcused absences are highlighted for faculty guidance and parental notification.
+                  Students with persistent (≥10% absence) or severe (≥50% absence) unexcused absence rates are monitored for faculty guidance, academic intervention, and school truancy tracking.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center space-x-3">
               <span className="px-3 py-1.5 rounded-xl bg-red-600 text-white font-extrabold text-xs">
-                {criticalTruancyCount} Students at Risk
+                {criticalTruancyCount} Students Flagged (≥10% Absence)
               </span>
             </div>
           </div>

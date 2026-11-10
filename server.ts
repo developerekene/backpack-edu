@@ -22,15 +22,13 @@ app.get("/ads.txt", (_req, res) => {
 
 // Paystack Secret Keys - Dynamic Vault Sync + Environment initialization
 // let PAYSTACK_TEST_SECRET_KEY = process.env.PAYSTACK_TEST_SECRET_KEY || process.env.VITE_PAYSTACK_TEST_SECRET_KEY || "";
-let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY || "";
+let PAYSTACK_LIVE_SECRET_KEY = process.env.PAYSTACK_LIVE_SECRET_KEY || "";
 
 // Helper for Paystack API headers - Strictly enforces LIVE mode
 const getPaystackHeaders = () => {
   const secretKey =
     PAYSTACK_LIVE_SECRET_KEY ||
     process.env.PAYSTACK_LIVE_SECRET_KEY ||
-    process.env.PAYSTACK_SECRET_KEY ||
-    process.env.VITE_PAYSTACK_LIVE_SECRET_KEY ||
     "";
 
   if (!secretKey) {
@@ -660,6 +658,79 @@ app.post(["/api/paystack/subaccount", "/api/subaccount", "/subaccount"], async (
   return res.status(400).json({
     success: false,
     message: lastErrorMessage,
+  });
+});
+
+// --- DELETE /api/paystack/subaccount/:code, /api/subaccount/:code, /subaccount/:code ---
+app.delete(["/api/paystack/subaccount/:code", "/api/subaccount/:code", "/subaccount/:code"], async (req, res) => {
+  const { code } = req.params;
+  if (!code) {
+    return res.status(400).json({ success: false, message: "Subaccount code is required." });
+  }
+
+  let deletedRemotely = false;
+  let lastError = "";
+
+  // 1. Attempt deletion via KeySafe Render proxy (keysafe-ntia.onrender.com)
+  const deleteUrls = [
+    `https://keysafe-ntia.onrender.com/subaccount/${encodeURIComponent(code)}?mode=live`,
+    `https://keysafe-ntia.onrender.com/api/subaccount/${encodeURIComponent(code)}?mode=live`,
+  ];
+
+  for (const url of deleteUrls) {
+    try {
+      const delRes = await fetch(url, {
+        method: "DELETE",
+        signal: AbortSignal.timeout(15000),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Paystack-Mode": "live",
+          "X-Environment-Mode": "live",
+          "X-Context-Mode": "live",
+        },
+      });
+      if (delRes.ok) {
+        deletedRemotely = true;
+        break;
+      }
+      const errJson = await delRes.json().catch(() => ({}));
+      if (errJson.detail?.message || errJson.message) {
+        lastError = errJson.detail?.message || errJson.message;
+      }
+    } catch {
+      // continue to next endpoint
+    }
+  }
+
+  // 2. If KeySafe doesn't expose DELETE, use direct Paystack API if configured (deactivate subaccount)
+  if (!deletedRemotely) {
+    const headers = getPaystackHeaders();
+    if (headers) {
+      try {
+        const psRes = await fetch(`https://api.paystack.co/subaccount/${encodeURIComponent(code)}`, {
+          method: "PUT",
+          headers,
+          signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({ active: false }),
+        });
+        if (psRes.ok) {
+          deletedRemotely = true;
+        } else {
+          const psJson = await psRes.json().catch(() => ({}));
+          lastError = psJson.message || lastError;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return res.json({
+    success: true,
+    deletedRemotely,
+    message: deletedRemotely
+      ? `Subaccount ${code} permanently removed from Paystack and disconnected from the app.`
+      : `Subaccount ${code} disconnected from the app.${lastError ? ` (Gateway notice: ${lastError})` : ""}`,
   });
 });
 

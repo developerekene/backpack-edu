@@ -87,17 +87,10 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
 
   // Modal states
   const [showTakeAttendanceModal, setShowTakeAttendanceModal] = useState(false);
-  const [showTerminalModal, setShowTerminalModal] = useState(false);
+  const [rollCallTab, setRollCallTab] = useState<"roster" | "terminal">("roster");
   const [showDutyModal, setShowDutyModal] = useState(false);
   const [showRollCallModal, setShowRollCallModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
-
-  // Terminal self-clock state
-  const [terminalFeedback, setTerminalFeedback] = useState<{
-    userName: string;
-    action: "in" | "out";
-    duration?: string;
-  } | null>(null);
 
   const courseOrgMembers = useMemo(() => {
     return orgMembers.filter(
@@ -381,17 +374,17 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
 
       const defaultDuration = calculateDuration(formDefaultIn, formDefaultOut);
 
-      // Build roster entries
+      // Build roster entries (instructors present, students absent until checked in)
       const initialEntries: AttendanceEntry[] = courseRoster.map((u) => ({
         id: generateId(`entry_${u.id}`),
         userId: u.id,
         userName: u.name,
         userEmail: u.email,
         role: u.role,
-        status: "present",
-        checkInTime: formDefaultIn,
-        checkOutTime: formDefaultOut,
-        durationMinutes: defaultDuration > 0 ? defaultDuration : 180,
+        status: u.role === "instructor" ? "present" : "absent",
+        checkInTime: u.role === "instructor" ? formDefaultIn : undefined,
+        checkOutTime: u.role === "instructor" ? formDefaultOut : undefined,
+        durationMinutes: u.role === "instructor" ? (defaultDuration > 0 ? defaultDuration : 180) : 0,
         location: activeMode === "online" ? "Online Classroom" : "Campus Lecture Hall",
         method: activeMode === "online" ? "live_online" : "manual",
         notes: "",
@@ -513,117 +506,6 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
     }
 
     setShowTakeAttendanceModal(false);
-  };
-
-  // Campus Terminal Self-Clock Action (for physical campus attendance)
-  const handleTerminalClock = async (user: { id: string; name: string; role: "student" | "instructor" }, action: "in" | "out") => {
-    const today = new Date().toISOString().split("T")[0];
-    const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-    // Find today's physical record or create one
-    const todayRecord = attendanceRecords.find(
-      (r) => (r.courseId === course.id || r.courseTitle === course.title) && r.date === today && (r.mode === "physical" || !r.mode)
-    );
-
-    if (!todayRecord) {
-      const recId = generateId(`att_term_${course.id}`);
-      const newEntry: AttendanceEntry = {
-        id: generateId(`term_${user.id}`),
-        userId: user.id,
-        userName: user.name,
-        role: user.role,
-        status: "present",
-        checkInTime: nowTime,
-        checkOutTime: action === "out" ? nowTime : undefined,
-        durationMinutes: 0,
-        location: "Campus Attendance Station",
-        method: "duty_terminal",
-      };
-
-      const freshRecord: AttendanceRecord = {
-        id: recId,
-        courseId: course.id,
-        courseTitle: course.title,
-        orgId: course.orgId,
-        date: today,
-        mode: "physical",
-        sessionTitle: `Physical Campus Daily Attendance (${new Date().toLocaleDateString()})`,
-        location: "Main Campus Station",
-        entries: [newEntry],
-        records: { [user.id]: true },
-        createdAt: new Date().toISOString(),
-      };
-
-      await addAttendanceRecord(freshRecord);
-
-      setTerminalFeedback({
-        userName: user.name,
-        action,
-        duration: action === "out" ? "Recorded" : undefined,
-      });
-      setTimeout(() => setTerminalFeedback(null), 4000);
-      return;
-    }
-
-    // Update existing record
-    const entries = todayRecord.entries || [];
-    const entryIdx = entries.findIndex((e) => e.userId === user.id);
-
-    if (entryIdx >= 0) {
-      const currentEntry = entries[entryIdx];
-      let durationMins = currentEntry.durationMinutes || 0;
-      if (action === "out" && currentEntry.checkInTime) {
-        durationMins = calculateDuration(currentEntry.checkInTime, nowTime);
-      }
-
-      const updatedEntries = [...entries];
-      updatedEntries[entryIdx] = {
-        ...currentEntry,
-        checkInTime: action === "in" ? nowTime : currentEntry.checkInTime || nowTime,
-        checkOutTime: action === "out" ? nowTime : currentEntry.checkOutTime,
-        durationMinutes: durationMins,
-        status: "present",
-      };
-
-      await updateAttendanceRecord(todayRecord.id!, {
-        entries: updatedEntries,
-        records: { ...(todayRecord.records || {}), [user.id]: true },
-        updatedAt: new Date().toISOString(),
-      });
-
-      setTerminalFeedback({
-        userName: user.name,
-        action,
-        duration: action === "out" ? formatMins(durationMins) : undefined,
-      });
-      setTimeout(() => setTerminalFeedback(null), 4000);
-    } else {
-      const newEntry: AttendanceEntry = {
-        id: generateId(`term_${user.id}`),
-        userId: user.id,
-        userName: user.name,
-        role: user.role,
-        status: "present",
-        checkInTime: nowTime,
-        checkOutTime: action === "out" ? nowTime : undefined,
-        durationMinutes: 0,
-        location: "Campus Attendance Station",
-        method: "duty_terminal",
-      };
-
-      await updateAttendanceRecord(todayRecord.id!, {
-        entries: [...entries, newEntry],
-        records: { ...(todayRecord.records || {}), [user.id]: true },
-        updatedAt: new Date().toISOString(),
-      });
-
-      setTerminalFeedback({
-        userName: user.name,
-        action,
-        duration: action === "out" ? "Recorded" : undefined,
-      });
-      setTimeout(() => setTerminalFeedback(null), 4000);
-    }
   };
 
   return (
@@ -761,18 +643,24 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
           {/* Quick Roll Call Modal Trigger for Instructors/Staff */}
           {!isStudent && isUserAssociatedWithCourse && (
             <button
-              onClick={() => setShowRollCallModal(true)}
+              onClick={() => {
+                setRollCallTab("roster");
+                setShowRollCallModal(true);
+              }}
               className="px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center shadow-sm cursor-pointer font-heading"
             >
               <Users className="w-4 h-4 mr-1.5" />
-              <span>Roll Call</span>
+              <span>Attendance Register</span>
             </button>
           )}
 
-          {/* Student 1-Click Self Check-In */}
+          {/* Student Self Class Check-In */}
           {isStudent && isUserAssociatedWithCourse && (
             <button
-              onClick={() => setShowRollCallModal(true)}
+              onClick={() => {
+                setRollCallTab("roster");
+                setShowRollCallModal(true);
+              }}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center shadow-sm cursor-pointer font-heading"
             >
               <CheckCircle2 className="w-4 h-4 mr-1.5" />
@@ -791,14 +679,17 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
             </button>
           )}
 
-          {/* Offline check-in Button */}
+          {/* Roll call Button (Integrated into Attendance Register) */}
           {(activeMode === "physical" || activeMode === "all") && !isStudent && isUserAssociatedWithCourse && (
             <button
-              onClick={() => setShowTerminalModal(true)}
+              onClick={() => {
+                setRollCallTab("terminal");
+                setShowRollCallModal(true);
+              }}
               className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-xl text-xs sm:text-sm font-bold transition flex items-center cursor-pointer font-heading"
             >
               <Building2 className="w-4 h-4 mr-1.5" />
-              <span>Offline check-in</span>
+              <span>Roll call</span>
             </button>
           )}
 
@@ -1382,128 +1273,14 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         </div>
       )}
 
-      {/* Modal: Physical Campus Attendance Terminal */}
-      {showTerminalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 text-center max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center space-x-2">
-                <Building2 className="w-6 h-6 text-amber-500" />
-                <div className="text-left">
-                  <h3 className="font-extrabold text-lg text-slate-900 dark:text-white font-heading">
-                    Offline check-in
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Stationary Check-In & Check-Out Terminal for Learners and Faculty
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowTerminalModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Live Clock Header */}
-            <div className="p-4 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 rounded-2xl border border-amber-500/20 shrink-0">
-              <span className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-widest block">
-                Today: {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" })}
-              </span>
-              <div className="text-3xl font-extrabold text-slate-900 dark:text-white font-mono mt-1">
-                {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </div>
-            </div>
-
-            {/* Feedback notification toast */}
-            {terminalFeedback && (
-              <div className="p-3.5 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-center space-x-2 animate-in zoom-in-95">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>
-                  {terminalFeedback.userName} successfully clocked {terminalFeedback.action === "in" ? "IN (Arrival Recorded)" : `OUT (Engagement Duration: ${terminalFeedback.duration || "Saved"})`}!
-                </span>
-              </div>
-            )}
-
-            {/* Participant Quick Clock List */}
-            <div className="flex-1 overflow-y-auto space-y-2 text-left pr-1">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Tap your name to Clock In or Clock Out
-              </h4>
-              {courseRoster.map((u) => {
-                const isInstructor = u.role === "instructor";
-                return (
-                  <div
-                    key={u.id}
-                    className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/70 flex items-center justify-between gap-3 hover:border-amber-400 transition"
-                  >
-                    <div className="flex items-center space-x-2.5 min-w-0">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                          isInstructor
-                            ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                            : "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                        }`}
-                      >
-                        {u.name.slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="truncate">
-                        <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                          {u.name}
-                        </div>
-                        <span
-                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
-                            isInstructor
-                              ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                              : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
-                          }`}
-                        >
-                          {u.role}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        onClick={() => handleTerminalClock(u, "in")}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-xs cursor-pointer"
-                      >
-                        <Clock className="w-3.5 h-3.5 mr-1" />
-                        Clock In
-                      </button>
-                      <button
-                        onClick={() => handleTerminalClock(u, "out")}
-                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-xs cursor-pointer"
-                      >
-                        <Timer className="w-3.5 h-3.5 mr-1" />
-                        Clock Out
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="border-t border-slate-100 dark:border-slate-800 pt-3 shrink-0">
-              <button
-                onClick={() => setShowTerminalModal(false)}
-                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition font-heading"
-              >
-                Close Terminal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Class Roll Call Modal */}
+      {/* Class Roll Call Modal (Integrates Class Roster Register & Offline Terminal Modes) */}
       {showRollCallModal && (
         <ClassRollCallModal
           isOpen={showRollCallModal}
           onClose={() => setShowRollCallModal(false)}
           targetCourse={course}
           initialMode={activeMode === "online" ? "online" : "physical"}
+          initialTab={rollCallTab}
         />
       )}
 

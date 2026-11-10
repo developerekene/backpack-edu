@@ -3,8 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { CourseModule, CourseModuleItem, CourseFAQ } from "../../types";
-import { FileUpload } from "../components/FileUpload";
+import { CourseModule, CourseFAQ } from "../../types";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { PaystackSubaccountOnboarding } from "../components/PaystackSubaccountOnboarding";
 import { SpeechToTextButton } from "../components/SpeechToTextButton";
@@ -12,28 +11,13 @@ import { generateId } from "../../lib/id";
 import {
   Plus,
   X,
-  UploadCloud,
   CheckCircle2,
-  FileText,
-  Video,
   Building2,
   ShieldAlert,
   ArrowLeft,
   RotateCcw,
   Check,
-  Link as LinkIcon,
-  Trash2,
   HeartHandshake,
-  Volume2,
-  Image,
-  FileSpreadsheet,
-  Edit3,
-  Sparkles,
-  Clock,
-  Award,
-  HelpCircle,
-  User,
-  Lock,
   ArrowRight,
 } from "lucide-react";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
@@ -121,7 +105,7 @@ const CourseUpload = () => {
   >(() => initialDraft?.pacing || "blended");
   const [durationWeeks, setDurationWeeks] = useState(() => initialDraft?.durationWeeks || "8 Weeks");
   const [timeCommitment, setTimeCommitment] = useState(() => initialDraft?.timeCommitment || "6–8 hours / week");
-  const [totalHours, setTotalHours] = useState(() => initialDraft?.totalHours || "48 Total Hours");
+  const [totalHours] = useState(() => initialDraft?.totalHours || "48 Total Hours");
   const [language, setLanguage] = useState(() => initialDraft?.language || "English");
   const [subtitlesInput, setSubtitlesInput] = useState(() => initialDraft?.subtitlesInput || "English [CC]");
   const [accessDuration, setAccessDuration] = useState(
@@ -153,8 +137,6 @@ const CourseUpload = () => {
 
   // FAQs
   const [faqs, setFaqs] = useState<CourseFAQ[]>(() => initialDraft?.faqs || []);
-  const [newFaqQ, setNewFaqQ] = useState("");
-  const [newFaqA, setNewFaqA] = useState("");
 
   // Curriculum Structure (Modules, Sections, Lectures)
   const [modules, setModules] = useState<CourseModule[]>(() => {
@@ -422,7 +404,6 @@ const CourseUpload = () => {
   const isPaidOrg =
     activeOrg?.plan === "paid" ||
     (currentUser.role === "organization" && currentUser.plan === "paid");
-  const orgCourseLimitReached = !isPaidOrg && orgExistingCourses.length >= 15;
 
   const availableOrgInstructors = orgMembers.filter((m) => {
     return (

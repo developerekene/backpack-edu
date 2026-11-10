@@ -10,7 +10,7 @@ import { CourseJoinModal } from "./CourseJoinModal";
 import { CourseDonationModal } from "./CourseDonationModal";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 import { 
-  Building, MapPin, Phone, Globe, Award, ShieldCheck, 
+  Building, MapPin, Phone, Award, ShieldCheck, 
   BookOpen, Send, GraduationCap, ArrowLeft, Palette, 
   CheckCircle2, ExternalLink, FileText, Search, 
   DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed, UserCheck,
