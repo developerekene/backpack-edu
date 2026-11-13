@@ -3,10 +3,12 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { CourseModule, CourseFAQ } from "../../types";
+import { CourseModule, CourseModuleItem, CourseSection, CourseFAQ } from "../../types";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { PaystackSubaccountOnboarding } from "../components/PaystackSubaccountOnboarding";
 import { SpeechToTextButton } from "../components/SpeechToTextButton";
+import { FileUpload } from "../components/FileUpload";
+import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
 import {
   Plus,
@@ -19,9 +21,17 @@ import {
   Check,
   HeartHandshake,
   ArrowRight,
+  BookOpen,
+  Layers,
+  FileText,
+  Video,
+  Link as LinkIcon,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Menu,
 } from "lucide-react";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
-import { CourseModulesTab } from "../components/CourseModulesTab";
 
 const COURSE_UPLOAD_DRAFT_KEY = "bp_draft_course_upload";
 
@@ -175,9 +185,24 @@ const CourseUpload = () => {
   const [showSubaccountModal, setShowSubaccountModal] = useState(false);
   const [bypassSubaccount, setBypassSubaccount] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(() => Boolean(initialDraft));
+  const [collapsedModuleIds, setCollapsedModuleIds] = useState<Record<string, boolean>>({});
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    type?: "info" | "warning" | "error" | "success" | "danger";
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "warning",
+  });
 
   // Step state for creation flow
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [showStepMenu, setShowStepMenu] = useState<boolean>(false);
   const totalSteps = 6;
   const stepTitles = [
     "Basic Information",
@@ -337,7 +362,7 @@ const CourseUpload = () => {
       !isSuperAdmin)
   ) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4 font-body">
+      <div className="w-full min-h-[70vh] flex items-center justify-center p-4 font-body">
         <div className="max-w-xl text-center space-y-6">
           <div className="w-20 h-20 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-3xl flex items-center justify-center mx-auto border border-amber-200 dark:border-amber-800/60 shadow-xs">
             <ShieldAlert className="w-10 h-10" />
@@ -418,7 +443,7 @@ const CourseUpload = () => {
   // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
   if (currentUser.role === "instructor" && approvedOrgs.length === 0) {
     return (
-      <div className="w-full h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 p-4 font-body space-y-8">
+      <div className="w-full min-h-[70vh] flex flex-col items-center justify-center p-4 font-body space-y-8">
         <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 text-center space-y-5 shadow-sm max-w-2xl">
           <div className="w-16 h-16 bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] rounded-2xl flex items-center justify-center mx-auto border border-[#0078d4]/20">
             <Building2 className="w-8 h-8" />
@@ -461,9 +486,14 @@ const CourseUpload = () => {
     const orgIdToUse =
       currentUser.role === "organization" ? currentUser.id : selectedOrgId;
     if (!orgIdToUse) {
-      alert(
-        "Please select the authorized partner organization sponsoring this course.",
-      );
+      setAlertConfig({
+        isOpen: true,
+        title: "Sponsoring Organization Required",
+        message: "Please select the authorized partner organization sponsoring this course.",
+        confirmText: "Select Organization",
+        type: "warning",
+        onConfirm: () => setCurrentStep(1),
+      });
       return;
     }
 
@@ -482,9 +512,15 @@ const CourseUpload = () => {
     );
 
     if (isHigherDegree && !isHigherEduOrg) {
-      alert(
-        "Higher education degrees (Bachelors, Masters, Doctorate) can only be offered by Higher Education Institutions.",
-      );
+      setAlertConfig({
+        isOpen: true,
+        title: "Higher Education Credential Restricted",
+        message:
+          "Higher education degrees (Bachelors, Masters, Doctorate) can only be offered by Higher Education Institutions.",
+        confirmText: "Adjust Qualification",
+        type: "warning",
+        onConfirm: () => setCurrentStep(1),
+      });
       return;
     }
 
@@ -662,13 +698,195 @@ const CourseUpload = () => {
     );
   }
 
+  // Curriculum Builder Handlers (Module -> Section -> Lecture)
+  const createDefaultLecture = (
+    type: CourseModuleItem["type"] = "text",
+  ): CourseModuleItem => ({
+    id: generateId("lec"),
+    title: "",
+    description: "",
+    learningOutcome: "",
+    duration: "",
+    type,
+    formats: [type],
+    content: "",
+  });
+
+  const createDefaultSection = (): CourseSection => ({
+    id: generateId("sec"),
+    title: "",
+    description: "",
+    learningObjectives: "",
+    items: [createDefaultLecture()],
+  });
+
+  const handleAddModule = () => {
+    setModules((prev) => [
+      ...prev,
+      {
+        id: generateId("mod"),
+        title: "",
+        description: "",
+        learningGoals: "",
+        sections: [createDefaultSection()],
+        items: [],
+      },
+    ]);
+  };
+
+  const handleUpdateModule = (mIdx: number, patch: Partial<CourseModule>) => {
+    setModules((prev) =>
+      prev.map((m, idx) => (idx === mIdx ? { ...m, ...patch } : m)),
+    );
+  };
+
+  const handleRemoveModule = (mIdx: number) => {
+    setModules((prev) => prev.filter((_, idx) => idx !== mIdx));
+  };
+
+  const handleAddSection = (mIdx: number) => {
+    setModules((prev) =>
+      prev.map((m, idx) =>
+        idx === mIdx
+          ? { ...m, sections: [...(m.sections || []), createDefaultSection()] }
+          : m,
+      ),
+    );
+  };
+
+  const handleUpdateSection = (
+    mIdx: number,
+    sIdx: number,
+    patch: Partial<CourseSection>,
+  ) => {
+    setModules((prev) =>
+      prev.map((m, idx) => {
+        if (idx !== mIdx) return m;
+        const nextSections = (m.sections || []).map((s, si) =>
+          si === sIdx ? { ...s, ...patch } : s,
+        );
+        return { ...m, sections: nextSections };
+      }),
+    );
+  };
+
+  const handleRemoveSection = (mIdx: number, sIdx: number) => {
+    setModules((prev) =>
+      prev.map((m, idx) => {
+        if (idx !== mIdx) return m;
+        return {
+          ...m,
+          sections: (m.sections || []).filter((_, si) => si !== sIdx),
+        };
+      }),
+    );
+  };
+
+  const handleAddLecture = (
+    mIdx: number,
+    sIdx: number,
+    type: CourseModuleItem["type"] = "text",
+  ) => {
+    setModules((prev) =>
+      prev.map((m, idx) => {
+        if (idx !== mIdx) return m;
+        const nextSections = (m.sections || []).map((s, si) => {
+          if (si !== sIdx) return s;
+          return {
+            ...s,
+            items: [...(s.items || []), createDefaultLecture(type)],
+          };
+        });
+        return { ...m, sections: nextSections };
+      }),
+    );
+  };
+
+  const handleUpdateLecture = (
+    mIdx: number,
+    sIdx: number,
+    lIdx: number,
+    patch: Partial<CourseModuleItem>,
+  ) => {
+    setModules((prev) =>
+      prev.map((m, idx) => {
+        if (idx !== mIdx) return m;
+        const nextSections = (m.sections || []).map((s, si) => {
+          if (si !== sIdx) return s;
+          const nextItems = (s.items || []).map((l, li) =>
+            li === lIdx ? { ...l, ...patch } : l,
+          );
+          return { ...s, items: nextItems };
+        });
+        return { ...m, sections: nextSections };
+      }),
+    );
+  };
+
+  const handleToggleLectureFormat = (
+    mIdx: number,
+    sIdx: number,
+    lIdx: number,
+    fmt: NonNullable<CourseModuleItem["formats"]>[number],
+  ) => {
+    setModules((prev) =>
+      prev.map((m, idx) => {
+        if (idx !== mIdx) return m;
+        const nextSections = (m.sections || []).map((s, si) => {
+          if (si !== sIdx) return s;
+          const nextItems = (s.items || []).map((l, li) => {
+            if (li !== lIdx) return l;
+            const currentFormats = l.formats?.length ? l.formats : [l.type];
+            const exists = currentFormats.includes(fmt);
+            const updatedFormats = exists
+              ? currentFormats.length > 1
+                ? currentFormats.filter((f) => f !== fmt)
+                : currentFormats
+              : [...currentFormats, fmt];
+            return {
+              ...l,
+              formats: updatedFormats,
+              type: updatedFormats[0] || l.type,
+            };
+          });
+          return { ...s, items: nextItems };
+        });
+        return { ...m, sections: nextSections };
+      }),
+    );
+  };
+
+  const handleRemoveLecture = (mIdx: number, sIdx: number, lIdx: number) => {
+    setModules((prev) =>
+      prev.map((m, idx) => {
+        if (idx !== mIdx) return m;
+        const nextSections = (m.sections || []).map((s, si) => {
+          if (si !== sIdx) return s;
+          return {
+            ...s,
+            items: (s.items || []).filter((_, li) => li !== lIdx),
+          };
+        });
+        return { ...m, sections: nextSections };
+      }),
+    );
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 flex flex-col font-body">
-      
-      {/* Top Fixed Header with Progress */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
-        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+    <div className="w-full max-w-4xl mx-auto space-y-6 pb-12 font-body">
+      {/* Course Creator Header & Step Navigation Bar */}
+      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setShowStepMenu((prev) => !prev)}
+              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-[#0078d4]/10 hover:text-[#0078d4] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+              aria-label="Toggle Course Sections Menu"
+              title="Jump between Add Course sections"
+            >
+              {showStepMenu ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
             <button
               type="button"
               onClick={() => navigate(-1)}
@@ -682,7 +900,7 @@ const CourseUpload = () => {
               Course Creator
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {isDraftRestored && (
               <span className="hidden sm:inline-flex text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-800/60 uppercase tracking-wider font-heading">
@@ -701,10 +919,40 @@ const CourseUpload = () => {
             )}
           </div>
         </div>
-        
+
+        {/* Hamburger Section Jump Menu */}
+        {showStepMenu && (
+          <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-slate-900/70 border-t border-slate-100 dark:border-slate-700/70 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {stepTitles.map((label, idx) => {
+              const stepNum = idx + 1;
+              const isActive = currentStep === stepNum;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    setCurrentStep(stepNum);
+                    setShowStepMenu(false);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-left text-xs font-bold transition flex items-center space-x-2 cursor-pointer border ${
+                    isActive
+                      ? "bg-[#0078d4] text-white border-[#0078d4]"
+                      : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-[#0078d4]/40"
+                  }`}
+                >
+                  <span className="font-mono text-[10px] opacity-80">
+                    {stepNum}.
+                  </span>
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Integrated Progress Bar in Header */}
-        <div className="bg-slate-50 dark:bg-slate-900/50 px-4 sm:px-6 py-3 border-t border-slate-100 dark:border-slate-800">
-          <div className="max-w-5xl mx-auto w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-slate-50 dark:bg-slate-900/50 px-4 sm:px-6 py-3 border-t border-slate-100 dark:border-slate-700/70">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#0078d4] dark:text-[#04a4ec] font-heading">
                 Step {currentStep} of {totalSteps}
@@ -715,9 +963,12 @@ const CourseUpload = () => {
             </div>
             <div className="flex items-center space-x-1.5 w-full sm:w-64">
               {Array.from({ length: totalSteps }).map((_, i) => (
-                <div 
+                <button
                   key={i}
-                  className={`h-1.5 flex-1 rounded-full transition-colors ${currentStep >= i + 1 ? 'bg-[#0078d4]' : 'bg-slate-200 dark:bg-slate-700'}`}
+                  type="button"
+                  onClick={() => setCurrentStep(i + 1)}
+                  title={`Step ${i + 1}: ${stepTitles[i]}`}
+                  className={`h-1.5 flex-1 rounded-full transition-colors cursor-pointer ${currentStep >= i + 1 ? 'bg-[#0078d4]' : 'bg-slate-200 dark:bg-slate-700'}`}
                 />
               ))}
             </div>
@@ -725,10 +976,8 @@ const CourseUpload = () => {
         </div>
       </div>
 
-      {/* Main Container - Full Height Scrollable Form Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full flex justify-center">
-        
-        <div className="w-full max-w-4xl bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md h-fit mb-12 overflow-hidden">
+      {/* Main Form Container */}
+      <div className="w-full bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md overflow-hidden">
           
           <div className="p-6 sm:p-8">
             <form onSubmit={handleSubmit}>
@@ -1580,29 +1829,553 @@ const CourseUpload = () => {
                 </div>
               </div>
 
-              {/* STEP 6: Curriculum Builder */}
-              <div className={currentStep === 6 ? 'block animate-in fade-in slide-in-from-right-4' : 'hidden'}>
-                <div className="space-y-6">
-                  <CourseModulesTab
-                    course={{
-                      id: "draft",
-                      title,
-                      modules,
-                      orgId: selectedOrgId
-                    } as any}
-                    isStudent={false}
-                    isPreview={false}
-                  />
-
-                  <div className="pt-8 mt-4 border-t border-slate-200 dark:border-slate-700">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full px-8 py-4 bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white rounded-2xl text-base font-bold flex items-center justify-center transition shadow-md cursor-pointer font-heading"
-                    >
-                      {loading ? "Publishing Course..." : "Publish Institutional Course"} <CheckCircle2 className="w-5 h-5 ml-2.5" />
-                    </button>
+              {/* STEP 6: Curriculum Builder (Module -> Section -> Lectures) */}
+              <div className={currentStep === 6 ? 'block animate-in fade-in slide-in-from-right-4 space-y-6' : 'hidden'}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white font-heading flex items-center">
+                      <BookOpen className="w-4 h-4 mr-2 text-[#0078d4] dark:text-[#04a4ec]" />
+                      Institutional Curriculum Architecture
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Organize your syllabus sequentially into Modules, Sections, and multi-format Lectures.
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleAddModule}
+                    className="px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center shrink-0 cursor-pointer font-heading"
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" /> Add Module
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  {modules.map((mod, mIdx) => {
+                    const sections = mod.sections || [];
+                    const isCollapsed = Boolean(collapsedModuleIds[mod.id]);
+                    const totalLecturesCount = sections.reduce(
+                      (acc, sec) => acc + (sec.items?.length || 0),
+                      0,
+                    );
+
+                    return (
+                      <div
+                        key={mod.id || mIdx}
+                        className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs overflow-hidden"
+                      >
+                        {/* Module Header Bar */}
+                        <div className="p-5 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <span className="px-3 py-1 rounded-lg bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] border border-[#0078d4]/20 text-[11px] font-extrabold uppercase tracking-wider font-heading shrink-0">
+                              Module {mIdx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-bold text-slate-900 dark:text-white font-heading truncate">
+                                {mod.title.trim() || `Untitled Module ${mIdx + 1}`}
+                              </h4>
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                {sections.length} {sections.length === 1 ? "Section" : "Sections"} · {totalLecturesCount} {totalLecturesCount === 1 ? "Lecture" : "Lectures"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCollapsedModuleIds((prev) => ({
+                                  ...prev,
+                                  [mod.id]: !prev[mod.id],
+                                }))
+                              }
+                              className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white transition cursor-pointer"
+                              title={isCollapsed ? "Expand Module" : "Collapse Module"}
+                            >
+                              {isCollapsed ? (
+                                <ChevronDown className="w-4 h-4" />
+                              ) : (
+                                <ChevronUp className="w-4 h-4" />
+                              )}
+                            </button>
+                            {modules.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveModule(mIdx)}
+                                className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:border-red-200 transition cursor-pointer"
+                                title="Delete Module"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {!isCollapsed && (
+                          <div className="p-5 sm:p-6 space-y-6">
+                            {/* Module Metadata Fields */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-heading">
+                                  Module Title <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative group">
+                                  <input
+                                    type="text"
+                                    value={mod.title}
+                                    onChange={(e) =>
+                                      handleUpdateModule(mIdx, { title: e.target.value })
+                                    }
+                                    placeholder={`e.g. Module ${mIdx + 1}: Foundations & Architecture`}
+                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-4 pr-11 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition shadow-2xs"
+                                  />
+                                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <SpeechToTextButton
+                                      onTranscript={(text) =>
+                                        handleUpdateModule(mIdx, {
+                                          title: mod.title ? `${mod.title} ${text}` : text,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-heading">
+                                  Module Learning Goals
+                                </label>
+                                <div className="relative group">
+                                  <input
+                                    type="text"
+                                    value={mod.learningGoals || ""}
+                                    onChange={(e) =>
+                                      handleUpdateModule(mIdx, { learningGoals: e.target.value })
+                                    }
+                                    placeholder="Key competencies achieved upon finishing this module..."
+                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-4 pr-11 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition shadow-2xs"
+                                  />
+                                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <SpeechToTextButton
+                                      onTranscript={(text) =>
+                                        handleUpdateModule(mIdx, {
+                                          learningGoals: mod.learningGoals
+                                            ? `${mod.learningGoals} ${text}`
+                                            : text,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-heading">
+                                Module Overview
+                              </label>
+                              <div className="relative group">
+                                <textarea
+                                  value={mod.description || ""}
+                                  onChange={(e) =>
+                                    handleUpdateModule(mIdx, { description: e.target.value })
+                                  }
+                                  placeholder="Brief academic overview of this module..."
+                                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 pt-2.5 pb-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition shadow-2xs h-20 resize-none"
+                                />
+                                <div className="absolute right-3 bottom-2.5 text-slate-400">
+                                  <SpeechToTextButton
+                                    onTranscript={(text) =>
+                                      handleUpdateModule(mIdx, {
+                                        description: mod.description
+                                          ? `${mod.description} ${text}`
+                                          : text,
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Sections inside Module */}
+                            <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 font-heading flex items-center">
+                                  <Layers className="w-3.5 h-3.5 mr-1.5 text-[#0078d4] dark:text-[#04a4ec]" />
+                                  Sections in Module {mIdx + 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddSection(mIdx)}
+                                  className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[#0078d4] dark:text-[#04a4ec] rounded-lg text-[11px] font-bold transition flex items-center cursor-pointer font-heading"
+                                >
+                                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Section
+                                </button>
+                              </div>
+
+                              {sections.map((sec, sIdx) => {
+                                const lectures = sec.items || [];
+                                return (
+                                  <div
+                                    key={sec.id || sIdx}
+                                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4 shadow-2xs"
+                                  >
+                                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700/70">
+                                      <div className="flex items-center space-x-2.5">
+                                        <span className="px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider font-heading border border-slate-200 dark:border-slate-700">
+                                          Section {mIdx + 1}.{sIdx + 1}
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-heading">
+                                          {sec.title.trim() || `Section ${mIdx + 1}.${sIdx + 1}`}
+                                        </span>
+                                      </div>
+
+                                      {sections.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveSection(mIdx, sIdx)}
+                                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg transition cursor-pointer"
+                                          title="Remove Section"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 font-heading">
+                                          Section Title
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={sec.title}
+                                          onChange={(e) =>
+                                            handleUpdateSection(mIdx, sIdx, {
+                                              title: e.target.value,
+                                            })
+                                          }
+                                          placeholder={`e.g. Section ${sIdx + 1}: Core Concepts`}
+                                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 font-heading">
+                                          Section Learning Objectives
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={sec.learningObjectives || ""}
+                                          onChange={(e) =>
+                                            handleUpdateSection(mIdx, sIdx, {
+                                              learningObjectives: e.target.value,
+                                            })
+                                          }
+                                          placeholder="What students master in this section..."
+                                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 font-heading">
+                                        Section Description (Optional)
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={sec.description || ""}
+                                        onChange={(e) =>
+                                          handleUpdateSection(mIdx, sIdx, {
+                                            description: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Summary of topics covered in this section..."
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition"
+                                      />
+                                    </div>
+
+                                    {/* Lectures inside Section */}
+                                    <div className="space-y-3 pt-2">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-heading">
+                                          Lectures ({lectures.length})
+                                        </span>
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddLecture(mIdx, sIdx, "text")}
+                                            className="px-2.5 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-[#0078d4]/10 hover:text-[#0078d4] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold transition flex items-center cursor-pointer"
+                                          >
+                                            <Plus className="w-3 h-3 mr-1" /> Text Lecture
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddLecture(mIdx, sIdx, "video")}
+                                            className="px-2.5 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-[#0078d4]/10 hover:text-[#0078d4] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold transition flex items-center cursor-pointer"
+                                          >
+                                            <Video className="w-3 h-3 mr-1" /> Video Lecture
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddLecture(mIdx, sIdx, "document")}
+                                            className="px-2.5 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-[#0078d4]/10 hover:text-[#0078d4] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold transition flex items-center cursor-pointer"
+                                          >
+                                            <FileText className="w-3 h-3 mr-1" /> Document
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddLecture(mIdx, sIdx, "link")}
+                                            className="px-2.5 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-[#0078d4]/10 hover:text-[#0078d4] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold transition flex items-center cursor-pointer"
+                                          >
+                                            <LinkIcon className="w-3 h-3 mr-1" /> Link
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {lectures.map((lec, lIdx) => {
+                                        const activeFormats =
+                                          lec.formats && lec.formats.length > 0
+                                            ? lec.formats
+                                            : [lec.type];
+                                        return (
+                                          <div
+                                            key={lec.id || lIdx}
+                                            className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700/80 space-y-3"
+                                          >
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="text-[11px] font-bold text-[#0078d4] dark:text-[#04a4ec] font-heading">
+                                                Lecture {mIdx + 1}.{sIdx + 1}.{lIdx + 1}
+                                              </span>
+                                              {lectures.length > 1 && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleRemoveLecture(mIdx, sIdx, lIdx)}
+                                                  className="p-1 text-slate-400 hover:text-red-500 rounded-md transition cursor-pointer"
+                                                  title="Remove Lecture"
+                                                >
+                                                  <X className="w-3.5 h-3.5" />
+                                                </button>
+                                              )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                              <div className="sm:col-span-2">
+                                                <input
+                                                  type="text"
+                                                  value={lec.title}
+                                                  onChange={(e) =>
+                                                    handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                      title: e.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="Lecture Title (e.g. Introduction to System Modeling)"
+                                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition"
+                                                />
+                                              </div>
+                                              <div>
+                                                <input
+                                                  type="text"
+                                                  value={lec.duration || ""}
+                                                  onChange={(e) =>
+                                                    handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                      duration: e.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="Duration (e.g. 20 mins)"
+                                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition"
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                              <input
+                                                type="text"
+                                                value={lec.description || ""}
+                                                onChange={(e) =>
+                                                  handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                    description: e.target.value,
+                                                  })
+                                                }
+                                                placeholder="Lecture Description (Optional)"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={lec.learningOutcome || ""}
+                                                onChange={(e) =>
+                                                  handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                    learningOutcome: e.target.value,
+                                                  })
+                                                }
+                                                placeholder="Lecture Learning Outcome (Optional)"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0078d4] transition"
+                                              />
+                                            </div>
+
+                                            {/* Lecture Format Selector */}
+                                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 font-heading">
+                                                Formats:
+                                              </span>
+                                              {(
+                                                ["text", "video", "document", "link", "embed"] as const
+                                              ).map((fmt) => {
+                                                const isSelected = activeFormats.includes(fmt);
+                                                return (
+                                                  <button
+                                                    key={fmt}
+                                                    type="button"
+                                                    onClick={() =>
+                                                      handleToggleLectureFormat(mIdx, sIdx, lIdx, fmt)
+                                                    }
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition cursor-pointer border ${
+                                                      isSelected
+                                                        ? "bg-[#0078d4] text-white border-[#0078d4]"
+                                                        : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-[#0078d4]/50"
+                                                    }`}
+                                                  >
+                                                    {fmt}
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+
+                                            {/* Active Format Editors */}
+                                            {activeFormats.includes("text") && (
+                                              <div className="relative group">
+                                                <textarea
+                                                  value={lec.content || ""}
+                                                  onChange={(e) =>
+                                                    handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                      content: e.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="Write lecture notes, reading material, or assignment prompt..."
+                                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 pt-2.5 pb-9 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#0078d4] h-24 resize-none"
+                                                />
+                                                <div className="absolute right-2.5 bottom-2 text-slate-400">
+                                                  <SpeechToTextButton
+                                                    onTranscript={(text) =>
+                                                      handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                        content: lec.content
+                                                          ? `${lec.content} ${text}`
+                                                          : text,
+                                                      })
+                                                    }
+                                                  />
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {activeFormats.includes("video") && (
+                                              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                                <input
+                                                  type="url"
+                                                  value={lec.videoUrl || ""}
+                                                  onChange={(e) =>
+                                                    handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                      videoUrl: e.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="Paste Video / YouTube URL or upload MP4..."
+                                                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0078d4]"
+                                                />
+                                                <FileUpload
+                                                  accept="video/*"
+                                                  label={lec.videoUrl ? "Replace Video" : "Upload Video"}
+                                                  onUpload={(url) =>
+                                                    handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                      videoUrl: url,
+                                                    })
+                                                  }
+                                                />
+                                              </div>
+                                            )}
+
+                                            {activeFormats.includes("document") && (
+                                              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                                <input
+                                                  type="url"
+                                                  value={lec.documentUrl || ""}
+                                                  onChange={(e) =>
+                                                    handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                      documentUrl: e.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="Document / PDF URL or upload handout..."
+                                                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0078d4]"
+                                                />
+                                                <FileUpload
+                                                  accept=".pdf,.doc,.docx,.ppt,.pptx,.txt"
+                                                  label={lec.documentUrl ? "Replace PDF/Doc" : "Upload Document"}
+                                                  onUpload={(url) =>
+                                                    handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                      documentUrl: url,
+                                                    })
+                                                  }
+                                                />
+                                              </div>
+                                            )}
+
+                                            {activeFormats.includes("link") && (
+                                              <input
+                                                type="url"
+                                                value={lec.url || ""}
+                                                onChange={(e) =>
+                                                  handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                    url: e.target.value,
+                                                  })
+                                                }
+                                                placeholder="External resource URL (https://...)"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0078d4]"
+                                              />
+                                            )}
+
+                                            {activeFormats.includes("embed") && (
+                                              <input
+                                                type="url"
+                                                value={lec.embedUrl || ""}
+                                                onChange={(e) =>
+                                                  handleUpdateLecture(mIdx, sIdx, lIdx, {
+                                                    embedUrl: e.target.value,
+                                                  })
+                                                }
+                                                placeholder="Interactive Embed / Slide Deck URL (https://...)"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0078d4]"
+                                              />
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-3 pt-6 mt-4 border-t border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep((prev) => prev - 1)}
+                    className="px-6 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-sm font-bold transition shadow-2xs cursor-pointer font-heading flex items-center justify-center"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 px-8 py-4 bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white rounded-2xl text-base font-bold flex items-center justify-center transition shadow-md cursor-pointer font-heading"
+                  >
+                    {loading ? "Publishing Course..." : "Publish Institutional Course"}{" "}
+                    <CheckCircle2 className="w-5 h-5 ml-2.5" />
+                  </button>
                 </div>
               </div>
               
@@ -1630,7 +2403,6 @@ const CourseUpload = () => {
               )}
             </form>
           </div>
-        </div>
       </div>
 
       {/* Settlement Subaccount Setup Modal */}
@@ -1668,6 +2440,16 @@ const CourseUpload = () => {
         onUpgradeSuccess={() => {
           setShowUpgradeModal(false);
         }}
+      />
+
+      <CustomAlert
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        type={alertConfig.type}
+        onConfirm={alertConfig.onConfirm}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import { Course, AttendanceRecord, AttendanceEntry, AttendanceStatus, Attendance
 import { generateId } from "../../lib/id";
 import { TeacherDutyModal } from "./TeacherDutyModal";
 import { ClassRollCallModal } from "./ClassRollCallModal";
+import { CustomAlert } from "./CustomAlert";
 import {
   Clock,
   CheckCircle2,
@@ -26,6 +27,7 @@ import {
   Users,
   ShieldCheck,
   ArrowRight,
+  Globe,
 } from "lucide-react";
 
 interface CourseAttendanceProps {
@@ -46,6 +48,7 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
     orgMembers,
     enrollmentRequests,
     organizations,
+    offlineRosterStudents,
   } = useAppContext();
 
   // Enrolled student requests
@@ -76,8 +79,8 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
     return false;
   }, [currentUser, course, enrolledStudentRequests, organizations]);
 
-  // Active sub-tab: "physical", "online", or "all"
-  const [activeMode, setActiveMode] = useState<AttendanceMode | "all">("physical");
+  // Active sub-tab: "physical", "online", "hybrid", or "all"
+  const [activeMode, setActiveMode] = useState<AttendanceMode | "all">("all");
 
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState("");
@@ -91,23 +94,39 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
   const [showDutyModal, setShowDutyModal] = useState(false);
   const [showRollCallModal, setShowRollCallModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    type?: "info" | "warning" | "error" | "success" | "danger";
+    onConfirm?: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "danger",
+  });
 
   const courseOrgMembers = useMemo(() => {
     return orgMembers.filter(
       (m) =>
         m.courseIds?.includes(course.id) ||
-        m.orgId === course.orgId ||
-        m.role === "instructor"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (m as any).enrolledCourseIds?.includes(course.id) ||
+        (m.role === "instructor" &&
+          Boolean(m.userId && course.instructors?.includes(m.userId)))
     );
-  }, [orgMembers, course.id, course.orgId]);
+  }, [orgMembers, course.id, course.instructors]);
 
-  // Unified roster of students and instructors
+  // Unified roster of students (auto-registered online + manually added offline) and instructors
   const courseRoster = useMemo(() => {
     const list: Array<{
       id: string;
       name: string;
       email?: string;
       role: "student" | "instructor";
+      participantType: "online" | "offline";
     }> = [];
 
     // Add instructor from course definition
@@ -116,6 +135,7 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         id: course.instructorId || `inst_${course.id}`,
         name: course.instructorName || "Primary Instructor",
         role: "instructor",
+        participantType: activeMode === "online" ? "online" : "offline",
       });
     }
 
@@ -129,11 +149,12 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
             name: inst.name,
             email: inst.email,
             role: "instructor",
+            participantType: activeMode === "online" ? "online" : "offline",
           });
         }
       });
 
-    // Add students from approved enrollments
+    // Add online students from approved enrollments (auto-registered)
     enrolledStudentRequests.forEach((req) => {
       if (req.userName && !list.some((u) => u.id === req.userId)) {
         list.push({
@@ -141,6 +162,7 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
           name: req.userName,
           email: req.userEmail,
           role: "student",
+          participantType: "online",
         });
       }
     });
@@ -155,38 +177,65 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
             name: st.name,
             email: st.email,
             role: "student",
+            participantType: "online",
           });
         }
       });
 
-    // Fallback: If list has no students yet, include mock sample cohort for preview/testing
-    if (list.filter((u) => u.role === "student").length === 0) {
-      list.push(
-        { id: "std_preview_1", name: "David Adeleke", role: "student" },
-        { id: "std_preview_2", name: "Fatima Bello", role: "student" },
-        { id: "std_preview_3", name: "Chidi Okafor", role: "student" },
-        { id: "std_preview_4", name: "Amina Yusuf", role: "student" }
-      );
+    // Add Firestore-persisted offline students
+    offlineRosterStudents
+      .filter((s) => s.courseId === course.id)
+      .forEach((off) => {
+        if (!list.some((u) => u.id === off.id || u.name.toLowerCase() === off.name.toLowerCase())) {
+          list.push({
+            id: off.id,
+            name: off.name,
+            email: off.email,
+            role: "student",
+            participantType: "offline",
+          });
+        }
+      });
+
+    // Legacy localStorage custom offline students fallback
+    try {
+      const stored = localStorage.getItem(`backpack_custom_students_${course.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Array<{ id: string; name: string; email?: string }>;
+        parsed.forEach((off) => {
+          if (off.name && !list.some((u) => u.id === off.id || u.name.toLowerCase() === off.name.toLowerCase())) {
+            list.push({
+              id: off.id,
+              name: off.name,
+              email: off.email,
+              role: "student",
+              participantType: "offline",
+            });
+          }
+        });
+      }
+    } catch {
+      /* ignore */
     }
 
     return list;
-  }, [course, courseOrgMembers, enrolledStudentRequests]);
+  }, [course, courseOrgMembers, enrolledStudentRequests, offlineRosterStudents, activeMode]);
 
-  // All attendance records for this course (or matching course title / org)
+  // All attendance records specifically for this associated class
   const courseRecords = useMemo(() => {
     return attendanceRecords
-      .filter((r) => r.courseId === course.id || (r.courseTitle && r.courseTitle === course.title))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [attendanceRecords, course.id, course.title]);
+      .filter((r) => r.courseId === course.id)
+      .sort((a, b) => new Date(b.updatedAt || b.date).getTime() - new Date(a.updatedAt || a.date).getTime());
+  }, [attendanceRecords, course.id]);
 
-  // Filtered by current mode (physical vs online)
+  // Filtered by current mode
   const modeRecords = useMemo(() => {
     return courseRecords.filter((r) => {
       if (activeMode === "all") return true;
       if (activeMode === "physical") {
-        return r.mode === "physical" || !r.mode; // default physical if undefined
+        return r.mode === "physical" || !r.mode;
       }
-      return r.mode === "online";
+      return r.mode === activeMode;
     });
   }, [courseRecords, activeMode]);
 
@@ -368,9 +417,17 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
       setFormSessionTitle(
         activeMode === "online"
           ? `Online Class Session - ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+          : activeMode === "hybrid"
+          ? `Hybrid Class Session - ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
           : `Physical Campus Session - ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
       );
-      setFormLocation(activeMode === "online" ? "Online Live Classroom" : "Main Classroom / Hall 101");
+      setFormLocation(
+        activeMode === "online"
+          ? "Online Live Classroom"
+          : activeMode === "hybrid"
+          ? "Campus Hall + Live Stream"
+          : "Main Classroom / Hall 101"
+      );
 
       const defaultDuration = calculateDuration(formDefaultIn, formDefaultOut);
 
@@ -381,6 +438,7 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         userName: u.name,
         userEmail: u.email,
         role: u.role,
+        participantType: u.participantType,
         status: u.role === "instructor" ? "present" : "absent",
         checkInTime: u.role === "instructor" ? formDefaultIn : undefined,
         checkOutTime: u.role === "instructor" ? formDefaultOut : undefined,
@@ -525,10 +583,21 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 self-start lg:self-auto shrink-0 shadow-inner">
+        <div className="flex flex-wrap items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 self-start lg:self-auto shrink-0 shadow-inner">
+          <button
+            onClick={() => setActiveMode("all")}
+            className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+              activeMode === "all"
+                ? "bg-white dark:bg-slate-800 text-[#0078d4] dark:text-[#04a4ec] shadow-sm font-heading"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <Users className="w-4 h-4 text-emerald-500" />
+            <span>Combined</span>
+          </button>
           <button
             onClick={() => setActiveMode("physical")}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
               activeMode === "physical"
                 ? "bg-white dark:bg-slate-800 text-[#0078d4] dark:text-[#04a4ec] shadow-sm font-heading"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -539,7 +608,7 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
           </button>
           <button
             onClick={() => setActiveMode("online")}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
               activeMode === "online"
                 ? "bg-white dark:bg-slate-800 text-[#0078d4] dark:text-[#04a4ec] shadow-sm font-heading"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -549,15 +618,15 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
             <span>Online Live</span>
           </button>
           <button
-            onClick={() => setActiveMode("all")}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              activeMode === "all"
+            onClick={() => setActiveMode("hybrid")}
+            className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+              activeMode === "hybrid"
                 ? "bg-white dark:bg-slate-800 text-[#0078d4] dark:text-[#04a4ec] shadow-sm font-heading"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <Plus className="w-4 h-4 text-emerald-500" />
-            <span>Combined</span>
+            <Globe className="w-4 h-4 text-purple-500" />
+            <span>Hybrid</span>
           </button>
         </div>
       </div>
@@ -566,9 +635,15 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
           <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block">
-            {activeMode === "physical" ? "In-Person Sessions" : activeMode === "online" ? "Online Sessions" : "Total Sessions"}
+            {activeMode === "physical"
+              ? "In-Person Sessions"
+              : activeMode === "online"
+              ? "Online Sessions"
+              : activeMode === "hybrid"
+              ? "Hybrid Sessions"
+              : "Total Sessions"}
           </span>
-          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
+          <div className="text-2xl font-extrabold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
             {analytics.totalSessions}
           </div>
           <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block">
@@ -679,16 +754,16 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
             </button>
           )}
 
-          {/* Roll call Button (Integrated into Attendance Register) */}
-          {(activeMode === "physical" || activeMode === "all") && !isStudent && isUserAssociatedWithCourse && (
+          {/* Roll call Button (Available across Physical, Online, Hybrid, and Combined classes) */}
+          {!isStudent && isUserAssociatedWithCourse && (
             <button
               onClick={() => {
                 setRollCallTab("terminal");
                 setShowRollCallModal(true);
               }}
-              className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-xl text-xs sm:text-sm font-bold transition flex items-center cursor-pointer font-heading"
+              className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-xl text-xs sm:text-sm font-bold transition flex items-center cursor-pointer font-heading whitespace-nowrap"
             >
-              <Building2 className="w-4 h-4 mr-1.5" />
+              <Clock className="w-4 h-4 mr-1.5" />
               <span>Roll call</span>
             </button>
           )}
@@ -747,20 +822,23 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
           <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
             <Timer className="w-12 h-12 text-slate-400 mx-auto stroke-[1.5]" />
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-200 font-heading">
-              No {activeMode === "physical" ? "Physical Campus" : "Online Class"} Attendance Records Yet
+              No {activeMode === "physical" ? "Physical Campus" : activeMode === "online" ? "Online Class" : activeMode === "hybrid" ? "Hybrid Class" : ""} Attendance Records Yet
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              {activeMode === "physical"
-                ? "Click 'Take Physical Attendance' to record in-person student & instructor check-ins and track how long they engage on campus."
-                : "Online class attendance is logged automatically whenever instructors and students join live classes, or you can record custom sessions."}
+              {activeMode === "online"
+                ? "Online and hybrid class attendance logs automatically when students and instructors join live streams or check in via Roll Call."
+                : "Open Roll call or Attendance Register to check teachers and online/offline students in and out of class with full engagement timestamps."}
             </p>
-            {!isStudent && (
+            {!isStudent && isUserAssociatedWithCourse && (
               <button
-                onClick={() => handleOpenTakeAttendanceModal()}
+                onClick={() => {
+                  setRollCallTab("terminal");
+                  setShowRollCallModal(true);
+                }}
                 className="mt-2 px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition inline-flex items-center shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
-                <span>Record First Session</span>
+                <span>Start First Class Roll Call</span>
               </button>
             )}
           </div>
@@ -799,31 +877,56 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                 >
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
-                      <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center">
-                        <Calendar className="w-3 h-3 mr-1 text-[#0078d4]" />
+                      <span className="text-xs font-bold font-mono tabular-nums text-slate-700 dark:text-slate-300 flex items-center">
+                        <Calendar className="w-3.5 h-3.5 mr-1 text-[#0078d4]" />
                         {rec.date}
                       </span>
 
+                      <span className="text-slate-300 dark:text-slate-600">·</span>
+
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center ${
-                          rec.mode === "physical"
-                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20"
-                            : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20"
+                          rec.mode === "online"
+                            ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20"
+                            : rec.mode === "hybrid"
+                            ? "bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20"
+                            : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20"
                         }`}
                       >
-                        {rec.mode === "physical" ? (
-                          <Building2 className="w-3 h-3 mr-1" />
-                        ) : (
+                        {rec.mode === "online" ? (
                           <Video className="w-3 h-3 mr-1" />
+                        ) : rec.mode === "hybrid" ? (
+                          <Globe className="w-3 h-3 mr-1" />
+                        ) : (
+                          <Building2 className="w-3 h-3 mr-1" />
                         )}
-                        {rec.mode === "physical" ? "Physical In-Person" : "Online Live Class"}
+                        {rec.mode === "online"
+                          ? "Online Live"
+                          : rec.mode === "hybrid"
+                          ? "Hybrid (Campus + Online)"
+                          : "Physical In-Person"}
                       </span>
 
-                      {rec.location && (
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center">
-                          <MapPin className="w-3 h-3 mr-1 text-slate-400" />
-                          {rec.location}
+                      {rec.sessionStatus && (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                            rec.sessionStatus === "live"
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                          }`}
+                        >
+                          {rec.sessionStatus === "live" ? "Live Session" : "Ended"}
                         </span>
+                      )}
+
+                      {rec.location && (
+                        <>
+                          <span className="text-slate-300 dark:text-slate-600">·</span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center">
+                            <MapPin className="w-3 h-3 mr-1 text-slate-400" />
+                            {rec.location}
+                          </span>
+                        </>
                       )}
                     </div>
 
@@ -832,23 +935,30 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                     </h3>
 
                     {/* Quick breakdown tags */}
-                    <div className="flex items-center space-x-3 text-xs text-slate-500 dark:text-slate-400 flex-wrap gap-y-1 pt-0.5">
+                    <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap gap-y-1 pt-0.5 font-mono tabular-nums">
                       <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                         {presentCount} Present
                       </span>
                       {lateCount > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center">
-                          <Clock className="w-3.5 h-3.5 mr-1" />
-                          {lateCount} Late
-                        </span>
+                        <>
+                          <span className="text-slate-300 dark:text-slate-600">·</span>
+                          <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center">
+                            <Clock className="w-3.5 h-3.5 mr-1" />
+                            {lateCount} Late
+                          </span>
+                        </>
                       )}
                       {absentCount > 0 && (
-                        <span className="text-red-500 dark:text-red-400 font-semibold flex items-center">
-                          <XCircle className="w-3.5 h-3.5 mr-1" />
-                          {absentCount} Absent
-                        </span>
+                        <>
+                          <span className="text-slate-300 dark:text-slate-600">·</span>
+                          <span className="text-red-500 dark:text-red-400 font-semibold flex items-center">
+                            <XCircle className="w-3.5 h-3.5 mr-1" />
+                            {absentCount} Absent
+                          </span>
+                        </>
                       )}
+                      <span className="text-slate-300 dark:text-slate-600">·</span>
                       <span className="text-slate-600 dark:text-slate-300 font-bold flex items-center">
                         <Timer className="w-3.5 h-3.5 mr-1 text-[#0078d4]" />
                         Total Engagement: {formatMins(totalDurationMins)}
@@ -858,15 +968,28 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
 
                   {/* Right Header Actions */}
                   <div className="flex items-center space-x-2 shrink-0">
-                    {!isStudent && (
+                    {!isStudent && isUserAssociatedWithCourse && (
                       <>
+                        {rec.sessionStatus === "live" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRollCallTab("terminal");
+                              setShowRollCallModal(true);
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer"
+                          >
+                            Roll Call / End Class
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpenTakeAttendanceModal(rec);
                           }}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center cursor-pointer"
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center cursor-pointer whitespace-nowrap"
                         >
                           Edit Roster
                         </button>
@@ -874,9 +997,18 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (rec.id && confirm("Are you sure you want to delete this attendance record?")) {
-                              deleteAttendanceRecord(rec.id);
-                            }
+                            if (!rec.id) return;
+                            const targetId = rec.id;
+                            setAlertConfig({
+                              isOpen: true,
+                              title: "Delete Attendance Session",
+                              message: `Delete the attendance record for "${rec.sessionTitle || "Attendance Session"}" (${rec.date})? This action cannot be undone.`,
+                              confirmText: "Yes, Delete Record",
+                              type: "danger",
+                              onConfirm: async () => {
+                                await deleteAttendanceRecord(targetId);
+                              },
+                            });
                           }}
                           className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition cursor-pointer"
                           title="Delete record"
@@ -900,18 +1032,28 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                         <div className="flex items-center space-x-2">
                           <Briefcase className="w-4 h-4 text-amber-500" />
                           <span className="font-bold text-slate-900 dark:text-white">
-                            Faculty / Instructor: {rec.instructorEngagement.instructorName}
+                            Instructor: {rec.instructorEngagement.instructorName}
                           </span>
+                          {rec.instructorEngagement.participantType && (
+                            <span className="px-2 py-0.5 rounded bg-white/70 dark:bg-slate-800 text-[10px] font-bold uppercase text-slate-600 dark:text-slate-300">
+                              {rec.instructorEngagement.participantType}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
+                        <div className="flex flex-wrap items-center gap-3 text-slate-600 dark:text-slate-300 font-mono tabular-nums">
                           <span>
-                            Clock In: <strong>{rec.instructorEngagement.checkInTime || "N/A"}</strong>
+                            In: <strong>{rec.instructorEngagement.checkInTime || "N/A"}</strong>
                           </span>
                           <span>
-                            Clock Out: <strong>{rec.instructorEngagement.checkOutTime || "N/A"}</strong>
+                            Out:{" "}
+                            <strong>
+                              {rec.instructorEngagement.activeInClass && !rec.instructorEngagement.checkOutTime
+                                ? "Teaching Now"
+                                : rec.instructorEngagement.checkOutTime || "N/A"}
+                            </strong>
                           </span>
                           <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-800 dark:text-amber-300 font-extrabold">
-                            Duration: {formatMins(rec.instructorEngagement.durationMinutes)}
+                            {formatMins(rec.instructorEngagement.durationMinutes)}
                           </span>
                         </div>
                       </div>
@@ -922,12 +1064,12 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                         <thead>
                           <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-400 uppercase font-heading text-[10px] tracking-wider">
                             <th className="pb-2.5 font-bold">Participant</th>
-                            <th className="pb-2.5 font-bold">Role</th>
+                            <th className="pb-2.5 font-bold">Role &amp; Channel</th>
                             <th className="pb-2.5 font-bold">Status</th>
                             <th className="pb-2.5 font-bold">Check-In</th>
                             <th className="pb-2.5 font-bold">Check-Out</th>
                             <th className="pb-2.5 font-bold">Engagement Duration</th>
-                            <th className="pb-2.5 font-bold">Notes</th>
+                            <th className="pb-2.5 font-bold">Notes / Timeline</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-body">
@@ -940,6 +1082,9 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                           ) : (
                             filteredEntries.map((e, idx) => {
                               const isInstructor = e.role === "instructor";
+                              const channel =
+                                e.participantType ||
+                                (e.method === "live_online" ? "online" : "offline");
                               return (
                                 <tr key={e.id || idx} className="hover:bg-white dark:hover:bg-slate-800/40">
                                   <td className="py-2.5 pr-2 font-bold text-slate-900 dark:text-white flex items-center space-x-2">
@@ -955,15 +1100,26 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                                     <span>{e.userName}</span>
                                   </td>
                                   <td className="py-2.5 pr-2">
-                                    <span
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold capitalize ${
-                                        isInstructor
-                                          ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                                          : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
-                                      }`}
-                                    >
-                                      {e.role}
-                                    </span>
+                                    <div className="flex items-center space-x-1.5">
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold capitalize ${
+                                          isInstructor
+                                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                            : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
+                                        }`}
+                                      >
+                                        {e.role}
+                                      </span>
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                          channel === "online"
+                                            ? "bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                                            : "bg-slate-200/70 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                                        }`}
+                                      >
+                                        {channel}
+                                      </span>
+                                    </div>
                                   </td>
                                   <td className="py-2.5 pr-2">
                                     <span
@@ -980,22 +1136,32 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                                       {e.status}
                                     </span>
                                   </td>
-                                  <td className="py-2.5 pr-2 text-slate-700 dark:text-slate-300 font-mono">
+                                  <td className="py-2.5 pr-2 text-slate-700 dark:text-slate-300 font-mono tabular-nums">
                                     {e.checkInTime || "--:--"}
                                   </td>
-                                  <td className="py-2.5 pr-2 text-slate-700 dark:text-slate-300 font-mono">
-                                    {e.checkOutTime || "--:--"}
+                                  <td className="py-2.5 pr-2 text-slate-700 dark:text-slate-300 font-mono tabular-nums">
+                                    {e.activeInClass && !e.checkOutTime
+                                      ? "In Class"
+                                      : e.checkOutTime || "--:--"}
                                   </td>
-                                  <td className="py-2.5 pr-2">
-                                    <span className="font-extrabold text-[#0078d4] dark:text-[#04a4ec] font-mono">
+                                  <td className="py-2.5 pr-2 font-mono tabular-nums">
+                                    <span className="font-extrabold text-[#0078d4] dark:text-[#04a4ec]">
                                       {formatMins(e.durationMinutes)}
                                     </span>
                                     <span className="text-[10px] text-slate-400 ml-1">
                                       ({e.durationMinutes || 0}m)
                                     </span>
                                   </td>
-                                  <td className="py-2.5 pr-2 text-slate-500 dark:text-slate-400 text-[11px] italic">
-                                    {e.notes || "--"}
+                                  <td className="py-2.5 pr-2 text-slate-500 dark:text-slate-400 text-[11px]">
+                                    {e.movements && e.movements.length > 0 ? (
+                                      <span className="font-mono text-[10px]">
+                                        {e.movements
+                                          .map((mv) => `${mv.time} ${mv.action === "in" ? "In" : "Out"}`)
+                                          .join(" · ")}
+                                      </span>
+                                    ) : (
+                                      <span className="italic">{e.notes || "--"}</span>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -1023,9 +1189,11 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white font-heading">
                   {editingRecord
                     ? `Edit Attendance & Engagement (${editingRecord.date})`
-                    : activeMode === "physical"
-                    ? "Take Physical Campus Attendance"
-                    : "Record Online Class Attendance"}
+                    : activeMode === "online"
+                    ? "Record Online Class Attendance"
+                    : activeMode === "hybrid"
+                    ? "Record Hybrid Class Attendance"
+                    : "Take Physical Campus Attendance"}
                 </h3>
               </div>
               <button
@@ -1273,13 +1441,13 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
         </div>
       )}
 
-      {/* Class Roll Call Modal (Integrates Class Roster Register & Offline Terminal Modes) */}
+      {/* Class Roll Call Modal (Integrates Attendance Register & Roll Call Terminal) */}
       {showRollCallModal && (
         <ClassRollCallModal
           isOpen={showRollCallModal}
           onClose={() => setShowRollCallModal(false)}
           targetCourse={course}
-          initialMode={activeMode === "online" ? "online" : "physical"}
+          initialMode={activeMode === "all" ? "hybrid" : activeMode}
           initialTab={rollCallTab}
         />
       )}
@@ -1293,6 +1461,16 @@ export const CourseAttendance: React.FC<CourseAttendanceProps> = ({
           preselectedCourseTitle={course.title}
         />
       )}
+
+      <CustomAlert
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        type={alertConfig.type}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

@@ -345,43 +345,49 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     setNewMessage('');
   };
 
-  const syncAttendanceEngagement = useCallback(() => {
-    const elapsedMs = Date.now() - sessionStartTimeRef.current;
-    const durationMins = Math.max(1, Math.round(elapsedMs / 60000));
-    const targetCourseId = courseId || cleanRoomName;
-    const targetUserId = currentUser?.id || `guest_${(displayName || 'Guest').replace(/\s+/g, '_')}`;
-    const targetUserName = currentUser?.name || displayName || 'Learner';
-    const targetRole: "student" | "instructor" = effectiveRole === "instructor" ? "instructor" : "student";
-    const checkInIso = new Date(sessionStartTimeRef.current).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const checkOutIso = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const syncAttendanceEngagement = useCallback(
+    (opts?: { isLeaving?: boolean; endClass?: boolean }) => {
+      const elapsedMs = Date.now() - sessionStartTimeRef.current;
+      const durationMins = Math.max(1, Math.round(elapsedMs / 60000));
+      const targetCourseId = courseId || cleanRoomName;
+      const targetUserId = currentUser?.id || `guest_${(displayName || 'Guest').replace(/\s+/g, '_')}`;
+      const targetUserName = currentUser?.name || displayName || 'Learner';
+      const targetRole: "student" | "instructor" = effectiveRole === "instructor" ? "instructor" : "student";
+      const checkInIso = new Date(sessionStartTimeRef.current).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const checkOutIso = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-    recordLiveOnlineEngagement({
-      courseId: targetCourseId,
-      sessionTitle: `Live Online Class: ${cleanRoomName}`,
-      userId: targetUserId,
-      userName: targetUserName,
-      userEmail: currentUser?.email,
-      role: targetRole,
-      durationMinutes: durationMins,
-      checkInTime: checkInIso,
-      checkOutTime: checkOutIso,
-      location: `Online Room: ${cleanRoomName}`,
-    }).catch(() => {});
-  }, [courseId, cleanRoomName, currentUser, displayName, effectiveRole, recordLiveOnlineEngagement]);
+      recordLiveOnlineEngagement({
+        courseId: targetCourseId,
+        sessionTitle: `Live Online Class: ${cleanRoomName}`,
+        userId: targetUserId,
+        userName: targetUserName,
+        userEmail: currentUser?.email,
+        role: targetRole,
+        durationMinutes: durationMins,
+        checkInTime: checkInIso,
+        checkOutTime: checkOutIso,
+        location: `Online Room: ${cleanRoomName}`,
+        isLeaving: opts?.isLeaving,
+        endClass: opts?.endClass,
+      }).catch(() => {});
+    },
+    [courseId, cleanRoomName, currentUser, displayName, effectiveRole, recordLiveOnlineEngagement],
+  );
 
-  // Periodic engagement sync every 60s and on component unmount
+  // Periodic engagement sync every 60s and check-out on component unmount
   useEffect(() => {
+    syncAttendanceEngagement();
     const syncInterval = setInterval(() => {
       syncAttendanceEngagement();
     }, 60000);
     return () => {
       clearInterval(syncInterval);
-      syncAttendanceEngagement();
+      syncAttendanceEngagement({ isLeaving: true });
     };
   }, [syncAttendanceEngagement]);
 
   const handleLeave = () => {
-    syncAttendanceEngagement();
+    syncAttendanceEngagement({ isLeaving: true });
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
@@ -391,7 +397,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   };
 
   const handleEndClass = async () => {
-    syncAttendanceEngagement();
+    syncAttendanceEngagement({ endClass: true });
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }

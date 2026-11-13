@@ -392,7 +392,7 @@ export interface UserProgress {
   performanceScore: number;
 }
 
-export type AttendanceMode = "physical" | "online";
+export type AttendanceMode = "physical" | "online" | "hybrid";
 export type AttendanceStatus = "present" | "late" | "absent" | "excused";
 export type TeacherDutyType =
   | "teaching"
@@ -402,6 +402,59 @@ export type TeacherDutyType =
   | "department_duty"
   | "general_duty";
 export type TeacherDutyStatus = "on_duty" | "completed" | "delayed";
+
+export interface GateLogMovement {
+  id: string;
+  type: "in" | "out";
+  timestampMs: number;
+  timeDisplay: string; // e.g. "07:54 AM"
+  location?: string;
+  note?: string;
+  recordedBy?: string;
+}
+
+export interface GateLogRecord {
+  id: string;
+  orgId: string;
+  date: string; // YYYY-MM-DD
+  personId: string;
+  personName: string;
+  personEmail?: string;
+  personRole: "teacher" | "student";
+  personType?: "online" | "offline";
+  status: "on_campus" | "left_campus";
+  firstArrivalTime?: string;
+  lastCheckOutTime?: string;
+  movements: GateLogMovement[];
+  totalCampusMinutes: number;
+  location?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfflineRosterStudent {
+  id: string;
+  orgId?: string;
+  courseId: string;
+  name: string;
+  code?: string;
+  email?: string;
+  studentType: "offline";
+  addedAt: string;
+  addedBy?: string;
+}
+
+export interface SchoolOfflineMember {
+  id: string;
+  orgId: string;
+  name: string;
+  role: "teacher" | "student";
+  code?: string;
+  email?: string;
+  department?: string;
+  addedAt: string;
+  addedBy?: string;
+}
 
 export interface TeacherDutyRecord {
   id: string;
@@ -441,16 +494,28 @@ export interface TruancySummary {
   lastAbsenceDate?: string;
 }
 
+export interface AttendanceMovement {
+  action: "in" | "out";
+  time: string;
+  timestampMs: number;
+  channel?: "offline" | "online";
+}
+
 export interface AttendanceEntry {
   id?: string;
   userId: string;
   userName: string;
   userEmail?: string;
   role: "student" | "instructor";
+  participantType?: "online" | "offline"; // Online auto-registered vs Offline added
   status: AttendanceStatus;
-  checkInTime?: string; // e.g. "08:30 AM" or ISO string
-  checkOutTime?: string; // e.g. "12:45 PM" or ISO string
-  durationMinutes: number; // engagement duration in minutes
+  activeInClass?: boolean; // True while currently in class awaiting check-out
+  checkInTime?: string; // e.g. "08:30 AM"
+  checkInMs?: number;
+  checkOutTime?: string; // e.g. "12:45 PM"
+  checkOutMs?: number;
+  movements?: AttendanceMovement[];
+  durationMinutes: number; // accumulated class engagement duration in minutes
   location?: string; // e.g. "Campus Hall A", "Online Live Classroom"
   verifiedBy?: string; // admin or instructor name
   method?: "manual" | "duty_terminal" | "live_online" | "verification_code" | "self_clock" | "campus_terminal";
@@ -472,21 +537,28 @@ export interface AttendanceRecord {
   orgId?: string;
   date: string; // YYYY-MM-DD
   records?: Record<string, boolean>; // backward-compatible userId -> isPresent
-  mode?: AttendanceMode; // "physical" | "online"
+  mode?: AttendanceMode; // "physical" | "online" | "hybrid"
+  sessionStatus?: "live" | "ended";
   sessionTitle?: string; // e.g., "Physical Day 14 Lecture", "Campus Morning Attendance", "Live Online Class"
   location?: string; // e.g., "Campus Block B, Hall 102"
   startTime?: string;
+  startMs?: number;
   endTime?: string;
+  endMs?: number;
   expectedDurationMinutes?: number;
   verificationCode?: string; // 6-digit session pin for student roll call
   schoolType?: "physical" | "online" | "hybrid";
-  truancyThresholdPercent?: number; // e.g. 75
+  truancyThresholdPercent?: number; // e.g. 10
   entries?: AttendanceEntry[];
   instructorEngagement?: {
     instructorId: string;
     instructorName: string;
+    participantType?: "online" | "offline";
+    activeInClass?: boolean;
     checkInTime?: string;
+    checkInMs?: number;
     checkOutTime?: string;
+    checkOutMs?: number;
     durationMinutes: number;
     status: AttendanceStatus;
     dutyType?: TeacherDutyType;

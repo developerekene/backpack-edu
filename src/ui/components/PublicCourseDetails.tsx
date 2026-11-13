@@ -906,16 +906,57 @@ export const PublicCourseDetails: React.FC<PublicCourseDetailsProps> = ({
                           </div>
                         </button>
 
-                        {/* Collapsed Items List */}
+                        {/* Collapsed Items / Sections List */}
                         {isOpen && (
-                          <div className="p-4 sm:p-5 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                          <div className="p-4 sm:p-5 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 space-y-4">
                             {mod.description && (
                               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pb-2 border-b border-slate-100 dark:border-slate-700/60">
                                 {mod.description}
                               </p>
                             )}
 
-                            {mod.items && mod.items.length > 0 ? (
+                            {mod.sections && mod.sections.length > 0 ? (
+                              <div className="space-y-3">
+                                {mod.sections.map((sec, sIdx) => {
+                                  const secItems = sec.items || sec.lectures || [];
+                                  return (
+                                    <div
+                                      key={sec.id || sIdx}
+                                      className="rounded-xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 p-3 space-y-2"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                          {sec.title || `Section ${idx + 1}.${sIdx + 1}`}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">
+                                          {secItems.length} {secItems.length === 1 ? "lecture" : "lectures"}
+                                        </span>
+                                      </div>
+                                      {secItems.length > 0 && (
+                                        <div className="space-y-1.5">
+                                          {secItems.map((item, lIdx) => (
+                                            <div
+                                              key={item.id || lIdx}
+                                              className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs"
+                                            >
+                                              <div className="flex items-center space-x-2">
+                                                <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                  {item.title || `Lecture ${lIdx + 1}`}
+                                                </span>
+                                              </div>
+                                              <span className="text-[10px] text-slate-400 capitalize px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded-md">
+                                                {item.type}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : mod.items && mod.items.length > 0 ? (
                               <div className="space-y-2">
                                 <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 block">
                                   Lessons & Topics

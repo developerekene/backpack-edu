@@ -43,6 +43,9 @@ import {
   OrgPlanTier,
   TeacherDutyRecord,
   TeacherDutyType,
+  GateLogRecord,
+  OfflineRosterStudent,
+  SchoolOfflineMember,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
@@ -153,7 +156,36 @@ interface AppState {
     checkInTime?: string;
     checkOutTime?: string;
     location?: string;
+    isLeaving?: boolean;
+    endClass?: boolean;
   }) => Promise<void>;
+  gateLogs: GateLogRecord[];
+  gateClockIn: (params: {
+    orgId: string;
+    personId: string;
+    personName: string;
+    personEmail?: string;
+    personRole: "teacher" | "student";
+    personType?: "online" | "offline";
+    location?: string;
+    note?: string;
+  }) => Promise<GateLogRecord>;
+  gateClockOut: (params: {
+    orgId: string;
+    personId: string;
+    personName?: string;
+    location?: string;
+    note?: string;
+  }) => Promise<GateLogRecord | null>;
+  deleteGateLog: (id: string) => Promise<void>;
+  offlineRosterStudents: OfflineRosterStudent[];
+  addOfflineRosterStudent: (student: Omit<OfflineRosterStudent, "id" | "addedAt" | "studentType">) => Promise<OfflineRosterStudent>;
+  addOfflineRosterStudentsBatch: (students: Array<Omit<OfflineRosterStudent, "id" | "addedAt" | "studentType">>) => Promise<OfflineRosterStudent[]>;
+  removeOfflineRosterStudent: (id: string) => Promise<void>;
+  schoolOfflineMembers: SchoolOfflineMember[];
+  addSchoolOfflineMember: (member: Omit<SchoolOfflineMember, "id" | "addedAt">) => Promise<SchoolOfflineMember>;
+  addSchoolOfflineMembersBatch: (members: Array<Omit<SchoolOfflineMember, "id" | "addedAt">>) => Promise<SchoolOfflineMember[]>;
+  removeSchoolOfflineMember: (id: string) => Promise<void>;
   teacherDutyRecords: TeacherDutyRecord[];
   addTeacherDutyRecord: (record: TeacherDutyRecord) => Promise<void>;
   updateTeacherDutyRecord: (
@@ -308,6 +340,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
   >(() => loadCache("course.attendance", []));
+  const [gateLogs, setGateLogs] = useState<GateLogRecord[]>(() =>
+    loadCache("school.gateLogs", []),
+  );
+  const [offlineRosterStudents, setOfflineRosterStudents] = useState<
+    OfflineRosterStudent[]
+  >(() => loadCache("course.offlineRosterStudents", []));
+  const [schoolOfflineMembers, setSchoolOfflineMembers] = useState<
+    SchoolOfflineMember[]
+  >(() => loadCache("school.offlineMembers", []));
   const [teacherDutyRecords, setTeacherDutyRecords] = useState<
     TeacherDutyRecord[]
   >(() => loadCache("teacher.duty", []));
@@ -392,13 +433,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const data = docSnap.data();
         const userObj = getUserData(data);
 
-        // Correctly resolve nested fields (e.g. 'course.courses' -> userObj.course.courses)
+        // Correctly resolve nested fields (e.g. 'course.courses', 'teacher.duty', 'school.gateLogs')
         let currentList: T[] = [];
         const fieldParts = field.split(".");
-        if (fieldParts.length === 2 && fieldParts[0] === "course") {
-          const courseObj = (userObj.course as Record<string, any>) || {};
-          if (Array.isArray(courseObj[fieldParts[1]])) {
-            currentList = courseObj[fieldParts[1]] as T[];
+        if (fieldParts.length === 2) {
+          const parentObj = (userObj[fieldParts[0]] as Record<string, any>) || {};
+          if (Array.isArray(parentObj[fieldParts[1]])) {
+            currentList = parentObj[fieldParts[1]] as T[];
           }
         } else {
           if (Array.isArray(userObj[field])) {
@@ -413,6 +454,46 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err) {
       console.error(`Error updating ${field} in backpack/${userId}:`, err);
+    }
+  };
+
+  // Sweep & remove an item by ID across current user doc and any other backpack doc containing it
+  const removeItemFromAllBackpackField = async <T extends { id?: string }>(
+    field: string,
+    itemId: string,
+  ) => {
+    const updatedUids = new Set<string>();
+    const targetUid = currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<T>(targetUid, field, (list) =>
+        list.filter((item) => item.id !== itemId),
+      );
+      updatedUids.add(targetUid);
+    }
+    try {
+      const snap = await getDocs(collection(db, "backpack"));
+      const fieldParts = field.split(".");
+      for (const docSnap of snap.docs) {
+        if (updatedUids.has(docSnap.id)) continue;
+        const data = docSnap.data();
+        const userObj = getUserData(data);
+        let list: T[] = [];
+        if (fieldParts.length === 2) {
+          const parentObj = (userObj[fieldParts[0]] as Record<string, any>) || {};
+          if (Array.isArray(parentObj[fieldParts[1]])) {
+            list = parentObj[fieldParts[1]] as T[];
+          }
+        } else if (Array.isArray(userObj[field])) {
+          list = userObj[field] as T[];
+        }
+        if (list.some((item) => item.id === itemId)) {
+          await updateBackpackUserField<T>(docSnap.id, field, (cur) =>
+            cur.filter((item) => item.id !== itemId),
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(`Global delete sweep notice for ${field}/${itemId}:`, err);
     }
   };
 
@@ -509,6 +590,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const allUserProgress: UserProgress[] = [];
       const allMaterials: Material[] = [];
       const allAttendance: AttendanceRecord[] = [];
+      const allOfflineStudents: OfflineRosterStudent[] = [];
+      const allSchoolOfflineMembers: SchoolOfflineMember[] = [];
+      const allGateLogs: GateLogRecord[] = [];
+      const allTeacherDuties: TeacherDutyRecord[] = [];
       const allAssessments: Assessment[] = [];
       const allSubmissions: Submission[] = [];
       const allEvents: ScheduleEvent[] = [];
@@ -652,6 +737,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             allMaterials.push(...(courseObj.materials as Material[]));
           if (Array.isArray(courseObj.attendance))
             allAttendance.push(...(courseObj.attendance as AttendanceRecord[]));
+          if (Array.isArray(courseObj.offlineRosterStudents))
+            allOfflineStudents.push(
+              ...(courseObj.offlineRosterStudents as OfflineRosterStudent[]),
+            );
           if (Array.isArray(courseObj.assessments))
             allAssessments.push(...(courseObj.assessments as Assessment[]));
           if (Array.isArray(courseObj.submissions))
@@ -660,6 +749,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             allEvents.push(...(courseObj.scheduleEvents as ScheduleEvent[]));
           if (Array.isArray(courseObj.messages))
             allMessages.push(...(courseObj.messages as ChatMessage[]));
+        }
+
+        const schoolObj = userObj.school as Record<string, unknown> | undefined;
+        if (schoolObj && Array.isArray(schoolObj.gateLogs)) {
+          allGateLogs.push(...(schoolObj.gateLogs as GateLogRecord[]));
+        }
+        if (schoolObj && Array.isArray(schoolObj.offlineMembers)) {
+          allSchoolOfflineMembers.push(...(schoolObj.offlineMembers as SchoolOfflineMember[]));
+        }
+
+        const teacherObj = userObj.teacher as Record<string, unknown> | undefined;
+        if (teacherObj && Array.isArray(teacherObj.duty)) {
+          allTeacherDuties.push(...(teacherObj.duty as TeacherDutyRecord[]));
         }
 
         if (docSnap.id === currentUser?.id) {
@@ -673,6 +775,61 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const map = new Map<string, T>();
         arr.forEach((item) => {
           if (item.id) map.set(item.id, item);
+        });
+        return Array.from(map.values());
+      };
+
+      const mergeAttendanceRecords = (records: AttendanceRecord[]): AttendanceRecord[] => {
+        const map = new Map<string, AttendanceRecord>();
+        records.forEach((rec) => {
+          const key = rec.id || `${rec.courseId}_${rec.date}_${rec.sessionTitle || ""}`;
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, rec);
+            return;
+          }
+          // Merge entries cleanly by userId (preferring more recent check-in/out or present status)
+          const entryMap = new Map<string, AttendanceEntry>();
+          (existing.entries || []).forEach((e) => entryMap.set(e.userId, e));
+          (rec.entries || []).forEach((e) => {
+            const prevE = entryMap.get(e.userId);
+            if (!prevE) {
+              entryMap.set(e.userId, e);
+            } else {
+              const prevTime = prevE.checkOutMs || prevE.checkInMs || 0;
+              const nextTime = e.checkOutMs || e.checkInMs || 0;
+              if (nextTime >= prevTime || (prevE.status === "absent" && e.status !== "absent")) {
+                entryMap.set(e.userId, e);
+              }
+            }
+          });
+          const mergedEntries = Array.from(entryMap.values());
+          const newer =
+            (rec.updatedAt || "") >= (existing.updatedAt || "") ? rec : existing;
+          map.set(key, {
+            ...existing,
+            ...newer,
+            entries: mergedEntries,
+            records: {
+              ...(existing.records || {}),
+              ...(rec.records || {}),
+            },
+            totalAttendees: mergedEntries.filter(
+              (e) => e.status === "present" || e.status === "late",
+            ).length,
+          });
+        });
+        return Array.from(map.values());
+      };
+
+      const mergeGateLogs = (logs: GateLogRecord[]): GateLogRecord[] => {
+        const map = new Map<string, GateLogRecord>();
+        logs.forEach((log) => {
+          if (!log.id) return;
+          const prev = map.get(log.id);
+          if (!prev || (log.updatedAt || "") >= (prev.updatedAt || "")) {
+            map.set(log.id, log);
+          }
         });
         return Array.from(map.values());
       };
@@ -721,7 +878,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         dedupeById(allMaterials),
         setMaterials,
       );
-      updateAndCache("course.attendance", allAttendance, setAttendanceRecords); // attendance might not have id dedupe in old code
+      updateAndCache(
+        "course.attendance",
+        mergeAttendanceRecords(allAttendance),
+        setAttendanceRecords,
+      );
+      updateAndCache(
+        "course.offlineRosterStudents",
+        dedupeById(allOfflineStudents),
+        setOfflineRosterStudents,
+      );
+      updateAndCache(
+        "school.gateLogs",
+        mergeGateLogs(allGateLogs),
+        setGateLogs,
+      );
+      updateAndCache(
+        "school.offlineMembers",
+        dedupeById(allSchoolOfflineMembers),
+        setSchoolOfflineMembers,
+      );
+      updateAndCache(
+        "teacher.duty",
+        dedupeById(allTeacherDuties),
+        setTeacherDutyRecords,
+      );
       updateAndCache(
         "course.assessments",
         dedupeById(allAssessments),
@@ -1805,8 +1986,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteAttendanceRecord = async (id: string) => {
-    const targetUid = currentUser?.id || "";
-
     setAttendanceRecords((prev) => {
       const next = prev.filter((r) => r.id !== id);
       try {
@@ -1817,16 +1996,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return next;
     });
 
-    if (targetUid) {
-      try {
-        await updateBackpackUserField<AttendanceRecord>(
-          targetUid,
-          "course.attendance",
-          (list) => list.filter((r) => r.id !== id),
-        );
-      } catch (err) {
-        console.error("Failed to delete attendance record from backend:", err);
-      }
+    try {
+      await removeItemFromAllBackpackField<AttendanceRecord>(
+        "course.attendance",
+        id,
+      );
+    } catch (err) {
+      console.error("Failed to delete attendance record from backend:", err);
     }
   };
 
@@ -1842,33 +2018,47 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     checkInTime?: string;
     checkOutTime?: string;
     location?: string;
+    isLeaving?: boolean;
+    endClass?: boolean;
   }) => {
+    const nowMs = Date.now();
     const today = new Date().toISOString().split("T")[0];
     const sessionTitle = params.sessionTitle || "Live Online Class Session";
     const duration = Math.max(1, Math.round(params.durationMinutes));
-    const nowTime = new Date().toLocaleTimeString([], {
+    const nowTime = new Date(nowMs).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
 
-    // Find existing online record for today and this session
+    // Find existing session record for today (live roll call or matching online/hybrid session)
     const existing = attendanceRecords.find(
       (r) =>
         r.courseId === params.courseId &&
         r.date === today &&
-        r.mode === "online" &&
-        r.sessionTitle?.toLowerCase() === sessionTitle.toLowerCase(),
+        (r.sessionStatus === "live" ||
+          ((r.mode === "online" || r.mode === "hybrid") &&
+            r.sessionTitle?.toLowerCase() === sessionTitle.toLowerCase())),
     );
 
     const newEntry: AttendanceEntry = {
-      id: `entry_${params.userId}_${Date.now()}`,
+      id: `entry_${params.userId}_${nowMs}`,
       userId: params.userId,
       userName: params.userName,
       userEmail: params.userEmail,
       role: params.role,
+      participantType: "online",
       status: "present",
+      activeInClass: !params.isLeaving && !params.endClass,
       checkInTime: params.checkInTime || nowTime,
-      checkOutTime: params.checkOutTime || nowTime,
+      checkInMs: nowMs,
+      checkOutTime: params.isLeaving || params.endClass ? params.checkOutTime || nowTime : undefined,
+      checkOutMs: params.isLeaving || params.endClass ? nowMs : undefined,
+      movements: [
+        { action: "in", time: params.checkInTime || nowTime, timestampMs: nowMs, channel: "online" },
+        ...(params.isLeaving || params.endClass
+          ? [{ action: "out" as const, time: params.checkOutTime || nowTime, timestampMs: nowMs, channel: "online" as const }]
+          : []),
+      ],
       durationMinutes: duration,
       location: params.location || "Online Live Classroom",
       method: "live_online",
@@ -1884,14 +2074,51 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (entryIdx >= 0) {
         const cur = existingEntries[entryIdx];
         updatedEntries = [...existingEntries];
+        const prevMovements = cur.movements || [];
+        const updatedMovements = [...prevMovements];
+        if ((params.isLeaving || params.endClass) && cur.activeInClass !== false) {
+          updatedMovements.push({
+            action: "out",
+            time: params.checkOutTime || nowTime,
+            timestampMs: nowMs,
+            channel: "online",
+          });
+        }
         updatedEntries[entryIdx] = {
           ...cur,
+          participantType: cur.participantType || "online",
+          activeInClass: !params.isLeaving && !params.endClass,
           checkOutTime: params.checkOutTime || nowTime,
+          checkOutMs: nowMs,
+          movements: updatedMovements,
           durationMinutes: Math.max(cur.durationMinutes, duration),
           status: "present",
         };
       } else {
         updatedEntries = [...existingEntries, newEntry];
+      }
+
+      // If instructor ends the live class, automatically check out everyone still in class
+      if (params.endClass) {
+        updatedEntries = updatedEntries.map((entry) => {
+          if (entry.activeInClass || (entry.status === "present" && !entry.checkOutTime)) {
+            const elapsed = entry.checkInMs
+              ? Math.max(1, Math.round((nowMs - entry.checkInMs) / 60000))
+              : entry.durationMinutes || duration;
+            return {
+              ...entry,
+              activeInClass: false,
+              checkOutTime: nowTime,
+              checkOutMs: nowMs,
+              durationMinutes: Math.max(entry.durationMinutes || 0, elapsed),
+              movements: [
+                ...(entry.movements || []),
+                { action: "out" as const, time: nowTime, timestampMs: nowMs, channel: entry.participantType || "online" },
+              ],
+            };
+          }
+          return entry;
+        });
       }
 
       const totalMins = updatedEntries.reduce(
@@ -1905,29 +2132,38 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const recordUpdates: Partial<AttendanceRecord> = {
         entries: updatedEntries,
+        sessionStatus: params.endClass ? "ended" : "live",
+        ...(params.endClass ? { endTime: nowTime, endMs: nowMs } : {}),
         records: {
           ...(existing.records || {}),
           [params.userId]: true,
         },
-        totalAttendees: updatedEntries.length,
+        totalAttendees: updatedEntries.filter(
+          (e) => e.status === "present" || e.status === "late",
+        ).length,
         avgEngagementMinutes: avgMins,
         updatedAt: new Date().toISOString(),
       };
 
       if (params.role === "instructor") {
         recordUpdates.instructorEngagement = {
+          ...(existing.instructorEngagement || {}),
           instructorId: params.userId,
           instructorName: params.userName,
-          checkInTime: params.checkInTime || nowTime,
-          checkOutTime: params.checkOutTime || nowTime,
-          durationMinutes: duration,
+          participantType: existing.instructorEngagement?.participantType || "online",
+          activeInClass: !params.isLeaving && !params.endClass,
+          checkInTime: existing.instructorEngagement?.checkInTime || params.checkInTime || nowTime,
+          checkInMs: existing.instructorEngagement?.checkInMs || nowMs,
+          checkOutTime: params.isLeaving || params.endClass ? params.checkOutTime || nowTime : undefined,
+          checkOutMs: params.isLeaving || params.endClass ? nowMs : undefined,
+          durationMinutes: Math.max(existing.instructorEngagement?.durationMinutes || 0, duration),
           status: "present",
         };
       }
 
       await updateAttendanceRecord(existing.id, recordUpdates);
     } else {
-      const newRecId = `att_online_${Date.now()}_${params.courseId}`;
+      const newRecId = `att_online_${nowMs}_${params.courseId}`;
       const courseObj = courses.find((c) => c.id === params.courseId);
 
       const newRecord: AttendanceRecord = {
@@ -1937,10 +2173,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         orgId: courseObj?.orgId,
         date: today,
         mode: "online",
+        sessionStatus: params.endClass ? "ended" : "live",
         sessionTitle,
         location: params.location || "Online Live Classroom",
         startTime: params.checkInTime || nowTime,
-        endTime: params.checkOutTime || nowTime,
+        startMs: nowMs,
+        endTime: params.endClass ? params.checkOutTime || nowTime : undefined,
+        endMs: params.endClass ? nowMs : undefined,
         expectedDurationMinutes: duration,
         entries: [newEntry],
         records: {
@@ -1955,8 +2194,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               instructorEngagement: {
                 instructorId: params.userId,
                 instructorName: params.userName,
+                participantType: "online",
+                activeInClass: !params.isLeaving && !params.endClass,
                 checkInTime: params.checkInTime || nowTime,
-                checkOutTime: params.checkOutTime || nowTime,
+                checkInMs: nowMs,
+                checkOutTime: params.isLeaving || params.endClass ? params.checkOutTime || nowTime : undefined,
+                checkOutMs: params.isLeaving || params.endClass ? nowMs : undefined,
                 durationMinutes: duration,
                 status: "present",
               },
@@ -1966,6 +2209,424 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       await addAttendanceRecord(newRecord);
     }
+  };
+
+  // School Gate Clock-In & Clock-Out (Morning arrival, exits/re-entries during day, departure)
+  const computeGateMinutes = (movements: GateLogRecord["movements"]): number => {
+    let totalMs = 0;
+    let openInMs: number | null = null;
+    for (const mv of movements) {
+      if (mv.type === "in") {
+        if (openInMs === null) openInMs = mv.timestampMs;
+      } else if (mv.type === "out") {
+        if (openInMs !== null) {
+          totalMs += Math.max(0, mv.timestampMs - openInMs);
+          openInMs = null;
+        }
+      }
+    }
+    return Math.round(totalMs / 60000);
+  };
+
+  const persistGateLog = async (record: GateLogRecord) => {
+    const cleaned = sanitizeForFirestore(record);
+    const targetUid = currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<GateLogRecord>(
+        targetUid,
+        "school.gateLogs",
+        (list) => [...list.filter((g) => g.id !== cleaned.id), cleaned],
+      );
+    }
+    setGateLogs((prev) => {
+      const next = [...prev.filter((g) => g.id !== cleaned.id), cleaned];
+      try {
+        localStorage.setItem("bp_cache_school.gateLogs", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const gateClockIn = async (params: {
+    orgId: string;
+    personId: string;
+    personName: string;
+    personEmail?: string;
+    personRole: "teacher" | "student";
+    personType?: "online" | "offline";
+    location?: string;
+    note?: string;
+  }): Promise<GateLogRecord> => {
+    const now = new Date();
+    const nowMs = now.getTime();
+    const today = now.toISOString().split("T")[0];
+    const timeDisplay = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const existing = gateLogs.find(
+      (g) => g.personId === params.personId && g.date === today,
+    );
+
+    const newMovement = {
+      id: `mv_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+      type: "in" as const,
+      timestampMs: nowMs,
+      timeDisplay,
+      location: params.location || "Main School Gate",
+      note: params.note,
+      recordedBy: currentUser?.name || params.personName,
+    };
+
+    if (existing) {
+      const updatedMovements = [...(existing.movements || []), newMovement];
+      const updated: GateLogRecord = {
+        ...existing,
+        status: "on_campus",
+        firstArrivalTime: existing.firstArrivalTime || timeDisplay,
+        movements: updatedMovements,
+        totalCampusMinutes: computeGateMinutes(updatedMovements),
+        location: params.location || existing.location || "Main School Gate",
+        updatedAt: now.toISOString(),
+      };
+      await persistGateLog(updated);
+      return updated;
+    }
+
+    const created: GateLogRecord = {
+      id: `gate_${today}_${params.personId}`,
+      orgId: params.orgId,
+      date: today,
+      personId: params.personId,
+      personName: params.personName,
+      personEmail: params.personEmail,
+      personRole: params.personRole,
+      personType: params.personType || "online",
+      status: "on_campus",
+      firstArrivalTime: timeDisplay,
+      movements: [newMovement],
+      totalCampusMinutes: 0,
+      location: params.location || "Main School Gate",
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    await persistGateLog(created);
+    return created;
+  };
+
+  const gateClockOut = async (params: {
+    orgId: string;
+    personId: string;
+    personName?: string;
+    location?: string;
+    note?: string;
+  }): Promise<GateLogRecord | null> => {
+    const now = new Date();
+    const nowMs = now.getTime();
+    const today = now.toISOString().split("T")[0];
+    const timeDisplay = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const existing = gateLogs.find(
+      (g) => g.personId === params.personId && g.date === today,
+    );
+
+    if (!existing) {
+      // If someone clocks out without prior gate-in today, create a closing record safely
+      const created: GateLogRecord = {
+        id: `gate_${today}_${params.personId}`,
+        orgId: params.orgId,
+        date: today,
+        personId: params.personId,
+        personName: params.personName || "Member",
+        personRole: "student",
+        status: "left_campus",
+        lastCheckOutTime: timeDisplay,
+        movements: [
+          {
+            id: `mv_${nowMs}`,
+            type: "out",
+            timestampMs: nowMs,
+            timeDisplay,
+            location: params.location || "Main School Gate",
+            note: params.note,
+            recordedBy: currentUser?.name || params.personName,
+          },
+        ],
+        totalCampusMinutes: 0,
+        location: params.location || "Main School Gate",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      await persistGateLog(created);
+      return created;
+    }
+
+    const outMovement = {
+      id: `mv_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+      type: "out" as const,
+      timestampMs: nowMs,
+      timeDisplay,
+      location: params.location || existing.location || "Main School Gate",
+      note: params.note,
+      recordedBy: currentUser?.name || existing.personName,
+    };
+
+    const updatedMovements = [...(existing.movements || []), outMovement];
+    const updated: GateLogRecord = {
+      ...existing,
+      status: "left_campus",
+      lastCheckOutTime: timeDisplay,
+      movements: updatedMovements,
+      totalCampusMinutes: Math.max(1, computeGateMinutes(updatedMovements)),
+      updatedAt: now.toISOString(),
+    };
+
+    await persistGateLog(updated);
+    return updated;
+  };
+
+  const deleteGateLog = async (id: string) => {
+    setGateLogs((prev) => {
+      const next = prev.filter((g) => g.id !== id);
+      try {
+        localStorage.setItem("bp_cache_school.gateLogs", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    await removeItemFromAllBackpackField<GateLogRecord>(
+      "school.gateLogs",
+      id,
+    ).catch(console.error);
+  };
+
+  // Offline / Physical Campus Student Roster (merged alongside automatic online enrollments)
+  const addOfflineRosterStudent = async (
+    student: Omit<OfflineRosterStudent, "id" | "addedAt" | "studentType">,
+  ): Promise<OfflineRosterStudent> => {
+    const record: OfflineRosterStudent = {
+      ...student,
+      id: `ext_stu_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      studentType: "offline",
+      addedAt: new Date().toISOString(),
+    };
+    const cleaned = sanitizeForFirestore(record);
+    const targetUid = currentUser?.id || "";
+
+    if (targetUid) {
+      await updateBackpackUserField<OfflineRosterStudent>(
+        targetUid,
+        "course.offlineRosterStudents",
+        (list) => [...list.filter((s) => s.id !== cleaned.id), cleaned],
+      );
+    }
+    setOfflineRosterStudents((prev) => {
+      const next = [...prev.filter((s) => s.id !== cleaned.id), cleaned];
+      try {
+        localStorage.setItem(
+          "bp_cache_course.offlineRosterStudents",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    return record;
+  };
+
+  const addOfflineRosterStudentsBatch = async (
+    students: Array<Omit<OfflineRosterStudent, "id" | "addedAt" | "studentType">>,
+  ): Promise<OfflineRosterStudent[]> => {
+    if (students.length === 0) return [];
+    const nowTs = Date.now();
+    const nowIso = new Date().toISOString();
+    const records: OfflineRosterStudent[] = students.map((student, idx) =>
+      sanitizeForFirestore({
+        ...student,
+        id: `ext_stu_${nowTs}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+        studentType: "offline" as const,
+        addedAt: nowIso,
+      }),
+    );
+
+    const targetUid = currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<OfflineRosterStudent>(
+        targetUid,
+        "course.offlineRosterStudents",
+        (list) => {
+          const existingKeys = new Set(
+            list.map((s) => `${s.courseId}::${(s.code || s.email || s.name).trim().toLowerCase()}`),
+          );
+          const fresh = records.filter(
+            (r) => !existingKeys.has(`${r.courseId}::${(r.code || r.email || r.name).trim().toLowerCase()}`),
+          );
+          return [...list, ...fresh];
+        },
+      );
+    }
+
+    setOfflineRosterStudents((prev) => {
+      const existingKeys = new Set(
+        prev.map((s) => `${s.courseId}::${(s.code || s.email || s.name).trim().toLowerCase()}`),
+      );
+      const fresh = records.filter(
+        (r) => !existingKeys.has(`${r.courseId}::${(r.code || r.email || r.name).trim().toLowerCase()}`),
+      );
+      const next = [...prev, ...fresh];
+      try {
+        localStorage.setItem(
+          "bp_cache_course.offlineRosterStudents",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+
+    return records;
+  };
+
+  const removeOfflineRosterStudent = async (id: string) => {
+    setOfflineRosterStudents((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      try {
+        localStorage.setItem(
+          "bp_cache_course.offlineRosterStudents",
+          JSON.stringify(next),
+        );
+        // Clean legacy per-course offline student keys too
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("backpack_custom_students_")) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const arr = JSON.parse(raw) as Array<{ id: string }>;
+              if (Array.isArray(arr) && arr.some((s) => s.id === id)) {
+                localStorage.setItem(
+                  k,
+                  JSON.stringify(arr.filter((s) => s.id !== id)),
+                );
+              }
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    await removeItemFromAllBackpackField<OfflineRosterStudent>(
+      "course.offlineRosterStudents",
+      id,
+    ).catch(console.error);
+  };
+
+  // School-Wide Offline Members (Offline Teachers & Students for Gate Terminal)
+  const addSchoolOfflineMember = async (
+    member: Omit<SchoolOfflineMember, "id" | "addedAt">,
+  ): Promise<SchoolOfflineMember> => {
+    const record: SchoolOfflineMember = {
+      ...member,
+      id: `sch_off_${member.role}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      addedAt: new Date().toISOString(),
+    };
+    const cleaned = sanitizeForFirestore(record);
+    const targetUid = currentUser?.id || "";
+
+    if (targetUid) {
+      await updateBackpackUserField<SchoolOfflineMember>(
+        targetUid,
+        "school.offlineMembers",
+        (list) => [...list.filter((m) => m.id !== cleaned.id), cleaned],
+      );
+    }
+    setSchoolOfflineMembers((prev) => {
+      const next = [...prev.filter((m) => m.id !== cleaned.id), cleaned];
+      try {
+        localStorage.setItem("bp_cache_school.offlineMembers", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    return record;
+  };
+
+  const addSchoolOfflineMembersBatch = async (
+    members: Array<Omit<SchoolOfflineMember, "id" | "addedAt">>,
+  ): Promise<SchoolOfflineMember[]> => {
+    if (members.length === 0) return [];
+    const nowTs = Date.now();
+    const nowIso = new Date().toISOString();
+    const records: SchoolOfflineMember[] = members.map((member, idx) =>
+      sanitizeForFirestore({
+        ...member,
+        id: `sch_off_${member.role}_${nowTs}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+        addedAt: nowIso,
+      }),
+    );
+
+    const targetUid = currentUser?.id || "";
+    if (targetUid) {
+      await updateBackpackUserField<SchoolOfflineMember>(
+        targetUid,
+        "school.offlineMembers",
+        (list) => {
+          const existingKeys = new Set(
+            list.map((m) => `${m.role}::${(m.code || m.email || m.name).trim().toLowerCase()}`),
+          );
+          const fresh = records.filter(
+            (r) => !existingKeys.has(`${r.role}::${(r.code || r.email || r.name).trim().toLowerCase()}`),
+          );
+          return [...list, ...fresh];
+        },
+      );
+    }
+
+    setSchoolOfflineMembers((prev) => {
+      const existingKeys = new Set(
+        prev.map((m) => `${m.role}::${(m.code || m.email || m.name).trim().toLowerCase()}`),
+      );
+      const fresh = records.filter(
+        (r) => !existingKeys.has(`${r.role}::${(r.code || r.email || r.name).trim().toLowerCase()}`),
+      );
+      const next = [...prev, ...fresh];
+      try {
+        localStorage.setItem("bp_cache_school.offlineMembers", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+
+    return records;
+  };
+
+  const removeSchoolOfflineMember = async (id: string) => {
+    setSchoolOfflineMembers((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      try {
+        localStorage.setItem("bp_cache_school.offlineMembers", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    await removeItemFromAllBackpackField<SchoolOfflineMember>(
+      "school.offlineMembers",
+      id,
+    ).catch(console.error);
   };
 
   // Teacher Work Hours & Duty Records (stored in backpack/{targetId}.user.teacher.duty & cached locally)
@@ -2687,6 +3348,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         updateAttendanceRecord,
         deleteAttendanceRecord,
         recordLiveOnlineEngagement,
+        gateLogs,
+        gateClockIn,
+        gateClockOut,
+        deleteGateLog,
+        offlineRosterStudents,
+        addOfflineRosterStudent,
+        addOfflineRosterStudentsBatch,
+        removeOfflineRosterStudent,
+        schoolOfflineMembers,
+        addSchoolOfflineMember,
+        addSchoolOfflineMembersBatch,
+        removeSchoolOfflineMember,
         teacherDutyRecords,
         addTeacherDutyRecord,
         updateTeacherDutyRecord,
