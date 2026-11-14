@@ -66,7 +66,7 @@ export async function resolveBankAccount(
   if ((json.status || json.success) && accountName) {
     return String(accountName);
   }
-  throw new Error(json.message || json.detail?.message || "Unable to resolve bank account details from Paystack.");
+  throw new Error(json.message || json.detail?.message || "Unable to verify bank account details. Please check the account number and bank.");
 }
 
 /**
@@ -85,7 +85,7 @@ export async function createSubaccount(params: {
   });
   const json = await res.json();
   if (!res.ok || !(json.status ?? json.success ?? true)) {
-    throw new Error(json.detail?.message || json.message || "Failed to create Paystack subaccount");
+    throw new Error(json.detail?.message || json.message || "Unable to save payout bank account.");
   }
   return json.data || json;
 }
@@ -117,7 +117,7 @@ export async function createPayrollSplitGroup(params: CreatePayrollSplitGroupPar
   });
   const json = await res.json();
   if (!res.ok || !json.success || !json.split_code) {
-    throw new Error(json.message || json.detail?.message || "Failed to create Paystack transaction split group.");
+    throw new Error(json.message || json.detail?.message || "Failed to create payroll payout group.");
   }
   return json as {
     success: true;
@@ -147,7 +147,7 @@ export async function updatePayrollSplitGroup(
   });
   const json = await res.json();
   if (!res.ok || !json.success) {
-    throw new Error(json.message || "Failed to update Paystack split group.");
+    throw new Error(json.message || "Failed to update payroll payout group.");
   }
   return json;
 }
@@ -177,7 +177,7 @@ export async function initializePayrollTransaction(params: InitializePayrollPara
   });
   const json = await res.json();
   if (!res.ok || !json.success || (!json.access_code && !json.authorization_url)) {
-    throw new Error(json.message || json.detail?.message || "Unable to initialize salary checkout with Paystack.");
+    throw new Error(json.message || json.detail?.message || "Unable to start salary payment checkout.");
   }
   return json as {
     success: true;

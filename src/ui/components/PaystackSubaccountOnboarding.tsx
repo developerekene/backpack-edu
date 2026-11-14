@@ -132,16 +132,16 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
       setShowDeleteConfirm(false);
       setIsEditing(true);
       setSuccessMessage(
-        json.message || "Subaccount permanently removed from the app and Paystack."
+        json.message || "Payout bank account permanently removed."
       );
     } catch {
-      setSubaccountError("Failed to delete subaccount. Please try again.");
+      setSubaccountError("Failed to remove payout bank account. Please try again.");
     } finally {
       setDeletingSubaccount(false);
     }
   };
 
-  // Verify Live Status of Subaccount directly with payment API
+  // Verify Live Status of Payout Bank Account
   const handleVerifyLiveStatus = async (codeToVerify?: string) => {
     const targetCode = codeToVerify || currentSubaccount?.subaccount_code;
     if (!targetCode) return;
@@ -158,13 +158,13 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
           isVerified: true,
           message:
             json.notice ||
-            `Payout account ${targetCode} is verified and active! Settlement Bank: ${json.subaccount.settlement_bank || currentSubaccount?.bank_name}, Account: ****${String(json.subaccount.account_number || currentSubaccount?.account_number || "").slice(-4)}.`,
+            `Payout bank account is verified and active! Bank: ${json.subaccount.settlement_bank || currentSubaccount?.bank_name}, Account: ****${String(json.subaccount.account_number || currentSubaccount?.account_number || "").slice(-4)}.`,
           details: json.subaccount,
         });
       } else {
         setLiveVerificationNotice({
           isVerified: false,
-          message: json.message || `Payout account ${targetCode} could not be confirmed.`,
+          message: json.message || "Payout bank account could not be confirmed yet.",
         });
       }
     } catch {
@@ -297,7 +297,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
       try {
         json = JSON.parse(text) as Record<string, unknown>;
       } catch {
-        json = { success: false, message: "Subaccount creation service returned invalid response format." };
+        json = { success: false, message: "Payout account setup returned an unexpected response. Please try again." };
       }
 
       const subCode = json.subaccount_code || (json.data as Record<string, unknown>)?.subaccount_code;
@@ -334,7 +334,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         }
 
         setSuccessMessage(
-          `Official payout account (${json.subaccount_code}) connected successfully! Payouts will settle automatically into your bank account.`,
+          `Your bank payout account (${selectedBankName || selectedBankObj?.name || "Bank"} •••• ${accountNumber.trim().slice(-4)}) is connected! Tuition payments will go straight to your bank account.`,
         );
         setIsEditing(false);
       } else {
@@ -426,8 +426,8 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                     </strong>{" "}
                     ({currentSubaccount.account_name})
                   </p>
-                  <p className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 font-semibold mt-1">
-                    Gateway Code: {currentSubaccount.subaccount_code}
+                  <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 mt-1">
+                    Direct Bank Payout Active
                   </p>
                 </div>
               </div>
@@ -462,7 +462,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                   className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Subaccount</span>
+                  <span>Remove Bank Account</span>
                 </button>
               </div>
             </div>
@@ -471,9 +471,9 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
             {showDeleteConfirm && (
               <div className="mt-4 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="text-xs text-rose-800 dark:text-rose-200">
-                  <p className="font-bold">Permanently delete this subaccount?</p>
+                  <p className="font-bold">Remove this payout bank account?</p>
                   <p className="mt-0.5 text-rose-700 dark:text-rose-300">
-                    This will remove {currentSubaccount.subaccount_code} from your organization profile and deactivate it on Paystack.
+                    This will disconnect this bank account from your profile. You can connect another bank account anytime.
                   </p>
                 </div>
                 <div className="flex items-center space-x-2 shrink-0">
@@ -836,12 +836,12 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
                   {submitting ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Calling API...</span>
+                      <span>Saving Bank Account...</span>
                     </>
                   ) : (
                     <>
                       <Lock className="w-4 h-4" />
-                      <span>Create Account</span>
+                      <span>Save Bank Account</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

@@ -605,7 +605,7 @@ const sections: PolicySection[] = [
     audiences: [],
     intro:
       "The Platform may include links to external websites or use services provided by trusted partners.",
-    searchTerms: ["external links", "paystack", "livekit", "embedded content"],
+    searchTerms: ["external links", "payment processing", "livekit", "embedded content"],
     blocks: [
       {
         type: "paragraph",

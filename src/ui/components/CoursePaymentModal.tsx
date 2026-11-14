@@ -227,20 +227,20 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
               </div>
 
               <div className="flex justify-between items-center text-[10.5px] text-slate-500 dark:text-slate-400">
-                <span>Gateway Processing Fee:</span>
+                <span>Payment Processing Fee:</span>
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  Shouldered 100% by Platform (0% from subaccount)
+                  Covered 100% by Platform (No deduction from {providerName})
                 </span>
               </div>
 
               {subaccount ? (
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 pt-1 font-mono">
-                  ✓ Routed to Payment Subaccount {subaccount.subaccount_code} (
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 pt-1 font-medium">
+                  ✓ Paid directly to {providerName}&apos;s verified bank account (
                   {subaccount.bank_name || "Bank"})
                 </p>
               ) : (
                 <p className="text-[10px] text-slate-400 pt-1 italic">
-                  Note: Settlement to provider's registered primary balance.
+                  Note: Settlement to provider&apos;s registered balance.
                 </p>
               )}
             </div>

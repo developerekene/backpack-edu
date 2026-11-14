@@ -971,7 +971,7 @@ const Dashboard = () => {
         );
       })()}
 
-      {/* Instructor Payroll & Direct Paystack Split Payouts Card */}
+      {/* Instructor Payroll & Direct Bank Payouts Card */}
       {isOrganizationOrAdmin && (() => {
         const orgIds = new Set(
           [
@@ -997,16 +997,16 @@ const Dashboard = () => {
               <div className="flex items-center space-x-2">
                 <Banknote className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white font-heading">
-                  Instructor Payroll & Paystack Split Payouts
+                  Instructor Payroll &amp; Direct Bank Payouts
                 </h2>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Disburse salaries directly to instructor bank subaccounts individually or settle multiple instructors in a single Paystack Transaction Split Group—with 0% platform cut and zero main-account touch.
+                Pay instructors individually straight to their bank accounts or pay multiple instructors together in a single checkout—with zero platform fees.
               </p>
               <div className="flex flex-wrap items-center gap-4 pt-1 text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                <span>{orgLinkedRecipients} Linked Subaccounts</span>
+                <span>{orgLinkedRecipients} Linked Bank Accounts</span>
                 <span>•</span>
-                <span>{orgSplitGroupCount} Split Groups (SPL)</span>
+                <span>{orgSplitGroupCount} Payroll Groups</span>
                 <span>•</span>
                 <span>{orgPayoutCount} Completed Payouts</span>
               </div>
@@ -1017,7 +1017,7 @@ const Dashboard = () => {
               className="px-5 py-3 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 shrink-0 self-start md:self-center shadow-xs"
             >
               <Banknote className="w-4 h-4" />
-              <span>Manage Payroll & Pay Salaries</span>
+              <span>Manage Payroll &amp; Pay Salaries</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

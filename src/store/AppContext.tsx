@@ -633,8 +633,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const uEmail = (personalInfo.email as string) || "";
         const isSuperAdminEmail = uEmail.toLowerCase() === "ekenehq@gmail.com";
 
-        // Extract user record for super admin user list
-        if (personalInfo.email || personalInfo.fullname || personalInfo.name) {
+        const isSuperAdminAccount =
+          isSuperAdminEmail || personalInfo.role === "super_admin";
+
+        // Never expose Super Admin in application user lists/searches
+        if (
+          !isSuperAdminAccount &&
+          (personalInfo.email || personalInfo.fullname || personalInfo.name)
+        ) {
           allUsersList.push({
             id: (personalInfo.id as string) || docSnap.id,
             name:
@@ -642,9 +648,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               (personalInfo.name as string) ||
               "Unnamed User",
             email: uEmail,
-            role: isSuperAdminEmail
-              ? "super_admin"
-              : ((personalInfo.role as Role) || "student"),
+            role: (personalInfo.role as Role) || "student",
             createdAt:
               (personalInfo.createdAt as string) || new Date().toISOString(),
             headline: personalInfo.headline as string | undefined,
@@ -2829,8 +2833,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (matchedUser && matchedUser.id !== currentUser?.id) {
           addNotification({
             userId: matchedUser.id,
-            title: `Salary Disbursement Sent`,
-            message: `${cleaned.currency} ${rec.amount.toLocaleString()} has been sent directly to your subaccount (${rec.subaccountCode}) via Paystack (Ref: ${cleaned.reference}).`,
+            title: `Salary Payment Received`,
+            message: `${cleaned.currency} ${rec.amount.toLocaleString()} has been sent directly to your linked bank account${rec.bankName ? ` (${rec.bankName})` : ""} (Ref: ${cleaned.reference}).`,
             type: "info",
             linkUrl: "/dashboard",
           });

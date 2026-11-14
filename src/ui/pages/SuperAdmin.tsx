@@ -261,14 +261,10 @@ export const SuperAdmin: React.FC = () => {
       <div className="min-h-[70vh] flex flex-col items-center justify-center text-center p-6">
         <ShieldAlert className="w-16 h-16 text-rose-500 mb-4 animate-bounce" />
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-          Super Admin Access Restricted
+          Restricted Access
         </h2>
         <p className="text-slate-600 dark:text-slate-400 max-w-md mb-6">
-          You must be logged in as the designated Super Admin (
-          <code className="text-sky-600 dark:text-sky-400 font-mono">
-            ekenehq@gmail.com
-          </code>
-          ) to access backend user management and platform control tools.
+          You must be logged in with an authorized platform administrator account to access user management and platform control tools.
         </p>
       </div>
     );
@@ -287,11 +283,6 @@ export const SuperAdmin: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 text-white p-6 rounded-2xl shadow-xl border border-sky-900/40">
         <div>
-          <div className="flex items-center space-x-3 mb-1">
-            <span className="text-xs text-slate-400 font-mono">
-              ekenehq@gmail.com
-            </span>
-          </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
             Backpack Platform Governance
           </h1>
@@ -533,7 +524,6 @@ export const SuperAdmin: React.FC = () => {
               <option value="student">Student</option>
               <option value="instructor">Instructor</option>
               <option value="organization">Organization</option>
-              <option value="super_admin">Super Admin</option>
             </select>
 
             {/* Status Filter */}
@@ -568,8 +558,8 @@ export const SuperAdmin: React.FC = () => {
                 <th className="px-4 py-3.5">User Account</th>
                 <th className="px-4 py-3.5">Role</th>
                 <th className="px-4 py-3.5">Registered</th>
-                <th className="px-4 py-3.5">Verification & KYC</th>
-                <th className="px-4 py-3.5">Paystack Split Subaccount</th>
+                <th className="px-4 py-3.5">Verification &amp; KYC</th>
+                <th className="px-4 py-3.5">Bank Payout Account</th>
                 <th className="px-4 py-3.5">Status</th>
                 <th className="px-4 py-3.5 text-right">Actions</th>
               </tr>
@@ -996,16 +986,16 @@ export const SuperAdmin: React.FC = () => {
                 </div>
               )}
 
-              {/* Paystack Split Subaccount Details */}
+              {/* Bank Payout Account Details */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
                   <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Paystack Direct Split Subaccount</span>
+                  <span>Direct Bank Payout Account</span>
                 </h4>
                 {selectedUser.paystackSubaccount?.subaccount_code ? (
                   <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400">Subaccount Code:</span>
+                      <span className="text-slate-400">Account Reference:</span>
                       <span className="font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded">
                         {selectedUser.paystackSubaccount.subaccount_code}
                       </span>
@@ -1036,7 +1026,7 @@ export const SuperAdmin: React.FC = () => {
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 italic bg-slate-50 dark:bg-slate-900/30 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                    No Paystack split payment subaccount has been linked to
+                    No bank payout account has been linked to
                     this user account yet.
                   </p>
                 )}

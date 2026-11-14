@@ -319,7 +319,7 @@ export interface PayrollPaystackCheckoutOptions {
 export const triggerPayrollPaystackCheckout = (options: PayrollPaystackCheckoutOptions) => {
   if (!options.accessCode && !options.subaccountCode && !options.splitCode) {
     options.onError?.(
-      new Error("Missing instructor Paystack subaccount, split group code, or split transaction access code. Platform main account cannot receive salary funds.")
+      new Error("Missing instructor payout bank details or payroll group selection. Salaries must go directly to instructor bank accounts.")
     );
     return;
   }

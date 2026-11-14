@@ -446,7 +446,7 @@ const AboutUs: React.FC = () => {
                       Bank-Grade Security &amp; Payouts
                     </h4>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body">
-                      Tuition lands directly into your institutional bank account with automated split disbursements via Paystack.
+                      Tuition lands directly into your institutional bank account with automated payout settlements.
                     </p>
                   </div>
                 </div>
@@ -537,7 +537,7 @@ const AboutUs: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="text-sm font-bold font-heading text-slate-900 dark:text-white">
-                        Connect Direct Bank Payout Subaccount
+                        Connect Direct Bank Payout Account
                       </h4>
                       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-body leading-relaxed">
                         Navigate to Settings &gt; Payouts. Enter your bank details to receive 100% of your tuition fees straight into your school bank account.

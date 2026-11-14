@@ -60,13 +60,13 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
   // Donut chart data
   const pieData = [
     {
-      name: "Subaccount (100% Base)",
+      name: "Your School (100% Tuition)",
       value: baseTuition,
-      percentage: "100% Base",
+      percentage: "100% Tuition",
       color: "#10b981", // emerald-500
     },
     {
-      name: "Main Account (+15% Fee)",
+      name: "Platform Fee (+15%)",
       value: platformFee,
       percentage: "+15% Fee",
       color: "#6366f1", // indigo-500
@@ -227,11 +227,11 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
             <div className="flex items-center justify-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
               <span className="flex items-center space-x-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                <span>Subaccount (100% Base)</span>
+                <span>Your Payout (100%)</span>
               </span>
               <span className="flex items-center space-x-1">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                <span>Main Account (+15% Fee)</span>
+                <span>Platform Fee (+15%)</span>
               </span>
             </div>
           </div>
@@ -243,15 +243,14 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
               <div className="flex items-center space-x-1.5 text-emerald-800 dark:text-emerald-300 mb-1">
                 <Building2 className="w-3.5 h-3.5" />
                 <span className="text-[11px] font-semibold">
-                  Your Settlement Payout
+                  Your Bank Payout
                 </span>
               </div>
               <div className="text-base font-bold text-emerald-700 dark:text-emerald-400">
                 {currency} {formatPriceWithDecimals(baseTuition)}
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Paid directly to your bank account via your connected payout subaccount{" "}
-                {subaccountCode ? `(${subaccountCode})` : ""}.
+                Sent directly to your connected bank account{subaccountCode ? " automatically." : " once connected."}
               </p>
               {bankName && accountNumber && (
                 <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium pt-1 flex items-center space-x-1">

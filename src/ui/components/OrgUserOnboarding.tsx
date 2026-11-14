@@ -49,6 +49,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
   const [requiresPayment, setRequiresPayment] = useState(true);
   const [requiresDocuments, setRequiresDocuments] = useState(true);
   const [inviteNote, setInviteNote] = useState(() => initialDraft?.inviteNote || "");
+  const [inviteError, setInviteError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -62,7 +63,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     }
   }, [name, email, department, inviteNote]);
 
-  // Fetch registered users on Backpack from Firestore
+  // Fetch registered users on Backpack from Firestore (excluding Super Admin & Organizations)
   useEffect(() => {
     const fetchRegisteredUsers = async () => {
       setLoadingRegisteredUsers(true);
@@ -73,13 +74,18 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           const data = doc.data();
           const userObj = Array.isArray(data.user) ? data.user[0] : data.user;
           const personalInfo = userObj?.personalInformation;
-          
-          if (personalInfo && doc.id !== currentUser?.id) {
+          const uEmail = String(personalInfo?.email || '').trim();
+          const rawRole = String(personalInfo?.role || 'student').toLowerCase();
+          const isSuperAdminAccount =
+            rawRole === 'super_admin' || uEmail.toLowerCase() === 'ekenehq@gmail.com';
+          const isOrgAccount = rawRole === 'organization' || rawRole === 'org_admin';
+
+          if (personalInfo && doc.id !== currentUser?.id && !isSuperAdminAccount && !isOrgAccount) {
             usersList.push({
               id: doc.id,
               name: personalInfo.fullname || personalInfo.name || 'User',
-              email: personalInfo.email || '',
-              role: (personalInfo.role as Role) || 'student',
+              email: uEmail,
+              role: (rawRole === 'instructor' ? 'instructor' : 'student') as Role,
               createdAt: personalInfo.createdAt || ''
             });
           }
@@ -121,14 +127,26 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
 
+    setInviteError("");
     setIsSubmitting(true);
     const targetCourseId = selectedCourseId || courseId || "";
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check if target email belongs to an organization account
+    // Prevent inviting super admin or organization accounts
     const matchedUser = registeredUsers.find(u => u.email?.toLowerCase() === cleanEmail);
-    if (matchedUser && matchedUser.role === 'organization') {
-      alert("Organization users cannot be invited to courses.");
+    if (cleanEmail === 'ekenehq@gmail.com' || (matchedUser && (matchedUser.role === 'organization' || matchedUser.role === 'super_admin'))) {
+      setInviteError("This account type cannot be invited to courses.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const expectedRole = activeTab === 'instructors' ? 'instructor' : 'student';
+    if (matchedUser && matchedUser.role !== expectedRole) {
+      setInviteError(
+        activeTab === 'instructors'
+          ? "Only instructor accounts can be added on the Instructors tab."
+          : "Only student accounts can be added on the Students tab."
+      );
       setIsSubmitting(false);
       return;
     }
@@ -292,6 +310,9 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           <button
             onClick={() => {
               setActiveTab('instructors');
+              setSelectedAppUserId("");
+              setAppUsersSearch("");
+              setInviteError("");
               setSuccessMsg("");
             }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
@@ -306,6 +327,9 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           <button
             onClick={() => {
               setActiveTab('students');
+              setSelectedAppUserId("");
+              setAppUsersSearch("");
+              setInviteError("");
               setSuccessMsg("");
             }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
@@ -320,6 +344,15 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
         </div>
       </div>
 
+      {inviteError && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-center justify-between text-sm font-medium animate-in fade-in">
+          <span>{inviteError}</span>
+          <button type="button" onClick={() => setInviteError("")} className="p-1 hover:opacity-75">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {successMsg && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 p-4 rounded-xl flex items-center space-x-3 text-sm font-medium animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
@@ -328,6 +361,10 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       )}
 
       {/* Quick Onboarding Form */}
+      {(() => {
+        const expectedRole = activeTab === 'instructors' ? 'instructor' : 'student';
+        const roleFilteredRegisteredUsers = registeredUsers.filter((u) => u.role === expectedRole);
+        return (
       <form id="org-onboarding-form" onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
@@ -340,7 +377,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
               onClick={() => setShowAppUsersModal(true)}
               className="flex items-center px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-semibold transition cursor-pointer"
             >
-              <Users className="w-3.5 h-3.5 mr-1.5" /> Search Registered Users ({registeredUsers.length})
+              <Users className="w-3.5 h-3.5 mr-1.5" /> Search Registered {activeTab === 'instructors' ? 'Instructors' : 'Students'} ({roleFilteredRegisteredUsers.length})
             </button>
             <label className={`cursor-pointer flex items-center px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
               <Upload className="w-3.5 h-3.5 mr-1.5" /> {isSubmitting ? 'Importing...' : 'Bulk Import (CSV)'}
@@ -349,31 +386,29 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </div>
         </div>
 
-        {/* Pick Existing Registered User Dropdown */}
-        {registeredUsers.length > 0 && (
+        {/* Pick Existing Registered User Dropdown (strictly filtered to current tab role) */}
+        {roleFilteredRegisteredUsers.length > 0 && (
           <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-2">
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 flex items-center">
-              <User className="w-3.5 h-3.5 mr-1 text-indigo-500" /> Pick Existing Registered User on Backpack
+              <User className="w-3.5 h-3.5 mr-1 text-indigo-500" /> Pick Existing Registered {activeTab === 'instructors' ? 'Instructor' : 'Student'}
             </label>
             <select
               value={selectedAppUserId}
               onChange={(e) => {
                 const uid = e.target.value;
                 setSelectedAppUserId(uid);
-                const found = registeredUsers.find(u => u.id === uid);
+                const found = roleFilteredRegisteredUsers.find(u => u.id === uid);
                 if (found) {
                   setName(found.name || "");
                   setEmail(found.email || "");
-                  if (found.role === 'instructor') setActiveTab('instructors');
-                  else if (found.role === 'student') setActiveTab('students');
                 }
               }}
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">-- Choose from Registered Users ({registeredUsers.length}) --</option>
-              {registeredUsers.map(u => (
+              <option value="">-- Choose from Registered {activeTab === 'instructors' ? 'Instructors' : 'Students'} ({roleFilteredRegisteredUsers.length}) --</option>
+              {roleFilteredRegisteredUsers.map(u => (
                 <option key={u.id} value={u.id}>
-                  {u.name} ({u.email}) - {u.role.toUpperCase()}
+                  {u.name} ({u.email})
                 </option>
               ))}
             </select>
@@ -490,6 +525,8 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </button>
         </div>
       </form>
+        );
+      })()}
 
       {/* Directory Search & List */}
       <div className="space-y-4">
@@ -631,7 +668,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       {showAppUsersModal && (() => {
         const targetRole = activeTab === 'instructors' ? 'instructor' : 'student';
         const filteredAppUsers = registeredUsers.filter(u => {
-          if (u.role === 'organization') return false;
+          if (u.role === 'organization' || u.role === 'super_admin' || u.email?.toLowerCase() === 'ekenehq@gmail.com') return false;
           if (u.role !== targetRole) return false;
           if (appUsersSearch.trim()) {
             const q = appUsersSearch.toLowerCase().trim();

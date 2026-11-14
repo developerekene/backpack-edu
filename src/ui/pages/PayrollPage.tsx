@@ -45,6 +45,7 @@ import {
   PaystackBankRecord,
   WORLDWIDE_BANKS_CACHE,
 } from "../../lib/paystackBanks";
+import { generateId } from "../../lib/id";
 
 interface UnifiedPayrollInstructor {
   id: string;
@@ -113,7 +114,8 @@ export const PayrollPage: React.FC = () => {
     const base = myOrg?.baseCurrency?.toUpperCase() || "NGN";
     return SUPPORTED_PAYROLL_CURRENCIES.includes(base) ? base : "NGN";
   });
-  const [payerEmail, setPayerEmail] = useState<string>(currentUser?.email || "");
+  const [payerEmailOverride, setPayerEmailOverride] = useState<string | null>(null);
+  const payerEmail = payerEmailOverride ?? currentUser?.email ?? "";
   const [payPeriod, setPayPeriod] = useState<string>(() =>
     new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
   );
@@ -177,12 +179,6 @@ export const PayrollPage: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    if (currentUser?.email && !payerEmail) {
-      setPayerEmail(currentUser.email);
-    }
-  }, [currentUser?.email, payerEmail]);
-
-  useEffect(() => {
     let mounted = true;
     fetchAllWorldwideBanks("all")
       .then((list) => {
@@ -221,9 +217,11 @@ export const PayrollPage: React.FC = () => {
     const findUserMatch = (id?: string, email?: string, name?: string) =>
       allUsers.find(
         (u) =>
-          (id && u.id === id) ||
-          (email && u.email?.toLowerCase() === email.toLowerCase()) ||
-          (name && u.name?.toLowerCase().trim() === name.toLowerCase().trim()),
+          u.role !== "super_admin" &&
+          u.email?.toLowerCase() !== "ekenehq@gmail.com" &&
+          ((id && u.id === id) ||
+            (email && u.email?.toLowerCase() === email.toLowerCase()) ||
+            (name && u.name?.toLowerCase().trim() === name.toLowerCase().trim())),
       );
 
     const findSavedRecipient = (id?: string, email?: string, name?: string) =>
@@ -243,6 +241,7 @@ export const PayrollPage: React.FC = () => {
       courseTitle?: string;
     }) => {
       const normEmail = (params.email || "").trim().toLowerCase();
+      if (normEmail === "ekenehq@gmail.com") return;
       const existingKey =
         Array.from(map.keys()).find((k) => {
           const entry = map.get(k);
@@ -406,7 +405,7 @@ export const PayrollPage: React.FC = () => {
           Organization Payroll Access Required
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Only organizations and authorized school administrators can manage instructor salary payouts and Paystack split groups.
+          Only organizations and authorized school administrators can manage instructor salary payouts and payroll groups.
         </p>
         <Link
           to="/dashboard"
@@ -544,12 +543,10 @@ export const PayrollPage: React.FC = () => {
 
       const subaccountCode = subData.subaccount_code;
       if (!subaccountCode) {
-        throw new Error("Paystack did not return a valid subaccount code.");
+        throw new Error("Could not connect bank payout account. Please verify the bank details and try again.");
       }
 
-      const instId =
-        editingInstructor?.id ||
-        `inst_pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const instId = editingInstructor?.id || generateId("inst_pay");
       const parsedDefault = Number(formDefaultSalary);
 
       const record: InstructorPayrollRecipient = {
@@ -588,12 +585,12 @@ export const PayrollPage: React.FC = () => {
       setSubaccountModalOpen(false);
       setStatusBanner({
         type: "success",
-        title: "Instructor Subaccount Connected",
-        message: `${record.instructorName} is linked with Paystack subaccount ${subaccountCode} (0% platform deduction).`,
+        title: "Instructor Bank Account Connected",
+        message: `${record.instructorName}'s bank account (${record.bankName} •••• ${record.accountNumber.slice(-4)}) is ready to receive direct salary payments with zero platform fees.`,
       });
     } catch (err) {
       setBankFormError(
-        err instanceof Error ? err.message : "Failed to create Paystack subaccount.",
+        err instanceof Error ? err.message : "Failed to connect instructor bank account.",
       );
     } finally {
       setSavingSubaccount(false);
@@ -664,7 +661,7 @@ export const PayrollPage: React.FC = () => {
           }
 
           const disbursement: PayrollDisbursement = {
-            id: `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            id: generateId("pay"),
             orgId,
             reference: finalRef,
             paymentType: "individual",
@@ -696,24 +693,24 @@ export const PayrollPage: React.FC = () => {
           setStatusBanner({
             type: "success",
             title: "Direct Salary Payment Complete",
-            message: `${currency} ${amount.toLocaleString()} paid directly to ${inst.name}'s subaccount (${inst.subaccountCode}) via Paystack Ref ${finalRef}. Zero funds touched our platform account.`,
+            message: `${currency} ${amount.toLocaleString()} has been sent directly to ${inst.name}'s bank account (${inst.bankName || "Bank"} •••• ${(inst.accountNumber || "").slice(-4)}) • Ref: ${finalRef}.`,
           });
         },
         onCancel: () => {
           setProcessingKey(null);
           setStatusBanner({
             type: "info",
-            title: "Checkout Cancelled",
-            message: `Salary payment checkout for ${inst.name} was cancelled.`,
+            title: "Payment Cancelled",
+            message: `Salary payment for ${inst.name} was cancelled.`,
           });
         },
         onError: (err) => {
           setProcessingKey(null);
           setStatusBanner({
             type: "error",
-            title: "Paystack Checkout Error",
+            title: "Payment Could Not Complete",
             message:
-              err?.message || "Paystack rejected the subaccount salary checkout. Verify subaccount is active in live mode.",
+              err?.message || "Payment checkout could not be completed. Please verify the instructor's bank details.",
           });
         },
       });
@@ -752,8 +749,8 @@ export const PayrollPage: React.FC = () => {
     if (saveBatchAsGroup && selectedLinkedInstructors.length >= 2 && !batchGroupName.trim()) {
       setStatusBanner({
         type: "error",
-        title: "Split Group Name Required",
-        message: "Provide a name for the new Paystack split group or uncheck 'Save batch as Split Group'.",
+        title: "Payroll Group Name Required",
+        message: "Provide a name for this new payroll group or uncheck 'Save as reusable Payroll Group'.",
       });
       return;
     }
@@ -794,7 +791,7 @@ export const PayrollPage: React.FC = () => {
         });
         createdSplitCode = groupRes.split_code;
         createdGroupRecord = {
-          id: `spl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          id: generateId("spl"),
           orgId,
           name: batchGroupName.trim(),
           splitCode: groupRes.split_code,
@@ -857,7 +854,7 @@ export const PayrollPage: React.FC = () => {
           }
 
           await recordPayrollDisbursement({
-            id: `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            id: generateId("pay"),
             orgId,
             reference: finalRef,
             paymentType: createdSplitCode ? "split_group" : "batch_split",
@@ -891,26 +888,26 @@ export const PayrollPage: React.FC = () => {
           setBatchGroupName("");
           setStatusBanner({
             type: "success",
-            title: "Single-Transaction Batch Payroll Disbursed",
-            message: `${currency} ${batchTotalAmount.toLocaleString()} split directly across ${recipientsPayload.length} instructor subaccounts in 1 Paystack transaction (Ref: ${finalRef}).`,
+            title: "Faculty Payroll Paid in One Checkout",
+            message: `${currency} ${batchTotalAmount.toLocaleString()} has been sent directly to ${recipientsPayload.length} instructor bank accounts in a single payment (Ref: ${finalRef}).`,
           });
         },
         onCancel: () => {
           setProcessingKey(null);
           setStatusBanner({
             type: "info",
-            title: "Batch Checkout Cancelled",
-            message: "Multi-instructor Paystack transaction checkout was cancelled.",
+            title: "Payment Cancelled",
+            message: "Multi-instructor salary payment checkout was cancelled.",
           });
         },
         onError: (err) => {
           setProcessingKey(null);
           setStatusBanner({
             type: "error",
-            title: "Split Checkout Failed",
+            title: "Batch Payment Failed",
             message:
               err?.message ||
-              "Paystack split checkout could not complete. Ensure all subaccounts belong to the same currency and live mode.",
+              "Could not complete multi-instructor payment. Please verify all selected instructors use the same currency and valid bank accounts.",
           });
         },
       });
@@ -918,8 +915,8 @@ export const PayrollPage: React.FC = () => {
       setProcessingKey(null);
       setStatusBanner({
         type: "error",
-        title: "Batch Initialization Error",
-        message: err instanceof Error ? err.message : "Failed to initialize multi-instructor split.",
+        title: "Payment Setup Error",
+        message: err instanceof Error ? err.message : "Failed to prepare multi-instructor payment.",
       });
     }
   };
@@ -947,13 +944,13 @@ export const PayrollPage: React.FC = () => {
   const handleCreateSplitGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) {
-      setGroupFormError("Enter a name for this Payroll Split Group.");
+      setGroupFormError("Enter a name for this Payroll Group.");
       return;
     }
 
     const chosen = linkedInstructors.filter((inst) => groupMemberShares[inst.id]?.included);
     if (chosen.length < 2) {
-      setGroupFormError("Select at least 2 instructors with connected Paystack subaccounts.");
+      setGroupFormError("Select at least 2 instructors with connected bank accounts.");
       return;
     }
 
@@ -994,7 +991,7 @@ export const PayrollPage: React.FC = () => {
     }
 
     if (newGroupType === "percentage" && Math.abs(totalPct - 100) > 0.01) {
-      setGroupFormError(`Percentage shares must sum to exactly 100% so 0% goes to the platform account (currently ${totalPct}%).`);
+      setGroupFormError(`Percentage shares must add up to 100% so all funds go directly to instructors (currently ${totalPct}%).`);
       return;
     }
 
@@ -1018,7 +1015,7 @@ export const PayrollPage: React.FC = () => {
       });
 
       const savedGroup: PayrollSplitGroup = {
-        id: `spl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        id: generateId("spl"),
         orgId,
         name: newGroupName.trim(),
         splitCode: res.split_code,
@@ -1039,12 +1036,12 @@ export const PayrollPage: React.FC = () => {
       setActiveTab("splits");
       setStatusBanner({
         type: "success",
-        title: "Paystack Split Group Created",
-        message: `Live Paystack split group "${savedGroup.name}" (${savedGroup.splitCode}) is ready for single-transaction payouts.`,
+        title: "Payroll Group Saved",
+        message: `Payroll group "${savedGroup.name}" is ready—you can now pay all members in a single checkout.`,
       });
     } catch (err) {
       setGroupFormError(
-        err instanceof Error ? err.message : "Failed to register split group on Paystack.",
+        err instanceof Error ? err.message : "Failed to save payroll group.",
       );
     } finally {
       setCreatingGroup(false);
@@ -1111,7 +1108,7 @@ export const PayrollPage: React.FC = () => {
           }
 
           await recordPayrollDisbursement({
-            id: `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            id: generateId("pay"),
             orgId,
             reference: finalRef,
             paymentType: "split_group",
@@ -1134,15 +1131,15 @@ export const PayrollPage: React.FC = () => {
           setProcessingKey(null);
           setStatusBanner({
             type: "success",
-            title: "Split Group Salary Paid",
-            message: `${group.currency} ${totalAmount.toLocaleString()} paid via split group ${group.splitCode} across ${group.members.length} instructors in 1 transaction (Ref: ${finalRef}).`,
+            title: "Payroll Group Paid",
+            message: `${group.currency} ${totalAmount.toLocaleString()} was paid directly to ${group.members.length} instructors in one checkout (Ref: ${finalRef}).`,
           });
         },
         onCancel: () => {
           setProcessingKey(null);
           setStatusBanner({
             type: "info",
-            title: "Split Group Checkout Cancelled",
+            title: "Payment Cancelled",
             message: `Checkout for "${group.name}" was cancelled.`,
           });
         },
@@ -1150,10 +1147,10 @@ export const PayrollPage: React.FC = () => {
           setProcessingKey(null);
           setStatusBanner({
             type: "error",
-            title: "Split Group Checkout Failed",
+            title: "Group Payment Failed",
             message:
               err?.message ||
-              "Paystack could not process this split group checkout.",
+              "Could not complete payment for this payroll group.",
           });
         },
       });
@@ -1161,8 +1158,8 @@ export const PayrollPage: React.FC = () => {
       setProcessingKey(null);
       setStatusBanner({
         type: "error",
-        title: "Split Initialization Error",
-        message: err instanceof Error ? err.message : "Unable to initialize split group checkout.",
+        title: "Payment Setup Error",
+        message: err instanceof Error ? err.message : "Unable to start payroll group checkout.",
       });
     }
   };
@@ -1173,8 +1170,8 @@ export const PayrollPage: React.FC = () => {
       if (exactTotal <= 0) {
         setStatusBanner({
           type: "error",
-          title: "Invalid Split Total",
-          message: "This flat split group has a zero sum.",
+          title: "Invalid Group Total",
+          message: "Please add salary amounts for instructors in this group first.",
         });
         return;
       }
@@ -1187,17 +1184,17 @@ export const PayrollPage: React.FC = () => {
 
   const exportHistoryCsv = () => {
     const rows = [
-      ["Reference", "Date", "Mode", "Split Code", "Pay Period", "Currency", "Total Amount", "Platform Fee", "Recipients", "Status"],
+      ["Reference", "Date", "Mode", "Payroll Group", "Pay Period", "Currency", "Total Amount", "Platform Fee", "Recipients", "Status"],
       ...orgDisbursements.map((d) => [
         d.reference,
         d.paidAt,
-        d.paymentType,
-        d.splitCode || "",
+        d.paymentType === "individual" ? "Individual" : "Group Batch",
+        d.splitGroupName || "",
         d.payPeriod || "",
         d.currency,
         String(d.totalAmount),
         "0",
-        d.recipients.map((r) => `${r.instructorName} (${r.subaccountCode}: ${r.amount})`).join(" | "),
+        d.recipients.map((r) => `${r.instructorName} (${r.bankName || "Bank"}: ${r.amount})`).join(" | "),
         d.status,
       ]),
     ];
@@ -1241,11 +1238,11 @@ export const PayrollPage: React.FC = () => {
               <Banknote className="w-5 h-5" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight font-heading">
-              Instructor Payroll & Split Payouts
+              Instructor Payroll &amp; Direct Payouts
             </h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Pay individual instructors or settle multi-instructor payroll batches in a single Paystack transaction directly to instructor subaccounts without touching platform accounts.
+            Pay instructors one by one or pay a whole group together in one checkout—sent straight to their bank accounts.
           </p>
         </div>
 
@@ -1257,12 +1254,12 @@ export const PayrollPage: React.FC = () => {
             className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/70 disabled:opacity-50 text-slate-700 dark:text-slate-200 text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer"
             title={
               linkedInstructors.length < 2
-                ? "Connect at least 2 instructor subaccounts first"
-                : "Create reusable Paystack Split Group"
+                ? "Connect at least 2 instructor bank accounts first"
+                : "Create reusable Payroll Group"
             }
           >
             <Layers className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
-            <span>New Split Group</span>
+            <span>New Payroll Group</span>
           </button>
 
           <button
@@ -1271,21 +1268,21 @@ export const PayrollPage: React.FC = () => {
             className="px-4 py-2 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Instructor Account</span>
+            <span>Add Instructor Bank</span>
           </button>
         </div>
       </div>
 
-      {/* Zero-Platform-Touch Guarantee Bar */}
+      {/* Direct Payout Info Bar */}
       <div className="bg-emerald-500/8 dark:bg-emerald-500/10 border border-emerald-500/25 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
         <div className="flex items-center space-x-2.5 text-emerald-800 dark:text-emerald-300 font-medium">
           <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>
-            <strong>Direct-to-Subaccount Settlement (0% Platform Fee):</strong> Paystack routes 100% of salary shares straight to instructor subaccounts (<code className="font-mono">ACCT_...</code> / <code className="font-mono">SPL_...</code>) and deducts gateway fees from settlements—our main account balance is never touched.
+            <strong>Direct Bank Salary Payouts (0% Platform Fee):</strong> Salaries go straight into each instructor&apos;s connected bank account—nothing is held by the platform.
           </span>
         </div>
-        <span className="text-[11px] font-mono font-bold text-emerald-700 dark:text-emerald-300 shrink-0 tabular-nums">
-          PAYSTACK LIVE • 0% CUT
+        <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shrink-0 tabular-nums">
+          DIRECT PAYOUT • 0% FEE
         </span>
       </div>
 
@@ -1333,7 +1330,7 @@ export const PayrollPage: React.FC = () => {
         </div>
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Subaccount Linked
+            Bank Accounts Ready
           </p>
           <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
             {linkedInstructors.length}
@@ -1341,7 +1338,7 @@ export const PayrollPage: React.FC = () => {
         </div>
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Split Groups (SPL)
+            Payroll Groups
           </p>
           <p className="text-2xl font-bold text-[#0078d4] dark:text-[#04a4ec] mt-1 tabular-nums">
             {orgSplitGroups.length}
@@ -1349,7 +1346,7 @@ export const PayrollPage: React.FC = () => {
         </div>
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Total Disbursed
+            Total Paid Out
           </p>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 tabular-nums">
             {currency} {totalDisbursed.toLocaleString()}
@@ -1372,7 +1369,7 @@ export const PayrollPage: React.FC = () => {
               }`}
             >
               <Users className="w-4 h-4" />
-              <span>Instructors & Pay ({unifiedInstructors.length})</span>
+              <span>Instructors &amp; Pay ({unifiedInstructors.length})</span>
             </button>
             <button
               type="button"
@@ -1384,7 +1381,7 @@ export const PayrollPage: React.FC = () => {
               }`}
             >
               <Layers className="w-4 h-4" />
-              <span>Payroll Split Groups ({orgSplitGroups.length})</span>
+              <span>Payroll Groups ({orgSplitGroups.length})</span>
             </button>
             <button
               type="button"
@@ -1396,7 +1393,7 @@ export const PayrollPage: React.FC = () => {
               }`}
             >
               <Receipt className="w-4 h-4" />
-              <span>Disbursement Ledger ({orgDisbursements.length})</span>
+              <span>Payment History ({orgDisbursements.length})</span>
             </button>
           </div>
         </div>
@@ -1416,7 +1413,7 @@ export const PayrollPage: React.FC = () => {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Name, email, ACCT_..."
+                    placeholder="Search name, email, or bank..."
                     className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40"
                   />
                 </div>
@@ -1429,7 +1426,7 @@ export const PayrollPage: React.FC = () => {
                 <input
                   type="email"
                   value={payerEmail}
-                  onChange={(e) => setPayerEmail(e.target.value)}
+                  onChange={(e) => setPayerEmailOverride(e.target.value)}
                   placeholder="finance@school.edu"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40"
                 />
@@ -1473,14 +1470,14 @@ export const PayrollPage: React.FC = () => {
                   <div className="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-white">
                     <span>
                       {selectedLinkedInstructors.length} Instructor
-                      {selectedLinkedInstructors.length > 1 ? "s" : ""} Selected for Single Transaction
+                      {selectedLinkedInstructors.length > 1 ? "s" : ""} Selected for Single Payment
                     </span>
                     <span className="text-[#0078d4] dark:text-[#04a4ec] font-mono tabular-nums">
                       • Total: {currency} {batchTotalAmount.toLocaleString()}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                    Paystack splits this exact payment in one checkout straight into each selected instructor&apos;s subaccount (proportional fee bearer, 0% platform cut).
+                    Each selected instructor receives their exact salary directly in their bank account from one payment checkout.
                   </p>
 
                   {selectedLinkedInstructors.length >= 2 && (
@@ -1492,7 +1489,7 @@ export const PayrollPage: React.FC = () => {
                           onChange={(e) => setSaveBatchAsGroup(e.target.checked)}
                           className="rounded border-slate-300 text-[#0078d4]"
                         />
-                        <span>Save batch as reusable Paystack Split Group (SPL)</span>
+                        <span>Save as reusable Payroll Group</span>
                       </label>
                       {saveBatchAsGroup && (
                         <input
@@ -1567,7 +1564,7 @@ export const PayrollPage: React.FC = () => {
                           type="button"
                           onClick={toggleSelectAllLinked}
                           className="p-1 text-slate-500 hover:text-[#0078d4] cursor-pointer"
-                          title="Select all instructors with linked subaccounts"
+                          title="Select all instructors with connected bank accounts"
                         >
                           {selectedLinkedInstructors.length > 0 &&
                           selectedLinkedInstructors.length === linkedInstructors.length ? (
@@ -1578,7 +1575,7 @@ export const PayrollPage: React.FC = () => {
                         </button>
                       </th>
                       <th className="py-3 px-3">Instructor</th>
-                      <th className="py-3 px-3">Paystack Subaccount</th>
+                      <th className="py-3 px-3">Payout Bank Account</th>
                       <th className="py-3 px-3 w-44">Salary ({currency})</th>
                       <th className="py-3 px-3 text-right">Actions</th>
                     </tr>
@@ -1613,8 +1610,8 @@ export const PayrollPage: React.FC = () => {
                               }}
                               title={
                                 isLinked
-                                  ? "Select for multi-instructor split checkout"
-                                  : "Connect bank subaccount first"
+                                  ? "Select to pay together with other instructors"
+                                  : "Add bank account first"
                               }
                               className="rounded border-slate-300 text-[#0078d4] disabled:opacity-40 cursor-pointer"
                             />
@@ -1640,14 +1637,14 @@ export const PayrollPage: React.FC = () => {
                           <td className="py-3 px-3 align-middle">
                             {isLinked ? (
                               <div>
-                                <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">
-                                  {inst.subaccountCode}
+                                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                                  {inst.bankName || "Connected Bank"}
                                 </span>
-                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                                  {inst.bankName || "Settlement Bank"}
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                                  {inst.accountName ? `${inst.accountName} • ` : ""}
                                   {inst.accountNumber
-                                    ? ` • ****${inst.accountNumber.slice(-4)}`
-                                    : ""}
+                                    ? `****${inst.accountNumber.slice(-4)}`
+                                    : "Ready"}
                                 </div>
                               </div>
                             ) : (
@@ -1657,7 +1654,7 @@ export const PayrollPage: React.FC = () => {
                                 className="inline-flex items-center space-x-1 text-[#0078d4] dark:text-[#04a4ec] font-semibold hover:underline cursor-pointer"
                               >
                                 <Building2 className="w-3.5 h-3.5" />
-                                <span>Connect Bank Subaccount</span>
+                                <span>Connect Bank Account</span>
                               </button>
                             )}
                           </td>
@@ -1748,12 +1745,12 @@ export const PayrollPage: React.FC = () => {
                     type="text"
                     value={paymentNote}
                     onChange={(e) => setPaymentNote(e.target.value)}
-                    placeholder="Optional payment note attached to Paystack metadata & ledger..."
+                    placeholder="Optional payment note or memo for your records..."
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40"
                   />
                 </div>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Tip: Check multiple instructors to pay them together in 1 split checkout.
+                  Tip: Check multiple instructors to pay them all together in one checkout.
                 </span>
               </div>
             )}
@@ -1766,10 +1763,10 @@ export const PayrollPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-slate-900 dark:text-white font-heading">
-                  Saved Paystack Transaction Split Groups
+                  Saved Payroll Groups
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Reusable multi-instructor split codes (<code className="font-mono">SPL_...</code>) registered directly on Paystack to disburse an entire team&apos;s salary in one transaction.
+                  Save instructor teams so you can pay everyone&apos;s salary together in a single checkout.
                 </p>
               </div>
               <button
@@ -1779,7 +1776,7 @@ export const PayrollPage: React.FC = () => {
                 className="px-3.5 py-2 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white text-xs font-bold transition inline-flex items-center space-x-1.5 cursor-pointer self-start"
               >
                 <Plus className="w-4 h-4" />
-                <span>Create Split Group</span>
+                <span>Create Payroll Group</span>
               </button>
             </div>
 
@@ -1788,10 +1785,10 @@ export const PayrollPage: React.FC = () => {
                 <Layers className="w-8 h-8 text-slate-400 mx-auto" />
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                    No Payroll Split Groups Created Yet
+                    No Payroll Groups Created Yet
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                    Group 2 or more instructors with linked Paystack subaccounts to pay their salaries together in a single checkout.
+                    Group 2 or more instructors with connected bank accounts to pay their salaries together in a single checkout.
                   </p>
                 </div>
                 <button
@@ -1801,7 +1798,7 @@ export const PayrollPage: React.FC = () => {
                   className="inline-flex items-center px-3.5 py-2 bg-[#0078d4] disabled:opacity-50 text-white rounded-xl text-xs font-bold space-x-1.5 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Create First Split Group</span>
+                  <span>Create First Payroll Group</span>
                 </button>
               </div>
             ) : (
@@ -1824,10 +1821,9 @@ export const PayrollPage: React.FC = () => {
                             <h3 className="font-bold text-sm text-slate-900 dark:text-white">
                               {group.name}
                             </h3>
-                            <p className="text-[11px] font-mono text-[#0078d4] dark:text-[#04a4ec] font-semibold mt-0.5 tabular-nums">
-                              {group.splitCode} •{" "}
-                              {group.type === "flat" ? "Flat Split" : "Percentage Split"} •{" "}
-                              {group.currency}
+                            <p className="text-[11px] text-[#0078d4] dark:text-[#04a4ec] font-semibold mt-0.5 tabular-nums">
+                              {group.type === "flat" ? "Fixed Salaries" : "Percentage Split"} •{" "}
+                              {group.currency} • {group.members.length} Instructors
                             </p>
                           </div>
                           <button
@@ -1840,7 +1836,7 @@ export const PayrollPage: React.FC = () => {
                               })
                             }
                             className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 cursor-pointer"
-                            title="Delete Split Group"
+                            title="Delete Payroll Group"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1856,8 +1852,9 @@ export const PayrollPage: React.FC = () => {
                                 <span className="font-medium text-slate-800 dark:text-slate-200 block truncate">
                                   {m.instructorName}
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400">
-                                  {m.subaccountCode}
+                                <span className="text-[10px] text-slate-400">
+                                  {m.bankName || "Connected Bank"}
+                                  {m.accountNumber ? ` • ****${m.accountNumber.slice(-4)}` : ""}
                                 </span>
                               </div>
                               <span className="font-mono font-bold text-slate-900 dark:text-white tabular-nums shrink-0">
@@ -1871,9 +1868,13 @@ export const PayrollPage: React.FC = () => {
 
                         <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                           <span>
-                            Fee bearer:{" "}
+                            Processing fee:{" "}
                             <strong className="text-slate-700 dark:text-slate-200">
-                              {group.bearerType}
+                              {group.bearerType === "all-proportional"
+                                ? "Shared fairly"
+                                : group.bearerType === "all"
+                                  ? "Shared equally"
+                                  : "Single recipient"}
                             </strong>
                           </span>
                           {flatTotal !== undefined && (
@@ -1897,8 +1898,8 @@ export const PayrollPage: React.FC = () => {
                         )}
                         <span>
                           {group.type === "flat" && flatTotal !== undefined
-                            ? `Pay Split Group (${group.currency} ${flatTotal.toLocaleString()}) in 1 Tx`
-                            : "Enter Batch Total & Pay Group in 1 Tx"}
+                            ? `Pay Group (${group.currency} ${flatTotal.toLocaleString()})`
+                            : "Enter Total & Pay Group"}
                         </span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
@@ -1958,9 +1959,9 @@ export const PayrollPage: React.FC = () => {
                     <tr className="bg-slate-50 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       <th className="py-3 px-3">Date & Ref</th>
                       <th className="py-3 px-3">Mode</th>
-                      <th className="py-3 px-3">Recipients (Direct Subaccounts)</th>
+                      <th className="py-3 px-3">Recipients (Direct to Bank)</th>
                       <th className="py-3 px-3">Platform Fee</th>
-                      <th className="py-3 px-3 text-right">Total Disbursed</th>
+                      <th className="py-3 px-3 text-right">Total Paid</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/70 text-xs">
@@ -1976,12 +1977,14 @@ export const PayrollPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="py-3 px-3 align-top">
-                          <div className="font-semibold text-slate-800 dark:text-slate-200 capitalize">
-                            {d.paymentType.replace("_", " ")}
+                          <div className="font-semibold text-slate-800 dark:text-slate-200">
+                            {d.paymentType === "individual"
+                              ? "Individual Payment"
+                              : "Single-Checkout Group"}
                           </div>
-                          {d.splitCode && (
-                            <div className="text-[11px] font-mono text-[#0078d4] dark:text-[#04a4ec]">
-                              {d.splitGroupName ? `${d.splitGroupName} (${d.splitCode})` : d.splitCode}
+                          {d.splitGroupName && (
+                            <div className="text-[11px] text-[#0078d4] dark:text-[#04a4ec]">
+                              {d.splitGroupName}
                             </div>
                           )}
                         </td>
@@ -1989,8 +1992,11 @@ export const PayrollPage: React.FC = () => {
                           <div className="space-y-1">
                             {d.recipients.map((r, idx) => (
                               <div key={idx} className="text-[11px] text-slate-700 dark:text-slate-300">
-                                <span className="font-semibold">{r.instructorName}</span>{" "}
-                                <span className="font-mono text-slate-400">({r.subaccountCode})</span>:{" "}
+                                <span className="font-semibold">{r.instructorName}</span>
+                                {r.bankName ? (
+                                  <span className="text-slate-400"> ({r.bankName})</span>
+                                ) : null}
+                                :{" "}
                                 <span className="font-mono font-semibold tabular-nums">
                                   {d.currency} {r.amount.toLocaleString()}
                                 </span>
@@ -2014,7 +2020,7 @@ export const PayrollPage: React.FC = () => {
         )}
       </div>
 
-      {/* MODAL 1: ADD / CONNECT INSTRUCTOR PAYSTACK SUBACCOUNT */}
+      {/* MODAL 1: ADD / CONNECT INSTRUCTOR BANK ACCOUNT */}
       {subaccountModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -2022,11 +2028,11 @@ export const PayrollPage: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white font-heading">
                   {editingInstructor
-                    ? `Connect Bank Subaccount: ${editingInstructor.name}`
-                    : "Add Instructor Payout Subaccount"}
+                    ? `Connect Bank Account: ${editingInstructor.name}`
+                    : "Add Instructor Bank Account"}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Creates a verified Paystack subaccount with 0% platform charge for direct salary settlement.
+                  Connect an instructor&apos;s bank account so salaries go straight to them with 0% platform fee.
                 </p>
               </div>
               <button
@@ -2221,7 +2227,7 @@ export const PayrollPage: React.FC = () => {
                   className="px-4 py-2 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white font-bold inline-flex items-center space-x-1.5 cursor-pointer"
                 >
                   {savingSubaccount && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Save & Link Paystack Subaccount</span>
+                  <span>Save &amp; Connect Bank Account</span>
                 </button>
               </div>
             </form>
@@ -2229,17 +2235,17 @@ export const PayrollPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: CREATE PAYROLL SPLIT GROUP (SPL_...) */}
+      {/* MODAL 2: CREATE PAYROLL GROUP */}
       {createGroupModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white font-heading">
-                  Create Paystack Payroll Split Group
+                  Create Payroll Group
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Registers a live <code className="font-mono">SPL_...</code> group on Paystack to pay selected instructors together in one transaction.
+                  Group selected instructors so you can pay everyone&apos;s salary in a single checkout.
                 </p>
               </div>
               <button
@@ -2261,7 +2267,7 @@ export const PayrollPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Split Group Name *
+                    Group Name *
                   </label>
                   <input
                     type="text"
@@ -2274,7 +2280,7 @@ export const PayrollPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Split Allocation Mode
+                    How Salaries Are Shared
                   </label>
                   <select
                     value={newGroupType}
@@ -2282,14 +2288,14 @@ export const PayrollPage: React.FC = () => {
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-semibold"
                   >
                     <option value="flat">Fixed Salary Amounts ({currency})</option>
-                    <option value="percentage">Percentage Shares (Must sum to 100%)</option>
+                    <option value="percentage">Percentage Shares (Must add up to 100%)</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Paystack Fee Bearer
+                  Who Covers Transaction Fees
                 </label>
                 <select
                   value={newGroupBearer}
@@ -2301,20 +2307,20 @@ export const PayrollPage: React.FC = () => {
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                 >
                   <option value="all-proportional">
-                    All Subaccounts Proportional (Recommended — 0% Main Account Touch)
+                    Shared fairly across instructors (Recommended)
                   </option>
-                  <option value="all">Split Fees Equally Across Subaccounts & Main</option>
-                  <option value="subaccount">Single Designated Subaccount Bears Fees</option>
+                  <option value="all">Shared equally across all accounts</option>
+                  <option value="subaccount">Covered by one chosen instructor</option>
                 </select>
                 {newGroupBearer === "subaccount" && (
                   <select
                     value={newGroupBearerSubaccount}
                     onChange={(e) => setNewGroupBearerSubaccount(e.target.value)}
-                    className="mt-2 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
+                    className="mt-2 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                   >
                     {linkedInstructors.map((i) => (
                       <option key={i.subaccountCode} value={i.subaccountCode}>
-                        {i.name} ({i.subaccountCode})
+                        {i.name} ({i.bankName || "Bank"})
                       </option>
                     ))}
                   </select>
@@ -2323,7 +2329,7 @@ export const PayrollPage: React.FC = () => {
 
               <div className="space-y-2">
                 <label className="block font-semibold text-slate-700 dark:text-slate-300">
-                  Select Instructors & {newGroupType === "flat" ? `Salary (${currency})` : "Share (%)"}
+                  Select Instructors &amp; {newGroupType === "flat" ? `Salary (${currency})` : "Share (%)"}
                 </label>
                 <div className="border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-100 dark:divide-slate-700 max-h-56 overflow-y-auto">
                   {linkedInstructors.map((inst) => {
@@ -2352,8 +2358,9 @@ export const PayrollPage: React.FC = () => {
                             <span className="font-semibold text-slate-900 dark:text-white block truncate">
                               {inst.name}
                             </span>
-                            <span className="text-[10px] font-mono text-slate-400">
-                              {inst.subaccountCode}
+                            <span className="text-[10px] text-slate-400">
+                              {inst.bankName || "Connected Bank"}
+                              {inst.accountNumber ? ` • ****${inst.accountNumber.slice(-4)}` : ""}
                             </span>
                           </div>
                         </label>
@@ -2395,7 +2402,7 @@ export const PayrollPage: React.FC = () => {
                   className="px-4 py-2 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white font-bold inline-flex items-center space-x-1.5 cursor-pointer"
                 >
                   {creatingGroup && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Register Split Group on Paystack</span>
+                  <span>Save Payroll Group</span>
                 </button>
               </div>
             </form>
@@ -2403,19 +2410,19 @@ export const PayrollPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 3: ENTER TOTAL AMOUNT FOR PERCENTAGE SPLIT GROUP */}
+      {/* MODAL 3: ENTER TOTAL AMOUNT FOR PERCENTAGE PAYROLL GROUP */}
       {payingGroupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-base font-bold text-slate-900 dark:text-white font-heading">
-              Pay Split Group: {payingGroupModal.name}
+              Pay Payroll Group: {payingGroupModal.name}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Enter the total {payingGroupModal.currency} payroll pool to distribute automatically across {payingGroupModal.members.length} instructors via <code className="font-mono">{payingGroupModal.splitCode}</code>.
+              Enter the total {payingGroupModal.currency} salary pool to divide automatically across {payingGroupModal.members.length} instructors.
             </p>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Total Payroll Pool ({payingGroupModal.currency})
+                Total Salary Pool ({payingGroupModal.currency})
               </label>
               <input
                 type="number"
@@ -2441,7 +2448,7 @@ export const PayrollPage: React.FC = () => {
                 onClick={() => executePaySplitGroup(payingGroupModal, Number(groupTotalPayInput))}
                 className="px-4 py-2 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white text-xs font-bold cursor-pointer"
               >
-                Launch Paystack Split Checkout
+                Proceed to Payment
               </button>
             </div>
           </div>
@@ -2457,7 +2464,7 @@ export const PayrollPage: React.FC = () => {
             </h3>
             <p className="text-xs text-slate-600 dark:text-slate-300">
               Remove <strong>{confirmDelete.label}</strong> from{" "}
-              {confirmDelete.kind === "group" ? "saved payroll split groups" : "saved instructor payout recipients"}?
+              {confirmDelete.kind === "group" ? "saved payroll groups" : "saved instructor bank accounts"}?
             </p>
             <div className="flex justify-end gap-2">
               <button

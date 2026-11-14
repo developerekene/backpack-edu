@@ -156,13 +156,13 @@ export const PaystackButtonWrapper: React.FC<PaystackProps> = ({
         <div className="flex items-center justify-center space-x-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold pt-1">
           <Split className="w-3 h-3 text-emerald-500" />
           <span>
-            Payment Split Enabled • Direct Payout to {providerName || "Provider"} ({subaccountCode})
+            Direct Payout Enabled • Sent straight to {providerName || "Provider"}&apos;s bank account
           </span>
         </div>
       )}
 
       <div className="flex items-center justify-center space-x-2 text-[10px] text-slate-400 pt-0.5">
-        <span>256-bit Encrypted Checkout • Powered by Secure Payment Gateway</span>
+        <span>256-bit Encrypted Checkout • Secure Online Payment</span>
       </div>
     </div>
   );

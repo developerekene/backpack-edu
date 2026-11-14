@@ -130,7 +130,7 @@ export const Settings = () => {
                             </span>
                         </div>
                         <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Organization Settings</h1>
-                        <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Manage your institution profile, KYC documents, and payout subaccounts.</p>
+                        <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Manage your institution profile, KYC documents, and payout bank accounts.</p>
                     </div>
 
                     <Link
