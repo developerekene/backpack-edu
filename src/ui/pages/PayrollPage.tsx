@@ -586,7 +586,7 @@ export const PayrollPage: React.FC = () => {
       setStatusBanner({
         type: "success",
         title: "Instructor Bank Account Connected",
-        message: `${record.instructorName}'s bank account (${record.bankName} •••• ${record.accountNumber.slice(-4)}) is ready to receive direct salary payments with zero platform fees.`,
+        message: `${record.instructorName}'s bank account (${record.bankName} •••• ${(record.accountNumber || "").slice(-4)}) is ready to receive direct salary payments with zero platform fees.`,
       });
     } catch (err) {
       setBankFormError(

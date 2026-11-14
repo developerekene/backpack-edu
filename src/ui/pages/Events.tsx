@@ -22,6 +22,7 @@ import {
   Building2,
   Check,
   ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { useAuth } from "../../store/AuthContext";
 import { useEventContext } from "../../store/EventContext";
