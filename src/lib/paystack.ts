@@ -294,3 +294,96 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
     }
   }
 };
+
+export interface PayrollPaystackCheckoutOptions {
+  accessCode?: string;
+  email: string;
+  amount: number; // In major currency unit (e.g. NGN)
+  currency?: string;
+  subaccountCode?: string;
+  splitCode?: string;
+  reference: string;
+  metadata?: Record<string, unknown>;
+  onSuccess: (res: { reference?: string; trxref?: string; status?: string }) => void;
+  onCancel?: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onError?: (error: any) => void;
+}
+
+/**
+ * Dedicated Zero-Platform-Touch Instructor Salary Checkout.
+ * Strictly requires either a server-initialized `accessCode` (routed to instructor subaccount / split group)
+ * or explicit `subaccountCode` / `splitCode` with 0 transaction_charge and `subaccount` fee bearer.
+ * NEVER falls back to unsplit main platform account.
+ */
+export const triggerPayrollPaystackCheckout = (options: PayrollPaystackCheckoutOptions) => {
+  if (!options.accessCode && !options.subaccountCode && !options.splitCode) {
+    options.onError?.(
+      new Error("Missing instructor Paystack subaccount, split group code, or split transaction access code. Platform main account cannot receive salary funds.")
+    );
+    return;
+  }
+
+  const handleSuccess = (res: { reference?: string; trxref?: string; status?: string }) => {
+    const finalRef = res?.reference || res?.trxref || options.reference;
+    options.onSuccess({ ...res, reference: finalRef });
+  };
+
+  const handleCancel = () => {
+    options.onCancel?.();
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleError = (err: any) => {
+    options.onError?.(err);
+  };
+
+  try {
+    const popup = new PaystackPop();
+
+    // Primary path: Resume server-initialized split/subaccount transaction via access_code
+    if (options.accessCode && typeof popup.resumeTransaction === "function") {
+      popup.resumeTransaction(options.accessCode, {
+        onSuccess: handleSuccess,
+        onCancel: handleCancel,
+        onError: handleError,
+      });
+      return;
+    }
+
+    // Secondary path (strictly requires subaccountCode or splitCode; never stripped)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const config: any = {
+      key: PAYSTACK_LIVE_PUBLIC_KEY,
+      email: options.email,
+      amount: Math.round(options.amount * 100),
+      currency: (options.currency || "NGN").toUpperCase(),
+      ref: options.reference,
+      onSuccess: handleSuccess,
+      onCancel: handleCancel,
+      onError: handleError,
+      metadata: {
+        ...(options.metadata || {}),
+        payroll_flow: true,
+        platform_cut_kobo: 0,
+        mode: "live",
+      },
+    };
+
+    if (options.splitCode) {
+      config.split_code = options.splitCode;
+    } else if (options.subaccountCode) {
+      config.subaccount = options.subaccountCode;
+      config.subaccountCode = options.subaccountCode;
+      config.subaccount_code = options.subaccountCode;
+      config.transactionCharge = 0;
+      config.transaction_charge = 0;
+      config.bearer = "subaccount";
+    }
+
+    popup.newTransaction(config);
+  } catch (err) {
+    handleError(err);
+  }
+};
+

@@ -46,6 +46,9 @@ import {
   GateLogRecord,
   OfflineRosterStudent,
   SchoolOfflineMember,
+  InstructorPayrollRecipient,
+  PayrollSplitGroup,
+  PayrollDisbursement,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
@@ -269,6 +272,15 @@ interface AppState {
     type?: "live_class" | "enrollment" | "grade" | "material" | "info",
     linkUrl?: string,
   ) => Promise<void>;
+
+  payrollRecipients: InstructorPayrollRecipient[];
+  payrollSplitGroups: PayrollSplitGroup[];
+  payrollDisbursements: PayrollDisbursement[];
+  savePayrollRecipient: (recipient: InstructorPayrollRecipient) => Promise<void>;
+  removePayrollRecipient: (id: string) => Promise<void>;
+  savePayrollSplitGroup: (group: PayrollSplitGroup) => Promise<void>;
+  deletePayrollSplitGroup: (id: string) => Promise<void>;
+  recordPayrollDisbursement: (disbursement: PayrollDisbursement) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -383,6 +395,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [allUsers, setAllUsers] = useState<User[]>(() =>
     loadCache("allUsers", []),
   );
+  const [payrollRecipients, setPayrollRecipients] = useState<
+    InstructorPayrollRecipient[]
+  >(() => loadCache("school.instructorPayrollRecipients", []));
+  const [payrollSplitGroups, setPayrollSplitGroups] = useState<
+    PayrollSplitGroup[]
+  >(() => loadCache("school.payrollSplitGroups", []));
+  const [payrollDisbursements, setPayrollDisbursements] = useState<
+    PayrollDisbursement[]
+  >(() => loadCache("school.payrollDisbursements", []));
 
   // Helper to update personalInformation within the user object of a backpack document
   const updateBackpackPersonalInfo = async (
@@ -599,6 +620,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const allEvents: ScheduleEvent[] = [];
       const allMessages: ChatMessage[] = [];
       const allDonationsFromBackpack: CourseDonation[] = [];
+      const allPayrollRecipients: InstructorPayrollRecipient[] = [];
+      const allPayrollSplitGroups: PayrollSplitGroup[] = [];
+      const allPayrollDisbursements: PayrollDisbursement[] = [];
 
       backpackSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
@@ -758,6 +782,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (schoolObj && Array.isArray(schoolObj.offlineMembers)) {
           allSchoolOfflineMembers.push(...(schoolObj.offlineMembers as SchoolOfflineMember[]));
         }
+        if (schoolObj && Array.isArray(schoolObj.instructorPayrollRecipients)) {
+          allPayrollRecipients.push(
+            ...(schoolObj.instructorPayrollRecipients as InstructorPayrollRecipient[]),
+          );
+        }
+        if (schoolObj && Array.isArray(schoolObj.payrollSplitGroups)) {
+          allPayrollSplitGroups.push(
+            ...(schoolObj.payrollSplitGroups as PayrollSplitGroup[]),
+          );
+        }
+        if (schoolObj && Array.isArray(schoolObj.payrollDisbursements)) {
+          allPayrollDisbursements.push(
+            ...(schoolObj.payrollDisbursements as PayrollDisbursement[]),
+          );
+        }
 
         const teacherObj = userObj.teacher as Record<string, unknown> | undefined;
         if (teacherObj && Array.isArray(teacherObj.duty)) {
@@ -897,6 +936,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         "school.offlineMembers",
         dedupeById(allSchoolOfflineMembers),
         setSchoolOfflineMembers,
+      );
+      updateAndCache(
+        "school.instructorPayrollRecipients",
+        dedupeById(allPayrollRecipients),
+        setPayrollRecipients,
+      );
+      updateAndCache(
+        "school.payrollSplitGroups",
+        dedupeById(allPayrollSplitGroups),
+        setPayrollSplitGroups,
+      );
+      updateAndCache(
+        "school.payrollDisbursements",
+        dedupeById(allPayrollDisbursements),
+        setPayrollDisbursements,
       );
       updateAndCache(
         "teacher.duty",
@@ -2629,6 +2683,162 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     ).catch(console.error);
   };
 
+  // Resolve owning organization document ID in backpack collection
+  const resolvePayrollOrgDocUid = (orgId?: string) => {
+    const matched = organizations.find(
+      (o) =>
+        o.id === orgId ||
+        o.ownerId === orgId ||
+        (currentUser?.orgId &&
+          (o.id === currentUser.orgId || o.ownerId === currentUser.orgId)) ||
+        (currentUser?.id && (o.ownerId === currentUser.id || o.id === currentUser.id)),
+    );
+    return (
+      matched?.ownerId ||
+      matched?.id ||
+      orgId ||
+      currentUser?.orgId ||
+      currentUser?.id ||
+      ""
+    );
+  };
+
+  const savePayrollRecipient = async (recipient: InstructorPayrollRecipient) => {
+    const cleaned = sanitizeForFirestore(recipient);
+    const targetUid = resolvePayrollOrgDocUid(recipient.orgId);
+
+    if (targetUid) {
+      await updateBackpackUserField<InstructorPayrollRecipient>(
+        targetUid,
+        "school.instructorPayrollRecipients",
+        (list) => [...list.filter((r) => r.id !== cleaned.id), cleaned],
+      );
+    }
+
+    setPayrollRecipients((prev) => {
+      const next = [...prev.filter((r) => r.id !== cleaned.id), cleaned];
+      try {
+        localStorage.setItem(
+          "bp_cache_school.instructorPayrollRecipients",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const removePayrollRecipient = async (id: string) => {
+    setPayrollRecipients((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem(
+          "bp_cache_school.instructorPayrollRecipients",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    await removeItemFromAllBackpackField<InstructorPayrollRecipient>(
+      "school.instructorPayrollRecipients",
+      id,
+    ).catch(console.error);
+  };
+
+  const savePayrollSplitGroup = async (group: PayrollSplitGroup) => {
+    const cleaned = sanitizeForFirestore(group);
+    const targetUid = resolvePayrollOrgDocUid(group.orgId);
+
+    if (targetUid) {
+      await updateBackpackUserField<PayrollSplitGroup>(
+        targetUid,
+        "school.payrollSplitGroups",
+        (list) => [...list.filter((g) => g.id !== cleaned.id), cleaned],
+      );
+    }
+
+    setPayrollSplitGroups((prev) => {
+      const next = [...prev.filter((g) => g.id !== cleaned.id), cleaned];
+      try {
+        localStorage.setItem(
+          "bp_cache_school.payrollSplitGroups",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const deletePayrollSplitGroup = async (id: string) => {
+    setPayrollSplitGroups((prev) => {
+      const next = prev.filter((g) => g.id !== id);
+      try {
+        localStorage.setItem(
+          "bp_cache_school.payrollSplitGroups",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    await removeItemFromAllBackpackField<PayrollSplitGroup>(
+      "school.payrollSplitGroups",
+      id,
+    ).catch(console.error);
+  };
+
+  const recordPayrollDisbursement = async (disbursement: PayrollDisbursement) => {
+    const cleaned = sanitizeForFirestore(disbursement);
+    const targetUid = resolvePayrollOrgDocUid(disbursement.orgId);
+
+    if (targetUid) {
+      await updateBackpackUserField<PayrollDisbursement>(
+        targetUid,
+        "school.payrollDisbursements",
+        (list) => [cleaned, ...list.filter((d) => d.id !== cleaned.id)],
+      );
+    }
+
+    setPayrollDisbursements((prev) => {
+      const next = [cleaned, ...prev.filter((d) => d.id !== cleaned.id)];
+      try {
+        localStorage.setItem(
+          "bp_cache_school.payrollDisbursements",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+
+    if (cleaned.status === "success") {
+      for (const rec of cleaned.recipients) {
+        const matchedUser = allUsers.find(
+          (u) =>
+            u.id === rec.instructorId ||
+            (rec.instructorEmail &&
+              u.email?.toLowerCase() === rec.instructorEmail.toLowerCase()),
+        );
+        if (matchedUser && matchedUser.id !== currentUser?.id) {
+          addNotification({
+            userId: matchedUser.id,
+            title: `Salary Disbursement Sent`,
+            message: `${cleaned.currency} ${rec.amount.toLocaleString()} has been sent directly to your subaccount (${rec.subaccountCode}) via Paystack (Ref: ${cleaned.reference}).`,
+            type: "info",
+            linkUrl: "/dashboard",
+          });
+        }
+      }
+    }
+  };
+
   // Teacher Work Hours & Duty Records (stored in backpack/{targetId}.user.teacher.duty & cached locally)
   const addTeacherDutyRecord = async (record: TeacherDutyRecord) => {
     const dutyId = record.id || `duty_${Date.now()}_${record.teacherId}`;
@@ -3393,6 +3603,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         reactivateUser,
         deleteUserAccount,
         sendDirectNotification,
+        payrollRecipients,
+        payrollSplitGroups,
+        payrollDisbursements,
+        savePayrollRecipient,
+        removePayrollRecipient,
+        savePayrollSplitGroup,
+        deletePayrollSplitGroup,
+        recordPayrollDisbursement,
       }}
     >
       {children}

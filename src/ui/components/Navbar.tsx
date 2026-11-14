@@ -24,6 +24,7 @@ import {
   LogIn,
   UserPlus,
   Timer,
+  Banknote,
 } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { useAccessibility } from "../../store/AccessibilityContext";
@@ -199,6 +200,7 @@ export const Navbar = () => {
     pathname === "/profile" ||
     pathname === "/settings" ||
     pathname === "/onboard" ||
+    pathname === "/payroll" ||
     pathname === "/admin";
 
   const moreTriggerStyle = `flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-colors font-heading border whitespace-nowrap ${
@@ -364,6 +366,20 @@ export const Navbar = () => {
                         <Timer className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
                         <span>Attendance</span>
                       </Link>
+
+                      {(currentUser.role === "organization" ||
+                        currentUser.role === "org_admin" ||
+                        currentUser.role === "super_admin" ||
+                        currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
+                        <Link
+                          to="/payroll"
+                          onClick={closeMore}
+                          className={moreItemStyle("/payroll")}
+                        >
+                          <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>Instructor Payroll</span>
+                        </Link>
+                      )}
 
                       {/* Launch Box */}
                       <Link
@@ -606,6 +622,20 @@ export const Navbar = () => {
               Attendance
             </Link>
           )}
+
+          {currentUser &&
+            (currentUser.role === "organization" ||
+              currentUser.role === "org_admin" ||
+              currentUser.role === "super_admin" ||
+              currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
+              <Link
+                to="/payroll"
+                onClick={closeMenu}
+                className={getMobileLinkStyle("/payroll")}
+              >
+                Instructor Payroll
+              </Link>
+            )}
 
           {(currentUser?.email?.toLowerCase() === "ekenehq@gmail.com" ||
             currentUser?.role === "super_admin") && (

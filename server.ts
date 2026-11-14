@@ -47,6 +47,19 @@ const getPaystackHeaders = () => {
   };
 };
 
+let activeKeyFetchPromise: Promise<void> | null = null;
+const ensurePaystackHeaders = async () => {
+  const existing = getPaystackHeaders();
+  if (existing) return existing;
+  if (!activeKeyFetchPromise) {
+    activeKeyFetchPromise = fetchSecretKeys().finally(() => {
+      activeKeyFetchPromise = null;
+    });
+  }
+  await activeKeyFetchPromise;
+  return getPaystackHeaders();
+};
+
 // Dynamic retrieval of secret keys from Keysafe Render URL for subaccounts and payment splits
 async function fetchSecretKeys() {
   const modes = ["live"]; // Test mode disabled: ["live", "test"]
@@ -162,13 +175,9 @@ async function fetchSecretKeys() {
             clearTimeout(timeoutId);
 
             const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key") || response.headers.get("x-paystack-live-secret-key");
-            if (headerKey && headerKey.startsWith("sk_")) {
-              if (headerKey.startsWith("sk_live_")) {
-                PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded LIVE secret key from subaccount header.`);
-              } else if (headerKey.startsWith("sk_test_")) {
-                PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
-              }
+            if (headerKey && headerKey.startsWith("sk_live_")) {
+              PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+              console.log(`[KeySafe] Loaded LIVE secret key from subaccount header.`);
             }
 
             const json = await response.json().catch(() => null);
@@ -178,7 +187,6 @@ async function fetchSecretKeys() {
                 json.paystack_secret_key ||
                 json.paystackSecretKey ||
                 json.PAYSTACK_LIVE_SECRET_KEY ||
-                json.PAYSTACK_TEST_SECRET_KEY ||
                 json.live_secret_key ||
                 json.key ||
                 json.data?.secret_key ||
@@ -186,13 +194,9 @@ async function fetchSecretKeys() {
                 ""
               ).trim();
 
-              if (extractedKey && extractedKey.startsWith("sk_")) {
-                if (extractedKey.startsWith("sk_live_")) {
-                  PAYSTACK_LIVE_SECRET_KEY = extractedKey;
-                  console.log(`[KeySafe] Loaded LIVE secret key from subaccount endpoint.`);
-                } else if (extractedKey.startsWith("sk_test_")) {
-                  PAYSTACK_TEST_SECRET_KEY = extractedKey;
-                }
+              if (extractedKey && extractedKey.startsWith("sk_live_")) {
+                PAYSTACK_LIVE_SECRET_KEY = extractedKey;
+                console.log(`[KeySafe] Loaded LIVE secret key from subaccount endpoint.`);
               }
             }
           } catch {
@@ -228,13 +232,9 @@ async function fetchSecretKeys() {
             clearTimeout(timeoutId);
 
             const headerKey = response.headers.get("x-paystack-secret-key") || response.headers.get("x-secret-key") || response.headers.get("x-paystack-live-secret-key");
-            if (headerKey && headerKey.startsWith("sk_")) {
-              if (headerKey.startsWith("sk_live_")) {
-                PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
-                console.log(`[KeySafe] Loaded LIVE secret key from split header.`);
-              } else if (headerKey.startsWith("sk_test_")) {
-                PAYSTACK_TEST_SECRET_KEY = headerKey.trim();
-              }
+            if (headerKey && headerKey.startsWith("sk_live_")) {
+              PAYSTACK_LIVE_SECRET_KEY = headerKey.trim();
+              console.log(`[KeySafe] Loaded LIVE secret key from split header.`);
             }
 
             const json = await response.json().catch(() => null);
@@ -244,7 +244,6 @@ async function fetchSecretKeys() {
                 json.paystack_secret_key ||
                 json.paystackSecretKey ||
                 json.PAYSTACK_LIVE_SECRET_KEY ||
-                json.PAYSTACK_TEST_SECRET_KEY ||
                 json.live_secret_key ||
                 json.key ||
                 json.data?.secret_key ||
@@ -252,13 +251,9 @@ async function fetchSecretKeys() {
                 ""
               ).trim();
 
-              if (extractedKey && extractedKey.startsWith("sk_")) {
-                if (extractedKey.startsWith("sk_live_")) {
-                  PAYSTACK_LIVE_SECRET_KEY = extractedKey;
-                  console.log(`[KeySafe] Loaded LIVE secret key from split endpoint.`);
-                } else if (extractedKey.startsWith("sk_test_")) {
-                  PAYSTACK_TEST_SECRET_KEY = extractedKey;
-                }
+              if (extractedKey && extractedKey.startsWith("sk_live_")) {
+                PAYSTACK_LIVE_SECRET_KEY = extractedKey;
+                console.log(`[KeySafe] Loaded LIVE secret key from split endpoint.`);
               }
             }
           } catch {
@@ -747,7 +742,7 @@ app.get(["/api/paystack/subaccount/:code", "/api/subaccount/:code", "/subaccount
 
   // 1. Check with direct Paystack API in LIVE mode
   try {
-    const paystackHeaders = getPaystackHeaders(true);
+    const paystackHeaders = await ensurePaystackHeaders();
     if (paystackHeaders) {
       const response = await fetch(`https://api.paystack.co/subaccount/${encodeURIComponent(code)}`, {
         headers: paystackHeaders,
@@ -1016,47 +1011,353 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
   });
 });
 
-// --- 5. POST /api/paystack/create-split-group ---
-app.post("/api/paystack/create-split-group", async (req, res) => {
-  const { name, type = "percentage", currency = "NGN", subaccounts, bearer_type = "account" } = req.body;
+// --- 5. POST /api/paystack/create-split-group & /api/paystack/payroll/split-group ---
+app.post(["/api/paystack/create-split-group", "/api/paystack/payroll/split-group"], async (req, res) => {
+  const {
+    name,
+    type = "percentage",
+    currency = "NGN",
+    subaccounts,
+    bearer_type = "all-proportional",
+    bearer_subaccount,
+  } = req.body;
 
-  if (!name || !subaccounts || !Array.isArray(subaccounts)) {
-    return res.status(400).json({ success: false, message: "name and subaccounts array are required" });
+  if (!name || !subaccounts || !Array.isArray(subaccounts) || subaccounts.length === 0) {
+    return res.status(400).json({ success: false, message: "name and at least one subaccount entry are required" });
   }
 
-  try {
-    const headers = getPaystackHeaders();
-    if (headers) {
-      const payload = {
-        name,
-        type,
-        currency,
-        subaccounts,
-        bearer_type,
-      };
+  const normalizedSubaccounts = subaccounts.map((s: { subaccount?: string; subaccount_code?: string; share: number }) => ({
+    subaccount: s.subaccount || s.subaccount_code,
+    share: Math.round(Number(s.share)),
+  }));
 
+  const payload: Record<string, unknown> = {
+    name: String(name).trim(),
+    type,
+    currency: String(currency || "NGN").toUpperCase(),
+    subaccounts: normalizedSubaccounts,
+    bearer_type,
+  };
+  if (bearer_type === "subaccount" && bearer_subaccount) {
+    payload.bearer_subaccount = bearer_subaccount;
+  }
+
+  let lastErrorMessage = "Failed to create split group on Paystack.";
+
+  try {
+    const headers = await ensurePaystackHeaders();
+    if (headers) {
       const response = await fetch("https://api.paystack.co/split", {
         method: "POST",
         headers,
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify(payload),
       });
 
       const json = await response.json();
-      if (response.ok && json.status) {
+      if (response.ok && json.status && json.data) {
         return res.json({
           success: true,
+          id: json.data.id,
           split_code: json.data.split_code,
           name: json.data.name,
+          type: json.data.type,
+          currency: json.data.currency,
+          bearer_type: json.data.bearer_type,
+          subaccounts: json.data.subaccounts,
+          mode: "live",
           data: json.data,
         });
       }
-      return res.status(400).json({ success: false, message: json.message || "Failed to create split group" });
+      if (json.message) {
+        lastErrorMessage = json.message;
+      }
     }
   } catch (error: unknown) {
-    console.error("Split group error:", error);
+    console.error("Split group direct Paystack error:", error);
   }
 
-  return res.status(400).json({ success: false, message: "Failed to create split group." });
+  // Fallback delegation to KeySafe proxy split endpoints if available
+  const keySafeSplitUrls = [
+    "https://keysafe-ntia.onrender.com/split?mode=live",
+    "https://keysafe-ntia.onrender.com/api/split?mode=live",
+    "https://keysafe-ntia.onrender.com/api/paystack/create-split-group?mode=live",
+  ];
+  for (const url of keySafeSplitUrls) {
+    try {
+      const proxyRes = await fetch(url, {
+        method: "POST",
+        signal: AbortSignal.timeout(25000),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Paystack-Mode": "live",
+          "X-Environment-Mode": "live",
+          "X-Context-Mode": "live",
+        },
+        body: JSON.stringify({ ...payload, mode: "live" }),
+      });
+      const proxyJson = await proxyRes.json().catch(() => ({}));
+      const splitCode = proxyJson.split_code || proxyJson.data?.split_code;
+      if (proxyRes.ok && splitCode) {
+        return res.json({
+          success: true,
+          id: proxyJson.id || proxyJson.data?.id,
+          split_code: splitCode,
+          name: proxyJson.name || proxyJson.data?.name || name,
+          type,
+          currency,
+          bearer_type,
+          subaccounts: normalizedSubaccounts,
+          mode: "live",
+          data: proxyJson.data || proxyJson,
+          delegated: true,
+        });
+      }
+      if (proxyJson.detail?.message || proxyJson.message) {
+        lastErrorMessage = proxyJson.detail?.message || proxyJson.message;
+      }
+    } catch {
+      // Try next gateway endpoint
+    }
+  }
+
+  return res.status(400).json({ success: false, message: lastErrorMessage });
+});
+
+// --- 5b. PUT /api/paystack/payroll/split-group/:splitId ---
+app.put("/api/paystack/payroll/split-group/:splitId", async (req, res) => {
+  const { splitId } = req.params;
+  const { name, active, bearer_type, bearer_subaccount, subaccounts } = req.body;
+
+  if (!splitId) {
+    return res.status(400).json({ success: false, message: "splitId is required" });
+  }
+
+  try {
+    const headers = await ensurePaystackHeaders();
+    if (!headers) {
+      return res.status(503).json({ success: false, message: "Paystack live key unavailable." });
+    }
+
+    const updatePayload: Record<string, unknown> = {};
+    if (name !== undefined) updatePayload.name = name;
+    if (active !== undefined) updatePayload.active = active;
+    if (bearer_type !== undefined) updatePayload.bearer_type = bearer_type;
+    if (bearer_subaccount !== undefined) updatePayload.bearer_subaccount = bearer_subaccount;
+
+    const response = await fetch(`https://api.paystack.co/split/${encodeURIComponent(splitId)}`, {
+      method: "PUT",
+      headers,
+      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify(updatePayload),
+    });
+    const json = await response.json();
+
+    if (response.ok && json.status && Array.isArray(subaccounts)) {
+      for (const item of subaccounts) {
+        await fetch(`https://api.paystack.co/split/${encodeURIComponent(splitId)}/subaccount/add`, {
+          method: "POST",
+          headers,
+          signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({
+            subaccount: item.subaccount || item.subaccount_code,
+            share: Math.round(Number(item.share)),
+          }),
+        }).catch(() => {});
+      }
+    }
+
+    if (response.ok && json.status) {
+      return res.json({ success: true, data: json.data });
+    }
+    return res.status(400).json({ success: false, message: json.message || "Failed to update split group" });
+  } catch (err: unknown) {
+    console.error("Split group update error:", err);
+    return res.status(500).json({ success: false, message: "Error updating split group" });
+  }
+});
+
+// --- 5c. POST /api/paystack/payroll/initialize ---
+// Zero-Platform-Touch Instructor Salary Checkout:
+// - Individual payout: 100% routed directly to instructor subaccount (transaction_charge: 0, bearer: "subaccount")
+// - Multi-instructor payout: Single transaction via Paystack split_code or dynamic flat split (bearer_type: "all-proportional", 0% main account cut)
+app.post("/api/paystack/payroll/initialize", async (req, res) => {
+  const {
+    paymentType = "individual",
+    email,
+    amount,
+    currency = "NGN",
+    subaccount_code,
+    split_code,
+    recipients = [],
+    bearer_type = "all-proportional",
+    bearer_subaccount,
+    reference,
+    metadata = {},
+  } = req.body;
+
+  if (!email || !amount || Number(amount) <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Payer email and positive salary amount are required.",
+    });
+  }
+
+  const amountInKobo = Math.round(Number(amount) * 100);
+  const activeCurrency = String(currency || "NGN").toUpperCase();
+  const txReference =
+    reference ||
+    `PAY-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+  let lastErrorMessage = "Failed to initialize salary payment on Paystack.";
+
+  try {
+    const headers = await ensurePaystackHeaders();
+    if (headers) {
+      const payload: Record<string, unknown> = {
+        email: String(email).trim(),
+        amount: amountInKobo,
+        currency: activeCurrency,
+        reference: txReference,
+        metadata: {
+          ...metadata,
+          payroll_flow: true,
+          payment_type: paymentType,
+          platform_cut_kobo: 0,
+          mode: "live",
+        },
+      };
+
+      if (paymentType === "individual") {
+        if (!subaccount_code) {
+          return res.status(400).json({
+            success: false,
+            message: "Instructor Paystack subaccount code is required for individual salary disbursement.",
+          });
+        }
+        payload.subaccount = subaccount_code;
+        payload.transaction_charge = 0; // 0 kobo to platform account; 100% allocated to instructor subaccount
+        payload.bearer = "subaccount"; // Gateway fees borne by subaccount settlement so platform account is never debited
+      } else {
+        if (split_code && (!Array.isArray(recipients) || recipients.length === 0)) {
+          payload.split_code = split_code;
+        } else if (Array.isArray(recipients) && recipients.length > 0) {
+          const splitSubaccounts = recipients.map(
+            (r: { subaccount_code?: string; subaccount?: string; amount?: number; share?: number }) => ({
+              subaccount: r.subaccount_code || r.subaccount,
+              share:
+                r.share !== undefined
+                  ? Math.round(Number(r.share))
+                  : Math.round(Number(r.amount || 0) * 100),
+            })
+          );
+          const dynamicSplit: Record<string, unknown> = {
+            type: "flat",
+            bearer_type,
+            subaccounts: splitSubaccounts,
+          };
+          if (bearer_type === "subaccount" && bearer_subaccount) {
+            dynamicSplit.bearer_subaccount = bearer_subaccount;
+          }
+          payload.split = dynamicSplit;
+        } else if (split_code) {
+          payload.split_code = split_code;
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: "Either split_code or recipients subaccount list is required for group salary disbursement.",
+          });
+        }
+      }
+
+      const response = await fetch("https://api.paystack.co/transaction/initialize", {
+        method: "POST",
+        headers,
+        signal: AbortSignal.timeout(15000),
+        body: JSON.stringify(payload),
+      });
+
+      const json = await response.json();
+      if (response.ok && json.status && json.data) {
+        return res.json({
+          success: true,
+          authorization_url: json.data.authorization_url,
+          access_code: json.data.access_code,
+          reference: json.data.reference || txReference,
+          split_code: split_code || undefined,
+          subaccount_code: subaccount_code || undefined,
+          mode: "live",
+        });
+      }
+      if (json.message) {
+        lastErrorMessage = json.message;
+      }
+    }
+  } catch (err: unknown) {
+    console.error("[Paystack Payroll] Direct initialize error:", err);
+  }
+
+  // Fallback to KeySafe split-payment gateway if direct secret key was unreachable
+  if (paymentType === "individual" && subaccount_code) {
+    const keySafeUrls = [
+      "https://keysafe-ntia.onrender.com/split-payment?mode=live",
+      "https://keysafe-ntia.onrender.com/api/split-payment?mode=live",
+    ];
+    for (const url of keySafeUrls) {
+      try {
+        const proxyRes = await fetch(url, {
+          method: "POST",
+          signal: AbortSignal.timeout(25000),
+          headers: {
+            "Content-Type": "application/json",
+            "X-Paystack-Mode": "live",
+            "X-Environment-Mode": "live",
+            "X-Context-Mode": "live",
+          },
+          body: JSON.stringify({
+            email: String(email).trim(),
+            amount: amountInKobo,
+            subaccount_code,
+            subaccount: subaccount_code,
+            transaction_charge: 0,
+            bearer: "subaccount",
+            currency: activeCurrency,
+            reference: txReference,
+            mode: "live",
+            metadata: {
+              ...metadata,
+              payroll_flow: true,
+              platform_cut_kobo: 0,
+            },
+          }),
+        });
+        const proxyJson = await proxyRes.json().catch(() => ({}));
+        const authUrl = proxyJson.authorization_url || proxyJson.data?.authorization_url;
+        const accessCode = proxyJson.access_code || proxyJson.data?.access_code;
+        if (proxyRes.ok && (accessCode || authUrl)) {
+          return res.json({
+            success: true,
+            authorization_url: authUrl,
+            access_code: accessCode,
+            reference: proxyJson.reference || proxyJson.data?.reference || txReference,
+            subaccount_code,
+            mode: "live",
+            delegated: true,
+          });
+        }
+        if (proxyJson.detail?.message || proxyJson.message) {
+          lastErrorMessage = proxyJson.detail?.message || proxyJson.message;
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  return res.status(400).json({
+    success: false,
+    message: lastErrorMessage,
+  });
 });
 
 // --- 6. GET /api/paystack/verify/:reference ---
@@ -1064,9 +1365,9 @@ app.get("/api/paystack/verify/:reference", async (req, res) => {
   const { reference } = req.params;
 
   try {
-    const headers = getPaystackHeaders();
+    const headers = await ensurePaystackHeaders();
     if (headers) {
-      const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, { headers });
+      const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, { headers });
       const json = await response.json();
       if (response.ok && json.status) {
         return res.json({
@@ -1075,15 +1376,47 @@ app.get("/api/paystack/verify/:reference", async (req, res) => {
           amount: json.data.amount / 100,
           currency: json.data.currency,
           subaccount: json.data.subaccount,
+          split: json.data.split,
           metadata: json.data.metadata,
           paid_at: json.data.paid_at,
           data: json.data,
         });
       }
-      return res.status(400).json({ success: false, message: "Verification failed." });
+      return res.status(400).json({ success: false, message: json.message || "Verification failed." });
     }
   } catch (error: unknown) {
     console.error("Verification error:", error);
+  }
+
+  try {
+    const proxyRes = await fetch(
+      `https://keysafe-ntia.onrender.com/api/transaction/verify/${encodeURIComponent(reference)}?mode=live`,
+      {
+        headers: {
+          Accept: "application/json",
+          "X-Paystack-Mode": "live",
+          "X-Environment-Mode": "live",
+        },
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+    const proxyJson = await proxyRes.json().catch(() => ({}));
+    const txData = proxyJson.data || proxyJson;
+    if (proxyRes.ok && (proxyJson.status || txData?.status)) {
+      return res.json({
+        success: true,
+        status: txData.status,
+        amount: typeof txData.amount === "number" ? txData.amount / 100 : undefined,
+        currency: txData.currency,
+        subaccount: txData.subaccount,
+        split: txData.split,
+        metadata: txData.metadata,
+        paid_at: txData.paid_at,
+        data: txData,
+      });
+    }
+  } catch {
+    // ignore proxy fallback error
   }
 
   return res.status(400).json({ success: false, message: "Verification failed." });
@@ -1129,8 +1462,7 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     paystackConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY),
     liveKeyConfigured: !!(PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY),
-    // testKeyConfigured: !!PAYSTACK_TEST_SECRET_KEY,
-    headers: getPaystackHeaders(true),
+    headers: Boolean(getPaystackHeaders()),
     mode: "live",
   });
 });

@@ -31,6 +31,7 @@ import SuperAdmin from "../pages/SuperAdmin";
 import ScrollToTop from "./ScrollToTop";
 import { Notifications } from "../pages/Notifications";
 import { AttendancePage } from "../pages/AttendancePage";
+import { PayrollPage } from "../pages/PayrollPage";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, firebaseUser, loading } = useAuth();
@@ -107,6 +108,14 @@ const Index: React.FC = () => {
                         element={
                           <ProtectedRoute>
                             <PageWrapper><AttendancePage /></PageWrapper>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/payroll"
+                        element={
+                          <ProtectedRoute>
+                            <PageWrapper><PayrollPage /></PageWrapper>
                           </ProtectedRoute>
                         }
                       />

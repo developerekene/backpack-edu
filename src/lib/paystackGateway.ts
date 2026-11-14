@@ -94,6 +94,99 @@ export async function createSubaccount(params: {
  * 4. Verify a transaction by reference
  */
 export async function verifyTransaction(reference: string) {
-  const res = await centralApiClient(`/api/transaction/verify/${encodeURIComponent(reference)}`);
+  const res = await centralApiClient(`/api/paystack/verify/${encodeURIComponent(reference)}`);
   return res.json();
 }
+
+export interface CreatePayrollSplitGroupParams {
+  name: string;
+  type: "flat" | "percentage";
+  currency: string;
+  bearer_type: "all-proportional" | "all" | "subaccount";
+  bearer_subaccount?: string;
+  subaccounts: Array<{
+    subaccount: string;
+    share: number;
+  }>;
+}
+
+export async function createPayrollSplitGroup(params: CreatePayrollSplitGroupParams) {
+  const res = await centralApiClient("/api/paystack/payroll/split-group", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success || !json.split_code) {
+    throw new Error(json.message || json.detail?.message || "Failed to create Paystack transaction split group.");
+  }
+  return json as {
+    success: true;
+    id?: number | string;
+    split_code: string;
+    name: string;
+    type: string;
+    currency: string;
+    bearer_type: string;
+    subaccounts: Array<{ subaccount: string; share: number }>;
+  };
+}
+
+export async function updatePayrollSplitGroup(
+  splitId: string | number,
+  params: {
+    name?: string;
+    active?: boolean;
+    bearer_type?: "all-proportional" | "all" | "subaccount";
+    bearer_subaccount?: string;
+    subaccounts?: Array<{ subaccount: string; share: number }>;
+  }
+) {
+  const res = await centralApiClient(`/api/paystack/payroll/split-group/${encodeURIComponent(String(splitId))}`, {
+    method: "PUT",
+    body: JSON.stringify(params),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || "Failed to update Paystack split group.");
+  }
+  return json;
+}
+
+export interface InitializePayrollParams {
+  paymentType: "individual" | "group";
+  email: string;
+  amount: number;
+  currency: string;
+  subaccount_code?: string;
+  split_code?: string;
+  recipients?: Array<{
+    subaccount_code: string;
+    amount: number;
+    share?: number;
+  }>;
+  bearer_type?: "all-proportional" | "all" | "subaccount";
+  bearer_subaccount?: string;
+  reference?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export async function initializePayrollTransaction(params: InitializePayrollParams) {
+  const res = await centralApiClient("/api/paystack/payroll/initialize", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success || (!json.access_code && !json.authorization_url)) {
+    throw new Error(json.message || json.detail?.message || "Unable to initialize salary checkout with Paystack.");
+  }
+  return json as {
+    success: true;
+    authorization_url?: string;
+    access_code?: string;
+    reference: string;
+    split_code?: string;
+    subaccount_code?: string;
+    mode: "live";
+  };
+}
+

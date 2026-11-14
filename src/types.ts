@@ -52,6 +52,82 @@ export interface PaystackSplitTransaction {
   paymentUrl?: string;
 }
 
+export interface InstructorPayrollRecipient {
+  id: string;
+  orgId: string;
+  instructorId: string;
+  instructorName: string;
+  instructorEmail?: string;
+  subaccountCode: string;
+  bankCode?: string;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  currency: string;
+  defaultSalary?: number;
+  roleTitle?: string;
+  source?: "online" | "offline";
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PayrollSplitMember {
+  instructorId: string;
+  instructorName: string;
+  instructorEmail?: string;
+  subaccountCode: string;
+  bankName?: string;
+  accountNumber?: string;
+  amount: number; // Fixed amount in major currency unit (e.g. NGN 150000) when flat split
+  sharePercentage?: number; // % share when percentage split
+}
+
+export interface PayrollSplitGroup {
+  id: string;
+  orgId: string;
+  name: string;
+  splitCode: string; // Live Paystack SPL_... code
+  paystackSplitId?: number | string;
+  type: "flat" | "percentage";
+  currency: string;
+  bearerType: "all-proportional" | "all" | "subaccount" | "account";
+  bearerSubaccount?: string;
+  members: PayrollSplitMember[];
+  totalAmount?: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PayrollDisbursement {
+  id: string;
+  orgId: string;
+  reference: string;
+  paymentType: "individual" | "split_group" | "batch_split";
+  splitGroupId?: string;
+  splitCode?: string;
+  splitGroupName?: string;
+  payerEmail: string;
+  currency: string;
+  totalAmount: number;
+  platformCut: 0; // Guaranteed zero platform touch
+  recipients: Array<{
+    instructorId: string;
+    instructorName: string;
+    instructorEmail?: string;
+    subaccountCode: string;
+    bankName?: string;
+    accountNumber?: string;
+    amount: number;
+  }>;
+  status: "success" | "failed" | "initialized";
+  note?: string;
+  payPeriod?: string;
+  paidAt: string;
+  createdAt: string;
+  initiatedBy?: string;
+}
+
 export interface UserDocument {
   id: string;
   title: string;
