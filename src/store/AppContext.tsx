@@ -633,8 +633,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const uEmail = (personalInfo.email as string) || "";
         const isSuperAdminEmail = uEmail.toLowerCase() === "ekenehq@gmail.com";
 
+        const rawRole = String(
+          personalInfo.role || userObj.role || "student",
+        )
+          .toLowerCase()
+          .trim() as Role;
+
         const isSuperAdminAccount =
-          isSuperAdminEmail || personalInfo.role === "super_admin";
+          isSuperAdminEmail || rawRole === "super_admin";
 
         // Never expose Super Admin in application user lists/searches
         if (
@@ -648,7 +654,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               (personalInfo.name as string) ||
               "Unnamed User",
             email: uEmail,
-            role: (personalInfo.role as Role) || "student",
+            role: rawRole || "student",
+            orgId: personalInfo.orgId as string | undefined,
             createdAt:
               (personalInfo.createdAt as string) || new Date().toISOString(),
             headline: personalInfo.headline as string | undefined,
