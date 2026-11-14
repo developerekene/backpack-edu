@@ -894,3 +894,78 @@ export interface AppNotification {
   createdAt: string;
   linkUrl?: string;
 }
+
+export type EventVisibilityType = "go_live" | "private";
+export type EventFormatCategory =
+  | "webinar"
+  | "summit"
+  | "workshop"
+  | "seminar"
+  | "lecture"
+  | "other";
+
+export interface EventCreator {
+  id: string;
+  name: string;
+  email?: string;
+  role?: Role;
+}
+
+export interface EventAttendee {
+  userId: string;
+  name: string;
+  email?: string;
+  role?: Role | "guest";
+  status: "going" | "maybe" | "not_going";
+  courseId?: string;
+  courseTitle?: string;
+  joinedAt: string;
+}
+
+export interface EventFacilitator {
+  id: string;
+  name: string;
+  email?: string;
+  role?: Role;
+}
+
+export interface EventWaitingParticipant {
+  userId: string;
+  name: string;
+  email?: string;
+  role?: Role | "guest";
+  requestedAt: string;
+  status: "waiting" | "admitted" | "rejected";
+  admittedAt?: string;
+}
+
+export interface AppEvent {
+  id: string;
+  title: string;
+  subject: string;
+  description?: string;
+  date: string;
+  time: string;
+  location: string;
+  link?: string;
+  roomName?: string;
+  eventType?: EventVisibilityType;
+  category?: EventFormatCategory;
+  orgId?: string;
+  orgName?: string;
+  storageUid?: string;
+  courseId?: string;
+  courseTitle?: string;
+  courseType?: string;
+  mode?: "online" | "onsite" | "allevent";
+  facilitatorId?: string;
+  facilitatorName?: string;
+  facilitatorEmail?: string;
+  facilitators?: EventFacilitator[];
+  createdBy: EventCreator;
+  attendees: EventAttendee[];
+  waitingRoom?: EventWaitingParticipant[];
+  createdAt: string;
+  updatedAt?: string;
+}
+

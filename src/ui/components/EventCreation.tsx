@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   X,
   Building2,
@@ -17,18 +17,26 @@ import {
   Save,
   UserCheck,
   Video,
+  Radio,
+  Shield,
+  Tag,
 } from "lucide-react";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
 import { useEventContext, userToCreator } from "../../store/EventContext";
 import type { AppEvent } from "../../store/EventContext";
+import type { EventFormatCategory, EventVisibilityType } from "../../types";
 import {
   COURSE_TYPE_OPTIONS,
   COURSE_TYPE_PREFIX,
+  EVENT_FORMAT_OPTIONS,
   courseTypeFromValue,
   courseTypeLabel,
+  normaliseEventFormat,
+  normaliseEventType,
   type EventMode,
 } from "../../lib/eventMeta";
+import { matchesOrgIdentifier } from "../../lib/eventEligibility";
 
 /* ============================================================= */
 /* Props                                                         */
@@ -79,7 +87,7 @@ const to24Hour = (value: string): string => {
 };
 
 /* ============================================================= */
-/* Field wrapper (module-level so it isn't recreated each render) */
+/* Field wrapper                                                 */
 /* ============================================================= */
 
 interface FieldProps {
@@ -136,11 +144,19 @@ export const EventCreation: React.FC<EventCreationProps> = ({
   onCreated,
 }) => {
   const { currentUser } = useAuth();
-  const { courses, organizations } = useAppContext();
+  const { courses, organizations, allUsers, orgMembers } = useAppContext();
   const { addEvent, updateEvent } = useEventContext();
 
   const isEditMode = Boolean(existingEvent);
   const EVENT_DRAFT_KEY = "bp_draft_event_creation";
+
+  const isOrganizationOrSuperAdmin =
+    currentUser?.role === "organization" ||
+    currentUser?.role === "super_admin" ||
+    currentUser?.email?.toLowerCase() === "ekenehq@gmail.com";
+
+  const isInstructor = currentUser?.role === "instructor" && !isOrganizationOrSuperAdmin;
+  const canCreateEvent = isOrganizationOrSuperAdmin || isInstructor;
 
   const getEventDraft = () => {
     try {
@@ -166,23 +182,68 @@ export const EventCreation: React.FC<EventCreationProps> = ({
     location: existingEvent?.location ?? initialDraft?.location ?? "",
     link: existingEvent?.link ?? initialDraft?.link ?? "",
     mode: (existingEvent?.mode ?? initialDraft?.mode ?? "online") as string,
-    facilitatorName: existingEvent?.facilitatorName ?? initialDraft?.facilitatorName ?? "",
-    facilitatorEmail: existingEvent?.facilitatorEmail ?? initialDraft?.facilitatorEmail ?? "",
+    eventType: (existingEvent
+      ? normaliseEventType(existingEvent)
+      : isInstructor
+        ? "go_live"
+        : (initialDraft?.eventType ?? "go_live")) as EventVisibilityType,
+    category: (existingEvent
+      ? normaliseEventFormat(existingEvent.category)
+      : (initialDraft?.category ?? "webinar")) as EventFormatCategory,
+    facilitatorName:
+      existingEvent?.facilitatorName ??
+      initialDraft?.facilitatorName ??
+      (isInstructor && currentUser?.name ? currentUser.name : ""),
+    facilitatorEmail:
+      existingEvent?.facilitatorEmail ??
+      initialDraft?.facilitatorEmail ??
+      (isInstructor && currentUser?.email ? currentUser.email : ""),
     courseId: existingEvent?.courseType
       ? `${COURSE_TYPE_PREFIX}${existingEvent.courseType}`
       : (existingEvent?.courseId ?? initialDraft?.courseId ?? ""),
   }));
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(() => Boolean(initialDraft));
 
-  const instructorsList = React.useMemo(() => {
+  // Instructor suggestions from backend instructor accounts (never super_admin), org members, and courses
+  const instructorsList = useMemo(() => {
     const map = new Map<string, { id: string; name: string; email?: string }>();
+    allUsers.forEach((u) => {
+      const emailLower = (u.email || "").trim().toLowerCase();
+      if (
+        u.role !== "instructor" ||
+        u.isDeleted ||
+        u.isSuspended ||
+        emailLower === "ekenehq@gmail.com"
+      ) {
+        return;
+      }
+      const key = u.name.trim().toLowerCase();
+      if (key && !map.has(key)) {
+        map.set(key, { id: u.id, name: u.name.trim(), email: u.email });
+      }
+    });
+    orgMembers.forEach((m) => {
+      if (m.role !== "instructor") return;
+      const emailLower = (m.email || "").trim().toLowerCase();
+      if (emailLower === "ekenehq@gmail.com") return;
+      const key = m.name.trim().toLowerCase();
+      if (key && !map.has(key)) {
+        map.set(key, {
+          id: m.userId || m.id,
+          name: m.name.trim(),
+          email: m.email,
+        });
+      }
+    });
     courses.forEach((c) => {
       if (c.instructorName && c.instructorName.trim()) {
         const key = c.instructorName.trim().toLowerCase();
         if (!map.has(key)) {
-          const instructorEmail = (c as typeof c & { instructorEmail?: string }).instructorEmail || "";
+          const instructorEmail =
+            (c as typeof c & { instructorEmail?: string }).instructorEmail || "";
           map.set(key, {
             id: c.instructorId || `inst_${key}`,
             name: c.instructorName.trim(),
@@ -192,7 +253,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
       }
     });
     return Array.from(map.values());
-  }, [courses]);
+  }, [allUsers, orgMembers, courses]);
 
   // Auto-save event draft when user changes fields
   useEffect(() => {
@@ -219,8 +280,10 @@ export const EventCreation: React.FC<EventCreationProps> = ({
       location: "",
       link: "",
       mode: "online",
-      facilitatorName: "",
-      facilitatorEmail: "",
+      eventType: "go_live",
+      category: "webinar",
+      facilitatorName: isInstructor && currentUser?.name ? currentUser.name : "",
+      facilitatorEmail: isInstructor && currentUser?.email ? currentUser.email : "",
       courseId: "",
     });
     setIsDraftRestored(false);
@@ -241,17 +304,10 @@ export const EventCreation: React.FC<EventCreationProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // Strict check: only organization accounts and super admins can create/edit events.
-  // Instructors can only be assigned as facilitators.
-  const isOrganizationOrSuperAdmin =
-    currentUser?.role === "organization" ||
-    currentUser?.role === "super_admin" ||
-    currentUser?.email?.toLowerCase() === "ekenehq@gmail.com";
-
-  /* ---- Organization / Super Admin gate ---- */
   if (!isOpen) return null;
 
-  if (!currentUser || !isOrganizationOrSuperAdmin) {
+  /* ---- Organization / Instructor gate (block students & unauthenticated) ---- */
+  if (!currentUser || !canCreateEvent) {
     return (
       <div
         className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
@@ -266,11 +322,10 @@ export const EventCreation: React.FC<EventCreationProps> = ({
               <Lock className="w-7 h-7" />
             </div>
             <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">
-              Organizations &amp; Admins Only
+              Organizations &amp; Instructors Only
             </h3>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              Only verified organization and super administrator accounts can create or manage events on Backpack.
-              Instructors can be assigned to facilitate sessions, but cannot create or delete events.
+              Organizations can create both Go Live and Private events. Instructors can create Go Live webinars, summits, and workshops.
             </p>
             <button
               onClick={onClose}
@@ -284,25 +339,51 @@ export const EventCreation: React.FC<EventCreationProps> = ({
     );
   }
 
-  /* ---- Current organization + its courses ---- */
-  const organization = organizations.find(
-    (org) => org.ownerId === currentUser.id || org.id === currentUser.id,
-  );
-
-  const organizationIds = [
-    currentUser.id,
-    organization?.id,
-    organization?.ownerId,
-  ].filter((value): value is string => Boolean(value));
+  /* ---- Resolve host organization for storageUid & Private event scoping ---- */
+  const matchedOrg =
+    organizations.find(
+      (org) => org.ownerId === currentUser.id || org.id === currentUser.id,
+    ) ||
+    organizations.find(
+      (org) =>
+        currentUser.orgId &&
+        matchesOrgIdentifier(currentUser.orgId, org.id, organizations),
+    ) ||
+    (() => {
+      const member = orgMembers.find(
+        (m) =>
+          m.status === "active" &&
+          ((m.userId && m.userId === currentUser.id) ||
+            (currentUser.email &&
+              m.email?.toLowerCase() === currentUser.email.toLowerCase())),
+      );
+      return member
+        ? organizations.find((o) =>
+            matchesOrgIdentifier(member.orgId, o.id, organizations),
+          )
+        : undefined;
+    })();
 
   const organizationCourses = courses.filter((course) =>
-    organizationIds.includes(course.orgId),
+    matchesOrgIdentifier(
+      course.orgId,
+      matchedOrg?.id || currentUser.orgId || currentUser.id,
+      organizations,
+    ),
   );
 
-  const selectedCourse = organizationCourses.find(
-    (c) => c.id === form.courseId,
-  );
-  const selectedCourseType = courseTypeFromValue(form.courseId);
+  const effectiveEventType: EventVisibilityType = isInstructor
+    ? "go_live"
+    : form.eventType;
+
+  const selectedCourse =
+    effectiveEventType === "private"
+      ? organizationCourses.find((c) => c.id === form.courseId)
+      : undefined;
+  const selectedCourseType =
+    effectiveEventType === "private"
+      ? courseTypeFromValue(form.courseId)
+      : undefined;
 
   /* ---- Form handling ---- */
   const setField = (key: keyof typeof form, value: string) => {
@@ -340,8 +421,23 @@ export const EventCreation: React.FC<EventCreationProps> = ({
     setIsSubmitting(true);
 
     const assignedFacilitator = instructorsList.find(
-      (inst) => inst.name.toLowerCase() === form.facilitatorName.trim().toLowerCase(),
+      (inst) =>
+        inst.name.toLowerCase() === form.facilitatorName.trim().toLowerCase(),
     );
+
+    const resolvedStorageUid =
+      existingEvent?.storageUid ||
+      matchedOrg?.ownerId ||
+      currentUser.id;
+    const resolvedOrgId =
+      existingEvent?.orgId ||
+      matchedOrg?.id ||
+      currentUser.orgId ||
+      currentUser.id;
+    const resolvedOrgName =
+      existingEvent?.orgName ||
+      matchedOrg?.name ||
+      (currentUser.role === "organization" ? currentUser.name : undefined);
 
     const payload = {
       title: form.title.trim(),
@@ -352,9 +448,21 @@ export const EventCreation: React.FC<EventCreationProps> = ({
       location: form.location.trim(),
       link: form.link.trim() || undefined,
       mode: (form.mode || "online") as EventMode,
+      eventType: effectiveEventType,
+      category: form.category || "webinar",
+      orgId: resolvedOrgId,
+      orgName: resolvedOrgName,
+      storageUid: resolvedStorageUid,
       facilitatorName: form.facilitatorName.trim() || undefined,
-      facilitatorEmail: form.facilitatorEmail.trim() || assignedFacilitator?.email || undefined,
-      facilitatorId: assignedFacilitator?.id || (form.facilitatorName.trim() ? "inst_assigned" : undefined),
+      facilitatorEmail:
+        form.facilitatorEmail.trim() || assignedFacilitator?.email || undefined,
+      facilitatorId:
+        assignedFacilitator?.id ||
+        (isInstructor
+          ? currentUser.id
+          : form.facilitatorName.trim()
+            ? "inst_assigned"
+            : undefined),
       courseId: selectedCourse?.id,
       courseTitle: selectedCourse?.title,
       courseType: selectedCourseType,
@@ -399,22 +507,32 @@ export const EventCreation: React.FC<EventCreationProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] border border-[#0078d4]/20 text-[10px] font-bold uppercase tracking-wider">
-                <Building2 className="w-3 h-3 mr-1" />
-                Organization Event
+                {effectiveEventType === "go_live" ? (
+                  <Radio className="w-3 h-3 mr-1" />
+                ) : (
+                  <Building2 className="w-3 h-3 mr-1" />
+                )}
+                {effectiveEventType === "go_live"
+                  ? "Go Live Event"
+                  : "Private Organization Event"}
               </span>
               {!isEditMode && (
                 <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  ✓ Draft auto-saved
+                  Draft auto-saved
                 </span>
               )}
             </div>
             <h3 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">
-              {isEditMode ? "Edit Event" : "Create Event"}
+              {isEditMode
+                ? "Edit Event"
+                : isInstructor
+                  ? "Create Go Live Event"
+                  : "Create Event"}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {isEditMode ? "Editing as " : "Publishing as "}
               <span className="font-semibold text-slate-700 dark:text-slate-300">
-                {organization?.name || currentUser.name}
+                {matchedOrg?.name || currentUser.name}
               </span>
             </p>
           </div>
@@ -423,7 +541,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
               <button
                 type="button"
                 onClick={clearEventDraft}
-                className="px-2.5 py-1 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition"
+                className="px-2.5 py-1 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition cursor-pointer"
                 title="Discard draft and reset fields"
               >
                 Clear Draft
@@ -431,7 +549,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
@@ -445,22 +563,111 @@ export const EventCreation: React.FC<EventCreationProps> = ({
           onSubmit={handleSubmit}
           className="p-6 overflow-y-auto flex-1 space-y-5"
         >
-          <Field
-            label="Event Title"
-            htmlFor="event-title"
-            icon={Type}
-            required
-            error={errors.title}
-          >
-            <input
-              id="event-title"
-              type="text"
-              value={form.title}
-              onChange={(e) => setField("title", e.target.value)}
-              placeholder="e.g. Orientation & Platform Tour"
-              className={`${inputBase} ${borderFor(errors.title)}`}
-            />
-          </Field>
+          {/* Event Type: Go Live vs Private */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Event Access Type <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setField("eventType", "go_live");
+                  setField("courseId", "");
+                }}
+                className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
+                  effectiveEventType === "go_live"
+                    ? "border-[#0078d4] bg-[#0078d4]/10 dark:bg-[#0078d4]/15 ring-1 ring-[#0078d4]/30"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70 hover:border-[#0078d4]/50"
+                }`}
+              >
+                <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                  <Radio className="w-4 h-4 text-[#0078d4] dark:text-[#04a4ec]" />
+                  <span>Go Live Event</span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Open to anyone — guests join the Waiting Room until you accept them or accept everyone.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                disabled={isInstructor}
+                onClick={() => setField("eventType", "private")}
+                title={
+                  isInstructor
+                    ? "Only organizations can create Private events"
+                    : "Create a private organization event"
+                }
+                className={`p-3.5 rounded-2xl border text-left transition ${
+                  isInstructor
+                    ? "border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-800/30 opacity-60 cursor-not-allowed"
+                    : effectiveEventType === "private"
+                      ? "border-emerald-600 bg-emerald-500/10 ring-1 ring-emerald-500/30 cursor-pointer"
+                      : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70 hover:border-emerald-500/50 cursor-pointer"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                  <span className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Private Event</span>
+                  </span>
+                  {isInstructor && (
+                    <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {isInstructor
+                    ? "Organizations only — instructors can create Go Live events."
+                    : "Exclusive to accepted students and instructors in your organization."}
+                </p>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Field
+              label="Event Title"
+              htmlFor="event-title"
+              icon={Type}
+              required
+              error={errors.title}
+            >
+              <input
+                id="event-title"
+                type="text"
+                value={form.title}
+                onChange={(e) => setField("title", e.target.value)}
+                placeholder="e.g. Cloud Engineering Webinar"
+                className={`${inputBase} ${borderFor(errors.title)}`}
+              />
+            </Field>
+
+            <div>
+              <label
+                htmlFor="event-category"
+                className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5"
+              >
+                Event Format
+              </label>
+              <div className="relative">
+                <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <select
+                  id="event-category"
+                  value={form.category}
+                  onChange={(e) => setField("category", e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 pl-10 pr-10 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition"
+                >
+                  {EVENT_FORMAT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
 
           <Field
             label="Subject"
@@ -479,7 +686,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
             />
           </Field>
 
-          {/* Description (textarea, no leading icon) */}
+          {/* Description */}
           <div>
             <label
               htmlFor="event-description"
@@ -532,7 +739,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
             </Field>
           </div>
 
-          {/* Location + Course */}
+          {/* Location + Audience / Course */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field
               label="Location"
@@ -546,77 +753,89 @@ export const EventCreation: React.FC<EventCreationProps> = ({
                 type="text"
                 value={form.location}
                 onChange={(e) => setField("location", e.target.value)}
-                placeholder="e.g. Main Auditorium / Zoom"
+                placeholder="e.g. Virtual Live Room / Main Hall"
                 className={`${inputBase} ${borderFor(errors.location)}`}
               />
             </Field>
 
-            <div>
-              <label
-                htmlFor="event-course"
-                className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5"
-              >
-                Course
-              </label>
-              <div className="relative">
-                <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <select
-                  id="event-course"
-                  value={form.courseId}
-                  onChange={(e) => setField("courseId", e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 pl-10 pr-10 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition"
+            {effectiveEventType === "private" ? (
+              <div>
+                <label
+                  htmlFor="event-course"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5"
                 >
-                  {organizationCourses.length > 0 && (
-                    <optgroup label="My courses">
-                      {organizationCourses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.title}
+                  Organization Audience
+                </label>
+                <div className="relative">
+                  <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <select
+                    id="event-course"
+                    value={form.courseId}
+                    onChange={(e) => setField("courseId", e.target.value)}
+                    className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 pl-10 pr-10 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition"
+                  >
+                    <option value="">
+                      All Accepted Organization Students &amp; Instructors
+                    </option>
+                    {organizationCourses.length > 0 && (
+                      <optgroup label="Specific course">
+                        {organizationCourses.map((course) => (
+                          <option key={course.id} value={course.id}>
+                            {course.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    <optgroup label="Course level (within organization)">
+                      {COURSE_TYPE_OPTIONS.map((option) => (
+                        <option
+                          key={option.value}
+                          value={`${COURSE_TYPE_PREFIX}${option.value}`}
+                        >
+                          {option.label}
                         </option>
                       ))}
                     </optgroup>
-                  )}
 
-                  <optgroup label="Course level (all enrolled students)">
-                    {COURSE_TYPE_OPTIONS.map((option) => (
-                      <option
-                        key={option.value}
-                        value={`${COURSE_TYPE_PREFIX}${option.value}`}
-                      >
-                        {option.label}
-                      </option>
-                    ))}
-                  </optgroup>
+                    {existingEvent?.courseType &&
+                      !COURSE_TYPE_OPTIONS.some(
+                        (option) => option.value === existingEvent?.courseType,
+                      ) && (
+                        <option
+                          value={`${COURSE_TYPE_PREFIX}${existingEvent.courseType}`}
+                        >
+                          {courseTypeLabel(existingEvent.courseType)} (current)
+                        </option>
+                      )}
 
-                  {/* Keeps an older level value visible while editing */}
-                  {existingEvent?.courseType &&
-                    !COURSE_TYPE_OPTIONS.some(
-                      (option) => option.value === existingEvent?.courseType,
-                    ) && (
-                      <option
-                        value={`${COURSE_TYPE_PREFIX}${existingEvent.courseType}`}
-                      >
-                        {courseTypeLabel(existingEvent.courseType)} (current)
-                      </option>
-                    )}
-
-                  {existingEvent?.courseId &&
-                    !existingEvent.courseType &&
-                    !organizationCourses.some(
-                      (course) => course.id === existingEvent.courseId,
-                    ) && (
-                      <option value={existingEvent.courseId}>
-                        {existingEvent.courseTitle || "Current course"}
-                      </option>
-                    )}
-                </select>
+                    {existingEvent?.courseId &&
+                      !existingEvent.courseType &&
+                      !organizationCourses.some(
+                        (course) => course.id === existingEvent.courseId,
+                      ) && (
+                        <option value={existingEvent.courseId}>
+                          {existingEvent.courseTitle || "Current course"}
+                        </option>
+                      )}
+                  </select>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Exclusive only to accepted students and instructors of your organization.
+                </p>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {form.courseId
-                  ? "Only students enrolled in this course (or level) can participate."
-                  : "General events can be joined by any signed-in user."}
-              </p>
-            </div>
+            ) : (
+              <div className="flex flex-col justify-center rounded-2xl border border-[#0078d4]/20 bg-[#0078d4]/5 dark:bg-[#0078d4]/10 p-3.5">
+                <p className="text-xs font-bold text-[#0078d4] dark:text-[#04a4ec] flex items-center gap-1.5">
+                  <Radio className="w-3.5 h-3.5" />
+                  Open Access + Waiting Room
+                </p>
+                <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Anyone can join without belonging to your organization. All participants enter the Waiting Room until you accept them.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Event Mode & Assigned Facilitator (Instructor) */}
@@ -637,14 +856,11 @@ export const EventCreation: React.FC<EventCreationProps> = ({
                   onChange={(e) => setField("mode", e.target.value)}
                   className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 focus:border-[#0078d4] bg-white dark:bg-slate-800/70 pl-10 pr-10 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0078d4]/30 transition"
                 >
-                  <option value="online">Online Live (LiveKit / Virtual)</option>
+                  <option value="online">Online Live (Interactive Classroom)</option>
                   <option value="onsite">Campus Onsite (Physical Lecture Hall)</option>
                   <option value="allevent">Hybrid / General Symposium</option>
                 </select>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Determines how attendees join and where session access links appear.
-              </p>
             </div>
 
             <div>
@@ -673,19 +889,16 @@ export const EventCreation: React.FC<EventCreationProps> = ({
                   ))}
                 </datalist>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Instructors facilitate sessions and conduct roll-call, but cannot create or delete events.
-              </p>
             </div>
           </div>
 
           {/* Link */}
           <Field
-            label="Link"
+            label="External Meeting Link (Optional)"
             htmlFor="event-link"
             icon={Link2}
             error={errors.link}
-            hint="Meeting or registration link (optional)"
+            hint="Leave empty to use the built-in Backpack live room with Waiting Room control."
           >
             <input
               id="event-link"
@@ -701,9 +914,9 @@ export const EventCreation: React.FC<EventCreationProps> = ({
           <div className="flex items-start gap-3 rounded-2xl border border-sky-200 dark:border-sky-500/20 bg-sky-50 dark:bg-sky-500/10 p-4 text-sky-700 dark:text-sky-300">
             <Info className="w-5 h-5 shrink-0 mt-0.5" />
             <p className="text-[11px] sm:text-xs leading-relaxed">
-              {isEditMode
-                ? "Your changes are saved to the Events page immediately. Existing attendees keep their RSVP."
-                : "This event will be published under your organization and appear on the Events page. Students and instructors will be able to view and mark their attendance."}
+              {effectiveEventType === "go_live"
+                ? "This Go Live event will be saved to the backend and visible on both the Home and Events pages. Anyone can request to join, and they will wait in the Waiting Room until you accept them or accept everyone."
+                : "This Private event is saved securely to the backend and exclusive to accepted students and instructors of your organization."}
             </p>
           </div>
         </form>
@@ -713,7 +926,7 @@ export const EventCreation: React.FC<EventCreationProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             Cancel
           </button>
@@ -734,7 +947,9 @@ export const EventCreation: React.FC<EventCreationProps> = ({
                 : "Creating…"
               : isEditMode
                 ? "Save Changes"
-                : "Create Event"}
+                : effectiveEventType === "go_live"
+                  ? "Publish Go Live Event"
+                  : "Create Private Event"}
           </button>
         </div>
       </div>
@@ -743,3 +958,4 @@ export const EventCreation: React.FC<EventCreationProps> = ({
 };
 
 export default EventCreation;
+

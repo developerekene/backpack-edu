@@ -24,10 +24,13 @@ import { EnrollmentModal } from "../components/EnrollmentModal";
 import { CourseJoinModal } from "../components/CourseJoinModal";
 import { CourseDonationModal } from "../components/CourseDonationModal";
 import { CustomAlert } from "../components/CustomAlert";
+import { Pagination } from "../components/Pagination";
 import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanner";
 import { Course, Organization, OrgMember } from "../../types";
 import { generateId } from "../../lib/id";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
+
+const COURSES_PER_PAGE = 10;
 
 interface ExploreInstructor {
   id: string;
@@ -93,6 +96,15 @@ const ExploreOrgs = () => {
         ? "popular"
         : "all",
   );
+  const coursesFilterKey = `${searchQuery}::${selectedQualType}::${onlyAccredited}::${selectedInstructorFilter}::${programTypeFilter}::${activeTab}`;
+  const [coursesPageState, setCoursesPageState] = useState<{
+    key: string;
+    page: number;
+  }>({ key: coursesFilterKey, page: 1 });
+  const coursesPage =
+    coursesPageState.key === coursesFilterKey ? coursesPageState.page : 1;
+  const setCoursesPage = (page: number) =>
+    setCoursesPageState({ key: coursesFilterKey, page });
 
   // Modal State
   const [enrollModalCourse, setEnrollModalCourse] = useState<Course | null>(
@@ -407,6 +419,20 @@ const ExploreOrgs = () => {
     programTypeFilter,
   ]);
 
+  const totalCoursesPages = Math.max(
+    1,
+    Math.ceil(filteredCourses.length / COURSES_PER_PAGE),
+  );
+  const safeCoursesPage = Math.min(coursesPage, totalCoursesPages);
+  const paginatedCourses = useMemo(
+    () =>
+      filteredCourses.slice(
+        (safeCoursesPage - 1) * COURSES_PER_PAGE,
+        safeCoursesPage * COURSES_PER_PAGE,
+      ),
+    [filteredCourses, safeCoursesPage],
+  );
+
   // Filtered Organizations
   const filteredOrganizations = useMemo(() => {
     return activeOrganizations.filter((org) => {
@@ -710,8 +736,9 @@ const ExploreOrgs = () => {
               </button>
             </div>
           ) : (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-              {filteredCourses.map((course) => {
+              {paginatedCourses.map((course) => {
                 const org = activeOrganizations.find((o) =>
                   orgMatchesId(o, course.orgId),
                 );
@@ -885,6 +912,15 @@ const ExploreOrgs = () => {
                 );
               })}
             </div>
+            <Pagination
+              currentPage={safeCoursesPage}
+              totalItems={filteredCourses.length}
+              pageSize={COURSES_PER_PAGE}
+              onPageChange={setCoursesPage}
+              itemLabel="courses"
+              className="mt-6"
+            />
+            </>
           )}
         </div>
       )}

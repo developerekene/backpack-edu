@@ -49,6 +49,7 @@ import {
   InstructorPayrollRecipient,
   PayrollSplitGroup,
   PayrollDisbursement,
+  AppEvent,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
@@ -81,6 +82,8 @@ interface AppState {
   assessments: Assessment[];
   submissions: Submission[];
   scheduleEvents: ScheduleEvent[];
+  appEvents: AppEvent[];
+  setAppEvents: React.Dispatch<React.SetStateAction<AppEvent[]>>;
   messages: ChatMessage[];
   discussionChannels: DiscussionChannel[];
   discussionMessages: DiscussionMessage[];
@@ -330,6 +333,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
   const [courses, setCourses] = useState<Course[]>(() =>
     loadCache("courses", []),
+  );
+  const [appEvents, setAppEvents] = useState<AppEvent[]>(() =>
+    loadCache("events", []),
   );
   const [enrollmentRequests, setEnrollmentRequests] = useState<
     EnrollmentRequest[]
@@ -618,6 +624,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const allAssessments: Assessment[] = [];
       const allSubmissions: Submission[] = [];
       const allEvents: ScheduleEvent[] = [];
+      const allAppEvents: AppEvent[] = [];
       const allMessages: ChatMessage[] = [];
       const allDonationsFromBackpack: CourseDonation[] = [];
       const allPayrollRecipients: InstructorPayrollRecipient[] = [];
@@ -782,6 +789,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             allSubmissions.push(...(courseObj.submissions as Submission[]));
           if (Array.isArray(courseObj.scheduleEvents))
             allEvents.push(...(courseObj.scheduleEvents as ScheduleEvent[]));
+          if (Array.isArray(courseObj.events)) {
+            allAppEvents.push(
+              ...(courseObj.events as AppEvent[])
+                .filter((evt) => evt && typeof evt.id === "string" && !evt.id.startsWith("evt_seed_"))
+                .map((evt) => ({
+                  ...evt,
+                  storageUid: evt.storageUid || docSnap.id,
+                })),
+            );
+          }
           if (Array.isArray(courseObj.messages))
             allMessages.push(...(courseObj.messages as ChatMessage[]));
         }
@@ -903,6 +920,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setOrganizations,
       );
       updateAndCache("courses", dedupeById(allCourses), setCourses);
+      updateAndCache("events", dedupeById(allAppEvents), setAppEvents);
       updateAndCache(
         "enrollmentRequests",
         dedupeById(allEnrollmentRequests),
@@ -3534,6 +3552,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         assessments,
         submissions,
         scheduleEvents,
+        appEvents,
+        setAppEvents,
         messages,
         discussionChannels,
         discussionMessages,

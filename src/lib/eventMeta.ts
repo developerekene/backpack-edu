@@ -64,3 +64,57 @@ export const courseTypeFromValue = (value: string): string | undefined =>
   isCourseTypeValue(value)
     ? value.slice(COURSE_TYPE_PREFIX.length) || undefined
     : undefined;
+
+/* ------------------------------------------------------------- */
+/* Event visibility (Go Live vs Private) & formats                */
+/* ------------------------------------------------------------- */
+
+import type { AppEvent, EventFormatCategory, EventVisibilityType } from "../types";
+
+export const EVENT_FORMAT_OPTIONS: {
+  value: EventFormatCategory;
+  label: string;
+}[] = [
+  { value: "webinar", label: "Webinar" },
+  { value: "summit", label: "Summit" },
+  { value: "workshop", label: "Workshop" },
+  { value: "seminar", label: "Seminar" },
+  { value: "lecture", label: "Live Lecture" },
+  { value: "other", label: "General Session" },
+];
+
+export const EVENT_FORMAT_LABELS: Record<EventFormatCategory, string> = {
+  webinar: "Webinar",
+  summit: "Summit",
+  workshop: "Workshop",
+  seminar: "Seminar",
+  lecture: "Live Lecture",
+  other: "Session",
+};
+
+export const normaliseEventType = (
+  event?: Partial<AppEvent>,
+): EventVisibilityType => {
+  if (event?.eventType === "go_live" || event?.eventType === "private") {
+    return event.eventType;
+  }
+  // Legacy fallback: course/level-restricted events default to private; general events default to go_live
+  return event?.courseId || event?.courseType ? "private" : "go_live";
+};
+
+export const normaliseEventFormat = (
+  value?: string,
+): EventFormatCategory => {
+  if (
+    value === "webinar" ||
+    value === "summit" ||
+    value === "workshop" ||
+    value === "seminar" ||
+    value === "lecture" ||
+    value === "other"
+  ) {
+    return value;
+  }
+  return "webinar";
+};
+

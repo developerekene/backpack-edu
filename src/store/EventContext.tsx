@@ -4,83 +4,38 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useState,
 } from "react";
-import type { Role } from "../types";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import type {
+  AppEvent,
+  EventAttendee,
+  EventCreator,
+  EventFacilitator,
+  EventFormatCategory,
+  EventVisibilityType,
+  EventWaitingParticipant,
+  Role,
+} from "../types";
 import { generateId } from "../lib/id";
-import type { EventMode } from "../lib/eventMeta";
+import { normaliseEventType, type EventMode } from "../lib/eventMeta";
+import { useAppContext } from "./AppContext";
+import { useAuth } from "./AuthContext";
+import {
+  getUserData,
+  sanitizeForFirestore,
+  updateBackpackUserField,
+} from "./utils/backpackUtils";
 
-/* ============================================================= */
-/* Types                                                         */
-/* ============================================================= */
-
-/** The user who created an event. */
-export interface EventCreator {
-  id: string;
-  name: string;
-  email?: string;
-  role?: Role;
-}
-
-/** A single attendance record for an event. */
-export interface EventAttendee {
-  userId: string;
-  name: string;
-  email?: string;
-  role?: Role;
-  status: "going" | "maybe" | "not_going";
-  /** The course the attendee is enrolled in for this event. */
-  courseId?: string;
-  /** Course name captured at the time of joining, for display. */
-  courseTitle?: string;
-  joinedAt: string;
-}
-
-/** Assigned instructor facilitator for the event. */
-export interface EventFacilitator {
-  id: string;
-  name: string;
-  email?: string;
-  role?: Role;
-}
-
-/** The core event shape stored & displayed by the app. */
-export interface AppEvent {
-  id: string;
-  /** Event title, e.g. "Orientation & Platform Tour". */
-  title: string;
-  /** Short subject / summary line for the event. */
-  subject: string;
-  /** Optional longer description. */
-  description?: string;
-  /** Date string (ISO `YYYY-MM-DD` recommended). */
-  date: string;
-  /** Time string, e.g. "10:00 AM". */
-  time: string;
-  /** Physical or virtual location label, e.g. "Main Auditorium / Zoom". */
-  location: string;
-  /** Meeting / registration link. */
-  link?: string;
-  /** Related course id (if the event belongs to a course). */
-  courseId?: string;
-  /** Related course name for display. */
-  courseTitle?: string;
-  /** Qualification level this event targets, e.g. "bachelors". */
-  courseType?: string;
-  /** How the event takes place — online, onsite, or general. */
-  mode?: EventMode;
-  /** Assigned facilitator (instructor or speaker) who leads the session */
-  facilitatorId?: string;
-  facilitatorName?: string;
-  facilitatorEmail?: string;
-  facilitators?: EventFacilitator[];
-  /** The user that created the event (organization or super admin). */
-  createdBy: EventCreator;
-  /** Everyone who has been marked as attending (or maybe / not going). */
-  attendees: EventAttendee[];
-  createdAt: string;
-  updatedAt?: string;
-}
+export type {
+  AppEvent,
+  EventAttendee,
+  EventCreator,
+  EventFacilitator,
+  EventFormatCategory,
+  EventVisibilityType,
+  EventWaitingParticipant,
+};
 
 /** Payload accepted when creating an event (id/timestamps are generated). */
 export type NewAppEvent = Omit<
@@ -88,18 +43,19 @@ export type NewAppEvent = Omit<
   "id" | "createdAt" | "updatedAt" | "attendees"
 > & {
   attendees?: EventAttendee[];
+  waitingRoom?: EventWaitingParticipant[];
   facilitatorId?: string;
   facilitatorName?: string;
   facilitatorEmail?: string;
   facilitators?: EventFacilitator[];
 };
 
-/** Minimal attendee info required when marking attendance. */
+/** Minimal attendee info required when marking attendance or joining waiting room. */
 export interface EventAttendeeInput {
   id: string;
   name: string;
   email?: string;
-  role?: Role;
+  role?: Role | "guest";
   status?: "going" | "maybe" | "not_going";
   /** Course the attendee is enrolled in (the one that grants access). */
   courseId?: string;
@@ -123,13 +79,13 @@ export interface EventSummary {
 interface EventContextType {
   events: AppEvent[];
 
-  /** Create an event and return the stored record. */
+  /** Create an event on the backend (`backpack/{uid}.user.course.events`) and return it. */
   addEvent: (input: NewAppEvent) => AppEvent;
   updateEvent: (
     id: string,
     updates: Partial<Omit<AppEvent, "id" | "createdAt">>,
-  ) => void;
-  deleteEvent: (id: string) => void;
+  ) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
   clearEvents: () => void;
   getEventById: (id: string) => AppEvent | undefined;
 
@@ -138,62 +94,57 @@ interface EventContextType {
   /** Events sorted chronologically, excluding those already past. */
   upcomingEvents: () => AppEvent[];
 
-  /** Attendance helpers. */
+  /** Direct attendance (used for Private events or already-admitted Go Live participants). */
   markAttendance: (eventId: string, attendee: EventAttendeeInput) => void;
   removeAttendance: (eventId: string, userId: string) => void;
   isAttending: (eventId: string, userId: string) => boolean;
   getAttendees: (eventId: string) => EventAttendee[];
   getAttendanceCount: (eventId: string) => number;
-}
 
-/* ============================================================= */
-/* Persistence (mirrors the app's bp_cache_* local cache)        */
-/* ============================================================= */
+  /** Go Live Waiting Room controls. */
+  requestJoinEvent: (
+    eventId: string,
+    participant: EventAttendeeInput,
+  ) => Promise<void>;
+  leaveWaitingRoom: (eventId: string, userId: string) => Promise<void>;
+  acceptWaitingRoomUser: (eventId: string, userId: string) => Promise<void>;
+  acceptAllWaitingRoom: (eventId: string) => Promise<void>;
+  rejectWaitingRoomUser: (eventId: string, userId: string) => Promise<void>;
+  getWaitingRoomStatus: (
+    eventId: string,
+    userId?: string,
+  ) => "waiting" | "admitted" | "rejected" | null;
+  getWaitingParticipants: (eventId: string) => EventWaitingParticipant[];
+}
 
 const STORAGE_KEY = "bp_cache_events";
 
-const loadEvents = (): AppEvent[] => {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // Strict filter: Remove any dummy seed events previously saved in the user's browser
-    return (parsed as AppEvent[]).filter(
-      (evt) =>
-        evt &&
-        typeof evt.id === "string" &&
-        !evt.id.startsWith("evt_seed_") &&
-        evt.title !== "Orientation & Platform Tour" &&
-        evt.title !== "Live Class: Introduction to Data Science" &&
-        evt.title !== "End of Term Project Showcase" &&
-        evt.title !== "Instructor Workshop: Engaging Remote Learners",
-    );
-  } catch {
-    /* Corrupt cache — fall back to an empty list. */
-    return [];
-  }
-};
-
-const saveEvents = (events: AppEvent[]) => {
+const saveEventsCache = (events: AppEvent[]) => {
   if (typeof window === "undefined") return;
   try {
-    // Only save authentic non-dummy events
     const clean = events.filter(
       (evt) => evt && typeof evt.id === "string" && !evt.id.startsWith("evt_seed_"),
     );
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
   } catch {
-    /* Storage might be full or unavailable — safe to ignore. */
+    /* ignore */
   }
+};
+
+const makeRoomSlug = (title: string, id: string): string => {
+  const base = (title || "event")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+  const suffix = id.replace(/[^a-z0-9]/gi, "").slice(-6).toLowerCase();
+  return `evt-${base || "live"}-${suffix || "room"}`;
 };
 
 /* ============================================================= */
 /* Display helpers                                               */
 /* ============================================================= */
 
-/** Convert any user-like object into an event creator. */
 // eslint-disable-next-line react-refresh/only-export-components
 export const userToCreator = (user: {
   id: string;
@@ -207,7 +158,6 @@ export const userToCreator = (user: {
   role: user.role,
 });
 
-/** Human friendly date, e.g. "Mon, 15 Sep 2026". Falls back to the raw value. */
 // eslint-disable-next-line react-refresh/only-export-components
 export const formatEventDate = (date: string): string => {
   if (!date) return "—";
@@ -221,7 +171,6 @@ export const formatEventDate = (date: string): string => {
   });
 };
 
-/** Best-effort timestamp used for sorting / filtering. */
 const eventTimestamp = (event: AppEvent): number => {
   const raw = `${event.date ?? ""} ${event.time ?? ""}`.trim();
   if (!raw) return 0;
@@ -229,10 +178,6 @@ const eventTimestamp = (event: AppEvent): number => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-/**
- * Everything the UI needs to display an event in one flat object:
- * date, time, creator, title, subject, location, link, course, attendance.
- */
 // eslint-disable-next-line react-refresh/only-export-components
 export const getEventSummary = (event: AppEvent): EventSummary => {
   const attending = (event.attendees ?? []).filter((a) => a.status === "going");
@@ -256,65 +201,214 @@ export const getEventSummary = (event: AppEvent): EventSummary => {
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
 export const EventProvider = ({ children }: { children: React.ReactNode }) => {
-  const [events, setEvents] = useState<AppEvent[]>(() => {
-    const loaded = loadEvents();
-    return loaded;
-  });
+  const { appEvents, setAppEvents } = useAppContext();
+  const { currentUser } = useAuth();
 
-  /* Persist to the local cache whenever events change. */
+  const events = appEvents;
+
+  /* Mirror state into localStorage cache whenever events update. */
   useEffect(() => {
-    saveEvents(events);
+    saveEventsCache(events);
   }, [events]);
 
-  const addEvent = useCallback((input: NewAppEvent): AppEvent => {
-    const newEvent: AppEvent = {
-      id: generateId("evt"),
-      title: input.title,
-      subject: input.subject,
-      description: input.description,
-      date: input.date,
-      time: input.time,
-      location: input.location,
-      link: input.link,
-      courseId: input.courseId,
-      courseTitle: input.courseTitle,
-      courseType: input.courseType,
-      mode: input.mode,
-      facilitatorId: input.facilitatorId,
-      facilitatorName: input.facilitatorName,
-      facilitatorEmail: input.facilitatorEmail,
-      facilitators: input.facilitators ?? (input.facilitatorName ? [{
-        id: input.facilitatorId || generateId("fac"),
-        name: input.facilitatorName,
-        email: input.facilitatorEmail,
-        role: "instructor",
-      }] : []),
-      createdBy: input.createdBy,
-      attendees: input.attendees ?? [],
-      createdAt: new Date().toISOString(),
-    };
-    setEvents((prev) => [newEvent, ...prev]);
-    return newEvent;
-  }, []);
+  /** Helper to mutate an event both optimistically and inside its Firestore backpack doc. */
+  const mutateEventInBackend = useCallback(
+    async (
+      eventId: string,
+      mutator: (evt: AppEvent) => AppEvent,
+    ): Promise<void> => {
+      let targetUid = "";
+      let updatedSnapshot: AppEvent | undefined;
 
-  const updateEvent = useCallback(
-    (id: string, updates: Partial<Omit<AppEvent, "id" | "createdAt">>) => {
-      setEvents((prev) =>
-        prev.map((evt) =>
-          evt.id === id
-            ? { ...evt, ...updates, updatedAt: new Date().toISOString() }
-            : evt,
-        ),
+      setAppEvents((prev) =>
+        prev.map((evt) => {
+          if (evt.id !== eventId) return evt;
+          targetUid =
+            evt.storageUid ||
+            evt.orgId ||
+            evt.createdBy?.id ||
+            currentUser?.id ||
+            "";
+          updatedSnapshot = mutator(evt);
+          return updatedSnapshot;
+        }),
       );
+
+      if (!targetUid) {
+        const found = events.find((e) => e.id === eventId);
+        targetUid =
+          found?.storageUid ||
+          found?.orgId ||
+          found?.createdBy?.id ||
+          currentUser?.id ||
+          "";
+      }
+
+      if (!targetUid) return;
+
+      try {
+        await updateBackpackUserField<AppEvent>(
+          targetUid,
+          "course.events",
+          (list) => {
+            const existsInDoc = list.some((e) => e.id === eventId);
+            if (existsInDoc) {
+              return list.map((e) =>
+                e.id === eventId ? sanitizeForFirestore(mutator(e)) : e,
+              );
+            }
+            if (updatedSnapshot) {
+              return [...list, sanitizeForFirestore(updatedSnapshot)];
+            }
+            return list;
+          },
+        );
+      } catch (err) {
+        console.error("Failed to sync event mutation to backend:", err);
+      }
     },
-    [],
+    [events, currentUser?.id, setAppEvents],
   );
 
-  const deleteEvent = useCallback((id: string) => {
-    setEvents((prev) => prev.filter((evt) => evt.id !== id));
-  }, []);
+  const addEvent = useCallback(
+    (input: NewAppEvent): AppEvent => {
+      const id = generateId("evt");
+      const storageUid =
+        input.storageUid ||
+        input.orgId ||
+        input.createdBy?.id ||
+        currentUser?.id ||
+        "";
+      const resolvedEventType = normaliseEventType(input);
+      const roomName =
+        input.roomName || makeRoomSlug(input.title, id);
 
-  const clearEvents = useCallback(() => setEvents([]), []);
+      const newEvent: AppEvent = sanitizeForFirestore({
+        id,
+        title: input.title,
+        subject: input.subject,
+        description: input.description,
+        date: input.date,
+        time: input.time,
+        location: input.location,
+        link: input.link,
+        roomName,
+        eventType: resolvedEventType,
+        category: input.category || "webinar",
+        orgId: input.orgId || storageUid,
+        orgName: input.orgName,
+        storageUid,
+        courseId: input.courseId,
+        courseTitle: input.courseTitle,
+        courseType: input.courseType,
+        mode: (input.mode || "online") as EventMode,
+        facilitatorId: input.facilitatorId,
+        facilitatorName: input.facilitatorName,
+        facilitatorEmail: input.facilitatorEmail,
+        facilitators:
+          input.facilitators ??
+          (input.facilitatorName
+            ? [
+                {
+                  id: input.facilitatorId || generateId("fac"),
+                  name: input.facilitatorName,
+                  email: input.facilitatorEmail,
+                  role: "instructor",
+                },
+              ]
+            : []),
+        createdBy: input.createdBy,
+        attendees: input.attendees ?? [],
+        waitingRoom: input.waitingRoom ?? [],
+        createdAt: new Date().toISOString(),
+      });
+
+      setAppEvents((prev) => [newEvent, ...prev.filter((e) => e.id !== id)]);
+
+      if (storageUid) {
+        updateBackpackUserField<AppEvent>(
+          storageUid,
+          "course.events",
+          (list) => [
+            newEvent,
+            ...list.filter((e) => e.id !== newEvent.id),
+          ],
+        ).catch((err) => {
+          console.error("Failed to persist event to backend:", err);
+        });
+      }
+
+      return newEvent;
+    },
+    [currentUser?.id, setAppEvents],
+  );
+
+  const updateEvent = useCallback(
+    async (
+      id: string,
+      updates: Partial<Omit<AppEvent, "id" | "createdAt">>,
+    ) => {
+      await mutateEventInBackend(id, (evt) => ({
+        ...evt,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      }));
+    },
+    [mutateEventInBackend],
+  );
+
+  const deleteEvent = useCallback(
+    async (id: string) => {
+      const existing = events.find((e) => e.id === id);
+      setAppEvents((prev) => prev.filter((evt) => evt.id !== id));
+
+      const targetUids = new Set<string>();
+      if (existing?.storageUid) targetUids.add(existing.storageUid);
+      if (existing?.orgId) {
+        targetUids.add(existing.orgId);
+        if (existing.orgId.startsWith("org_")) {
+          targetUids.add(existing.orgId.replace("org_", ""));
+        }
+      }
+      if (existing?.createdBy?.id) targetUids.add(existing.createdBy.id);
+      if (currentUser?.id) targetUids.add(currentUser.id);
+
+      for (const uid of targetUids) {
+        try {
+          await updateBackpackUserField<AppEvent>(uid, "course.events", (list) =>
+            list.filter((evt) => evt.id !== id),
+          );
+        } catch (err) {
+          console.warn(`Could not delete event from backpack/${uid}:`, err);
+        }
+      }
+
+      // Sweep across backpack docs in case event lived under an alias org/owner doc
+      try {
+        const snap = await getDocs(collection(db, "backpack"));
+        for (const docSnap of snap.docs) {
+          if (targetUids.has(docSnap.id)) continue;
+          const userObj = getUserData(docSnap.data());
+          const courseObj = (userObj.course as Record<string, unknown>) || {};
+          if (
+            Array.isArray(courseObj.events) &&
+            courseObj.events.some((e: AppEvent) => e.id === id)
+          ) {
+            await updateBackpackUserField<AppEvent>(
+              docSnap.id,
+              "course.events",
+              (list) => list.filter((e) => e.id !== id),
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("Sweep delete event notice:", err);
+      }
+    },
+    [events, currentUser?.id, setAppEvents],
+  );
+
+  const clearEvents = useCallback(() => setAppEvents([]), [setAppEvents]);
 
   const getEventById = useCallback(
     (id: string) => events.find((evt) => evt.id === id),
@@ -334,61 +428,222 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
     return [...events]
       .filter((evt) => {
         const ts = eventTimestamp(evt);
-        // Keep events we can't parse so nothing silently disappears.
         return ts === 0 || ts >= threshold;
       })
       .sort((a, b) => eventTimestamp(a) - eventTimestamp(b));
   }, [events]);
 
-  /* ---------------- Attendance ---------------- */
+  /* ---------------- Direct Attendance ---------------- */
 
   const markAttendance = useCallback(
     (eventId: string, attendee: EventAttendeeInput) => {
-      setEvents((prev) =>
-        prev.map((evt) => {
-          if (evt.id !== eventId) return evt;
+      mutateEventInBackend(eventId, (evt) => {
+        const record: EventAttendee = {
+          userId: attendee.id,
+          name: attendee.name,
+          email: attendee.email,
+          role: attendee.role,
+          status: attendee.status ?? "going",
+          courseId: attendee.courseId,
+          courseTitle: attendee.courseTitle,
+          joinedAt: new Date().toISOString(),
+        };
 
-          const record: EventAttendee = {
-            userId: attendee.id,
-            name: attendee.name,
-            email: attendee.email,
-            role: attendee.role,
-            status: attendee.status ?? "going",
-            courseId: attendee.courseId,
-            courseTitle: attendee.courseTitle,
-            joinedAt: new Date().toISOString(),
-          };
+        const attendees = [...(evt.attendees ?? [])];
+        const index = attendees.findIndex((a) => a.userId === attendee.id);
+        if (index >= 0) {
+          attendees[index] = { ...attendees[index], ...record };
+        } else {
+          attendees.push(record);
+        }
 
-          const attendees = [...(evt.attendees ?? [])];
-          const index = attendees.findIndex((a) => a.userId === attendee.id);
-
-          if (index >= 0) {
-            attendees[index] = { ...attendees[index], ...record };
-          } else {
-            attendees.push(record);
-          }
-
-          return { ...evt, attendees };
-        }),
-      );
+        return { ...evt, attendees, updatedAt: new Date().toISOString() };
+      });
     },
-    [],
+    [mutateEventInBackend],
   );
 
-  const removeAttendance = useCallback((eventId: string, userId: string) => {
-    setEvents((prev) =>
-      prev.map((evt) =>
-        evt.id === eventId
-          ? {
-              ...evt,
-              attendees: (evt.attendees ?? []).filter(
-                (a) => a.userId !== userId,
-              ),
-            }
-          : evt,
-      ),
-    );
-  }, []);
+  const removeAttendance = useCallback(
+    (eventId: string, userId: string) => {
+      mutateEventInBackend(eventId, (evt) => ({
+        ...evt,
+        attendees: (evt.attendees ?? []).filter((a) => a.userId !== userId),
+        waitingRoom: (evt.waitingRoom ?? []).filter(
+          (w) => w.userId !== userId,
+        ),
+        updatedAt: new Date().toISOString(),
+      }));
+    },
+    [mutateEventInBackend],
+  );
+
+  /* ---------------- Go Live Waiting Room ---------------- */
+
+  const requestJoinEvent = useCallback(
+    async (eventId: string, participant: EventAttendeeInput) => {
+      await mutateEventInBackend(eventId, (evt) => {
+        const existingQueue = [...(evt.waitingRoom ?? [])];
+        const idx = existingQueue.findIndex(
+          (w) => w.userId === participant.id,
+        );
+        // Preserve already-admitted status if they already got accepted
+        if (idx >= 0 && existingQueue[idx].status === "admitted") {
+          return evt;
+        }
+        const entry: EventWaitingParticipant = {
+          userId: participant.id,
+          name: participant.name,
+          email: participant.email,
+          role: participant.role,
+          requestedAt: new Date().toISOString(),
+          status: "waiting",
+        };
+        if (idx >= 0) {
+          existingQueue[idx] = entry;
+        } else {
+          existingQueue.push(entry);
+        }
+        return {
+          ...evt,
+          waitingRoom: existingQueue,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+    },
+    [mutateEventInBackend],
+  );
+
+  const leaveWaitingRoom = useCallback(
+    async (eventId: string, userId: string) => {
+      await mutateEventInBackend(eventId, (evt) => ({
+        ...evt,
+        waitingRoom: (evt.waitingRoom ?? []).filter(
+          (w) => w.userId !== userId,
+        ),
+        attendees: (evt.attendees ?? []).filter((a) => a.userId !== userId),
+        updatedAt: new Date().toISOString(),
+      }));
+    },
+    [mutateEventInBackend],
+  );
+
+  const acceptWaitingRoomUser = useCallback(
+    async (eventId: string, userId: string) => {
+      const now = new Date().toISOString();
+      await mutateEventInBackend(eventId, (evt) => {
+        const target = (evt.waitingRoom ?? []).find(
+          (w) => w.userId === userId,
+        );
+        const updatedQueue: EventWaitingParticipant[] = (
+          evt.waitingRoom ?? []
+        ).map((w) =>
+          w.userId === userId
+            ? { ...w, status: "admitted", admittedAt: now }
+            : w,
+        );
+
+        const attendees = [...(evt.attendees ?? [])];
+        if (target && !attendees.some((a) => a.userId === userId)) {
+          attendees.push({
+            userId: target.userId,
+            name: target.name,
+            email: target.email,
+            role: target.role,
+            status: "going",
+            joinedAt: now,
+          });
+        }
+
+        return {
+          ...evt,
+          waitingRoom: updatedQueue,
+          attendees,
+          updatedAt: now,
+        };
+      });
+    },
+    [mutateEventInBackend],
+  );
+
+  const acceptAllWaitingRoom = useCallback(
+    async (eventId: string) => {
+      const now = new Date().toISOString();
+      await mutateEventInBackend(eventId, (evt) => {
+        const waitingUsers = (evt.waitingRoom ?? []).filter(
+          (w) => w.status === "waiting",
+        );
+        const updatedQueue: EventWaitingParticipant[] = (
+          evt.waitingRoom ?? []
+        ).map((w) =>
+          w.status === "waiting"
+            ? { ...w, status: "admitted", admittedAt: now }
+            : w,
+        );
+
+        const attendees = [...(evt.attendees ?? [])];
+        waitingUsers.forEach((wu) => {
+          const existingIdx = attendees.findIndex(
+            (a) => a.userId === wu.userId,
+          );
+          if (existingIdx >= 0) {
+            attendees[existingIdx] = {
+              ...attendees[existingIdx],
+              status: "going",
+            };
+          } else {
+            attendees.push({
+              userId: wu.userId,
+              name: wu.name,
+              email: wu.email,
+              role: wu.role,
+              status: "going",
+              joinedAt: now,
+            });
+          }
+        });
+
+        return {
+          ...evt,
+          waitingRoom: updatedQueue,
+          attendees,
+          updatedAt: now,
+        };
+      });
+    },
+    [mutateEventInBackend],
+  );
+
+  const rejectWaitingRoomUser = useCallback(
+    async (eventId: string, userId: string) => {
+      await mutateEventInBackend(eventId, (evt) => ({
+        ...evt,
+        waitingRoom: (evt.waitingRoom ?? []).map((w) =>
+          w.userId === userId ? { ...w, status: "rejected" } : w,
+        ),
+        attendees: (evt.attendees ?? []).filter((a) => a.userId !== userId),
+        updatedAt: new Date().toISOString(),
+      }));
+    },
+    [mutateEventInBackend],
+  );
+
+  const getWaitingRoomStatus = useCallback(
+    (eventId: string, userId?: string) => {
+      if (!userId) return null;
+      const evt = events.find((e) => e.id === eventId);
+      const entry = (evt?.waitingRoom ?? []).find((w) => w.userId === userId);
+      return entry?.status ?? null;
+    },
+    [events],
+  );
+
+  const getWaitingParticipants = useCallback(
+    (eventId: string) => {
+      const evt = events.find((e) => e.id === eventId);
+      return (evt?.waitingRoom ?? []).filter((w) => w.status === "waiting");
+    },
+    [events],
+  );
 
   const getAttendees = useCallback(
     (eventId: string) =>
@@ -427,6 +682,13 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
       isAttending,
       getAttendees,
       getAttendanceCount,
+      requestJoinEvent,
+      leaveWaitingRoom,
+      acceptWaitingRoomUser,
+      acceptAllWaitingRoom,
+      rejectWaitingRoomUser,
+      getWaitingRoomStatus,
+      getWaitingParticipants,
     }),
     [
       events,
@@ -442,6 +704,13 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
       isAttending,
       getAttendees,
       getAttendanceCount,
+      requestJoinEvent,
+      leaveWaitingRoom,
+      acceptWaitingRoomUser,
+      acceptAllWaitingRoom,
+      rejectWaitingRoomUser,
+      getWaitingRoomStatus,
+      getWaitingParticipants,
     ],
   );
 
@@ -449,10 +718,6 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
     <EventContext.Provider value={value}>{children}</EventContext.Provider>
   );
 };
-
-/* ============================================================= */
-/* Hooks                                                         */
-/* ============================================================= */
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useEventContext = () => {

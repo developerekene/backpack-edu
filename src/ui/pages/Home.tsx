@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Globe,
@@ -42,14 +42,26 @@ import {
   CalendarDays,
   Mic,
   Wifi,
+  Shield,
+  Hourglass,
 } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { useEventContext } from "../../store/EventContext";
-import { Course } from "../../types";
+import { useEventContext, userToCreator } from "../../store/EventContext";
+import { AppEvent, Course } from "../../types";
 import { CourseDonationModal } from "../components/CourseDonationModal";
+import { EventDetailsModel } from "../components/EventDetailsModel";
+import { Pagination } from "../components/Pagination";
+import {
+  EVENT_FORMAT_LABELS,
+  normaliseEventFormat,
+  normaliseEventType,
+} from "../../lib/eventMeta";
+import { isEventOrganizer } from "../../lib/eventEligibility";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 import Footer from "../components/Footer";
+
+const HOME_ITEMS_PER_PAGE = 10;
 
 interface TestimonialItem {
   id: string;
@@ -80,7 +92,7 @@ const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
     name: "Esther James",
     role: "School Administrator · Accra",
     rating: 5,
-    message: "The automatic split payout with Paystack is a gamechanger. Tuition lands directly into our school bank account with no reconciliation friction.",
+    message: "The automatic direct salary and tuition payout system is a gamechanger. Funds settle straight into our accounts with no reconciliation friction.",
   },
 ];
 
@@ -88,8 +100,25 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const { courses, organizations } = useAppContext();
   const { currentUser } = useAuth();
-  const { events } = useEventContext();
+  const { events, addEvent, getWaitingParticipants } = useEventContext();
   const [donatingCourse, setDonatingCourse] = useState<Course | null>(null);
+  const [selectedHomeEvent, setSelectedHomeEvent] = useState<AppEvent | null>(null);
+
+  // Courses & Events pagination state (10 per page)
+  const [homeCourseFilter, setHomeCourseFilter] = useState<
+    "all" | "popular" | "non-profit"
+  >("all");
+  const [homeCoursePageState, setHomeCoursePageState] = useState<{
+    filter: string;
+    page: number;
+  }>({ filter: homeCourseFilter, page: 1 });
+  const homeCoursePage =
+    homeCoursePageState.filter === homeCourseFilter
+      ? homeCoursePageState.page
+      : 1;
+  const setHomeCoursePage = (page: number) =>
+    setHomeCoursePageState({ filter: homeCourseFilter, page });
+  const [homeEventPage, setHomeEventPage] = useState(1);
 
   // Go Live feature state
   const [showGoLiveModal, setShowGoLiveModal] = useState(false);
@@ -158,26 +187,76 @@ const Home: React.FC = () => {
   const [activeStepTab, setActiveStepTab] = useState<"students" | "creators">("students");
 
   // Helper to identify donation-funded vocational education courses
-  const isDonationFundedVocational = (c: Course) => {
-    const org = organizations.find(
-      (o) =>
-        o.id === c.orgId ||
-        o.ownerId === c.orgId ||
-        `org_${o.ownerId}` === c.orgId,
-    );
-    const isVocationalOrg = org ? org.orgType === "vocational" : true;
-    return c.fundingModel === "donations_sponsorships" && isVocationalOrg;
-  };
+  const isDonationFundedVocational = useCallback(
+    (c: Course) => {
+      const org = organizations.find(
+        (o) =>
+          o.id === c.orgId ||
+          o.ownerId === c.orgId ||
+          `org_${o.ownerId}` === c.orgId,
+      );
+      const isVocationalOrg = org ? org.orgType === "vocational" : true;
+      return c.fundingModel === "donations_sponsorships" && isVocationalOrg;
+    },
+    [organizations],
+  );
 
   // Divide courses into Popular Courses and Non-Profit (Donation-Funded Vocational) Courses
-  const nonProfitCourses = courses.filter(isDonationFundedVocational);
-  const popularCourses = courses.filter((c) => !isDonationFundedVocational(c));
+  const nonProfitCourses = useMemo(
+    () => courses.filter(isDonationFundedVocational),
+    [courses, isDonationFundedVocational],
+  );
+  const popularCourses = useMemo(
+    () => courses.filter((c) => !isDonationFundedVocational(c)),
+    [courses, isDonationFundedVocational],
+  );
 
-  // Fallback lists if empty
-  const displayPopular =
-    popularCourses.length > 0 ? popularCourses.slice(0, 3) : courses.slice(0, 3);
-  const displayNonProfit =
-    nonProfitCourses.length > 0 ? nonProfitCourses.slice(0, 3) : [];
+  const filteredHomeCourses = useMemo(() => {
+    if (homeCourseFilter === "popular") return popularCourses;
+    if (homeCourseFilter === "non-profit") return nonProfitCourses;
+    return courses;
+  }, [homeCourseFilter, courses, popularCourses, nonProfitCourses]);
+
+  const totalHomeCoursePages = Math.max(
+    1,
+    Math.ceil(filteredHomeCourses.length / HOME_ITEMS_PER_PAGE),
+  );
+  const safeHomeCoursePage = Math.min(homeCoursePage, totalHomeCoursePages);
+  const paginatedHomeCourses = useMemo(
+    () =>
+      filteredHomeCourses.slice(
+        (safeHomeCoursePage - 1) * HOME_ITEMS_PER_PAGE,
+        safeHomeCoursePage * HOME_ITEMS_PER_PAGE,
+      ),
+    [filteredHomeCourses, safeHomeCoursePage],
+  );
+
+  const sortedHomeEvents = useMemo(
+    () =>
+      [...events].sort((a, b) =>
+        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
+      ),
+    [events],
+  );
+
+  const totalHomeEventPages = Math.max(
+    1,
+    Math.ceil(sortedHomeEvents.length / HOME_ITEMS_PER_PAGE),
+  );
+  const safeHomeEventPage = Math.min(homeEventPage, totalHomeEventPages);
+  const paginatedHomeEvents = useMemo(
+    () =>
+      sortedHomeEvents.slice(
+        (safeHomeEventPage - 1) * HOME_ITEMS_PER_PAGE,
+        safeHomeEventPage * HOME_ITEMS_PER_PAGE,
+      ),
+    [sortedHomeEvents, safeHomeEventPage],
+  );
+
+  const goLiveEventsList = useMemo(
+    () => sortedHomeEvents.filter((e) => normaliseEventType(e) === "go_live"),
+    [sortedHomeEvents],
+  );
 
   const studentSteps = [
     {
@@ -468,7 +547,7 @@ const Home: React.FC = () => {
               Pan-African Reach
             </h3>
             <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-body">
-              Empower students across Nigeria, Ghana, Kenya, and beyond with localized pricing, Paystack integration, and seamless cross-border course delivery.
+              Empower students across Nigeria, Ghana, Kenya, and beyond with localized pricing, direct bank settlements, and seamless cross-border course delivery.
             </p>
             <div className="pt-2 text-xs font-semibold text-[#0078d4] flex items-center gap-1 font-heading">
               <span>Multi-currency support</span>
@@ -1436,61 +1515,116 @@ const Home: React.FC = () => {
       </section>
 
       {/* ======================================================== */}
-      {/* 7. FEATURED COURSES CATALOG (Popular & Non-Profit)       */}
+      {/* 7. COURSES CATALOG (10-per-page paginated)               */}
       {/* ======================================================== */}
       {courses.length > 0 && (
-        <section className="space-y-8">
+        <section className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
             <div>
               <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block mb-1 font-heading">
-                Curated Catalog
+                Course Directory ({courses.length})
               </span>
               <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
-                Featured Programs
+                Explore All Courses
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-body">
-                Explore academic courses and donation-funded non-profit vocational training.
+                Browse academic courses and donation-funded non-profit vocational training, paginated 10 per page.
               </p>
             </div>
             <Link
-              to="/explore"
+              to="/courses"
               className="text-sm font-semibold font-heading text-[#0078d4] hover:underline inline-flex items-center gap-1 shrink-0"
             >
-              <span>View full catalog</span>
+              <span>Open Courses &amp; Filters</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
-          {/* Two-Column Grid: Popular Courses (Left) | Non-Profit Courses (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-            {/* Left Column: Popular Courses */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-[#0078d4]" />
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white font-heading">Popular Courses</h3>
-                </div>
-                <span className="text-xs text-slate-500 font-body">High-demand pathways</span>
-              </div>
+          {/* Course Filter Tabs */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60">
+              <button
+                type="button"
+                onClick={() => setHomeCourseFilter("all")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-heading transition cursor-pointer ${
+                  homeCourseFilter === "all"
+                    ? "bg-[#0078d4] text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:text-[#0078d4]"
+                }`}
+              >
+                All Courses ({courses.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setHomeCourseFilter("popular")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold font-heading transition cursor-pointer ${
+                  homeCourseFilter === "popular"
+                    ? "bg-[#0078d4] text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:text-[#0078d4]"
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                Popular ({popularCourses.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setHomeCourseFilter("non-profit")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold font-heading transition cursor-pointer ${
+                  homeCourseFilter === "non-profit"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:text-emerald-600"
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                Non-Profit ({nonProfitCourses.length})
+              </button>
+            </div>
+          </div>
 
-              <div className="space-y-4">
-                {displayPopular.map((course) => {
-                  const org = organizations.find(
-                    (o) =>
-                      o.id === course.orgId ||
-                      o.ownerId === course.orgId ||
-                      `org_${o.ownerId}` === course.orgId,
-                  );
-                  return (
-                    <div
-                      key={course.id}
-                      className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] transition shadow-xs space-y-3"
-                    >
+          {paginatedHomeCourses.length === 0 ? (
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-2">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                No courses in this category yet
+              </p>
+              <button
+                type="button"
+                onClick={() => setHomeCourseFilter("all")}
+                className="text-xs font-bold text-[#0078d4] hover:underline cursor-pointer"
+              >
+                View All Courses
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {paginatedHomeCourses.map((course) => {
+                const org = organizations.find(
+                  (o) =>
+                    o.id === course.orgId ||
+                    o.ownerId === course.orgId ||
+                    `org_${o.ownerId}` === course.orgId,
+                );
+                const canDonate = isDonationFundedVocational(course);
+                return (
+                  <div
+                    key={course.id}
+                    className={`bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 transition shadow-xs flex flex-col justify-between gap-4 ${
+                      canDonate ? "hover:border-emerald-500" : "hover:border-[#0078d4]"
+                    }`}
+                  >
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-semibold text-[#0078d4] bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900 truncate">
+                        <span className="font-semibold text-[#0078d4] bg-blue-50 dark:bg-blue-950 px-2.5 py-0.5 rounded-md border border-blue-200 dark:border-blue-900 truncate">
                           {org?.name || "Verified Academy"}
                         </span>
-                        <span className="text-slate-500 shrink-0">{(course as any).category || "Academic"}</span>
+                        {canDonate ? (
+                          <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md font-bold text-[10px] shrink-0">
+                            100% Tuition Waiver
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 shrink-0">
+                            {(course as any).category || course.qualificationType || "Academic"}
+                          </span>
+                        )}
                       </div>
 
                       <Link to={`/course/${course.id}`}>
@@ -1502,121 +1636,56 @@ const Home: React.FC = () => {
                       <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed font-body">
                         {course.description}
                       </p>
+                    </div>
 
-                      <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap text-xs">
-                        <span className="font-bold font-heading text-slate-900 dark:text-white text-sm">
-                          {course.price > 0
-                            ? `${course.currency || "NGN"} ${formatPriceWithDecimals(getEffectivePrice(course.price))}`
-                            : "Free Enrollment"}
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                        <span
+                          className={`font-bold font-heading text-sm ${
+                            canDonate
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-slate-900 dark:text-white"
+                          }`}
+                        >
+                          {canDonate
+                            ? "Sponsored by Donors"
+                            : course.price > 0
+                              ? `${course.currency || "NGN"} ${formatPriceWithDecimals(getEffectivePrice(course.price))}`
+                              : "Free Enrollment"}
                         </span>
                         <Link
                           to={`/course/${course.id}`}
                           className="font-bold font-heading text-[#0078d4] hover:underline inline-flex items-center gap-1 shrink-0"
                         >
-                          <span>Enroll Now</span>
+                          <span>{canDonate ? "View Course" : "Enroll Now"}</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </Link>
                       </div>
+
+                      {canDonate && (
+                        <button
+                          type="button"
+                          onClick={() => setDonatingCourse(course)}
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold font-heading text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          <HeartHandshake className="w-4 h-4" />
+                          <span>Sponsor a Student</span>
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Right Column: Non-Profit Courses */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white font-heading">Non-Profit Courses</h3>
-                </div>
-                <span className="text-xs text-slate-500 font-body">Donation-funded vocational training</span>
-              </div>
-
-              {displayNonProfit.length > 0 ? (
-                <div className="space-y-4">
-                  {displayNonProfit.map((course) => {
-                    const org = organizations.find(
-                      (o) =>
-                        o.id === course.orgId ||
-                        o.ownerId === course.orgId ||
-                        `org_${o.ownerId}` === course.orgId,
-                    );
-                    const canDonate = isDonationFundedVocational(course);
-                    return (
-                      <div
-                        key={course.id}
-                        className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition shadow-xs space-y-3 relative overflow-hidden"
-                      >
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="font-semibold text-slate-600 dark:text-slate-400 truncate">
-                            {org?.name || "Non-Profit Academy"}
-                          </span>
-                          <span className="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold text-[10px] shrink-0">
-                            100% Tuition Waiver
-                          </span>
-                        </div>
-
-                        <Link to={`/course/${course.id}`}>
-                          <h4 className="font-bold text-base font-heading text-slate-900 dark:text-white hover:text-emerald-600 transition line-clamp-1">
-                            {course.title}
-                          </h4>
-                        </Link>
-
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed font-body">
-                          {course.description}
-                        </p>
-
-                        <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
-                          <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-                            <span className="font-bold font-heading text-emerald-600 text-sm">
-                              Sponsored by Donors
-                            </span>
-                            <Link
-                              to={`/course/${course.id}`}
-                              className="font-bold font-heading text-slate-700 dark:text-slate-300 hover:underline inline-flex items-center gap-1 shrink-0"
-                            >
-                              <span>View Course</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </Link>
-                          </div>
-
-                          {canDonate && (
-                            <button
-                              onClick={() => setDonatingCourse(course)}
-                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold font-heading text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                            >
-                              <HeartHandshake className="w-4 h-4" />
-                              <span>Sponsor a Student</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-                    <HeartHandshake className="w-5 h-5" />
                   </div>
-                  <h4 className="font-bold font-heading text-slate-900 dark:text-white text-sm">
-                    Donation-Funded Vocational Programs
-                  </h4>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed font-body">
-                    Accredited institutes can list tuition-waived programs supported by philanthropic sponsors and donors.
-                  </p>
-                  <Link
-                    to="/explore"
-                    className="inline-flex items-center gap-1 text-xs font-bold font-heading text-emerald-600 hover:underline pt-1"
-                  >
-                    <span>Browse All Available Courses</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              )}
+                );
+              })}
             </div>
-          </div>
+          )}
+
+          <Pagination
+            currentPage={safeHomeCoursePage}
+            totalItems={filteredHomeCourses.length}
+            pageSize={HOME_ITEMS_PER_PAGE}
+            onPageChange={setHomeCoursePage}
+            itemLabel="courses"
+          />
         </section>
       )}
 
@@ -1629,20 +1698,20 @@ const Home: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* 8. UPCOMING ACADEMIC EVENTS (Student & Member Browsing) */}
+      {/* 8. ALL ACADEMIC EVENTS & LIVE SESSIONS (10 per page)     */}
       {/* ======================================================== */}
       <section className="space-y-6 py-6 border-t border-slate-200 dark:border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider mb-2">
               <CalendarDays className="w-3.5 h-3.5" />
-              <span>Campus Schedules &amp; Orientations</span>
+              <span>Webinars, Summits &amp; Workshops ({events.length})</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
-              Upcoming Academic Events &amp; Live Sessions
+              All Events &amp; Live Sessions
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-body">
-              Verified sessions scheduled by educational institutions and platform administrators. Students can explore and reserve attendance.
+              Join open Go Live events via the organizer Waiting Room, or attend Private sessions for your organization. Showing up to 10 events per page.
             </p>
           </div>
 
@@ -1650,107 +1719,158 @@ const Home: React.FC = () => {
             to="/events"
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] text-[#0078d4] dark:text-[#04a4ec] text-xs sm:text-sm font-bold font-heading rounded-xl transition shadow-2xs hover:shadow-xs shrink-0 cursor-pointer"
           >
-            <span>View Full Events Calendar</span>
+            <span>Open Full Events Hub</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
-        {events.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.slice(0, 3).map((evt) => {
-              const isOnline = evt.mode === "online" || !evt.mode;
-              const dateObj = new Date(evt.date);
-              const formattedMonth = !Number.isNaN(dateObj.getTime())
-                ? dateObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase()
-                : "DATE";
-              const formattedDay = !Number.isNaN(dateObj.getTime())
-                ? dateObj.toLocaleDateString(undefined, { day: "2-digit" })
-                : "--";
+        {sortedHomeEvents.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedHomeEvents.map((evt) => {
+                const isOnline = evt.mode === "online" || !evt.mode;
+                const eventType = normaliseEventType(evt);
+                const formatLabel =
+                  EVENT_FORMAT_LABELS[normaliseEventFormat(evt.category)];
+                const organizer = isEventOrganizer(evt, currentUser, organizations);
+                const waitingCount = getWaitingParticipants(evt.id).length;
 
-              return (
-                <div
-                  key={evt.id}
-                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] dark:hover:border-[#04a4ec] p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 group"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900 text-[#0078d4] dark:text-[#04a4ec]">
-                        {isOnline ? <Video className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
-                        {isOnline ? "Online Live" : "Campus Onsite"}
-                      </span>
-                      <span className="text-[11px] font-medium text-slate-500">
-                        {evt.createdBy?.name || "Verified Organization"}
-                      </span>
-                    </div>
+                const dateObj = new Date(evt.date);
+                const formattedMonth = !Number.isNaN(dateObj.getTime())
+                  ? dateObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase()
+                  : "DATE";
+                const formattedDay = !Number.isNaN(dateObj.getTime())
+                  ? dateObj.toLocaleDateString(undefined, { day: "2-digit" })
+                  : "--";
 
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-12 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center shrink-0">
-                        <div className="bg-[#0078d4] text-white text-[9px] font-bold py-0.5">
-                          {formattedMonth}
+                return (
+                  <div
+                    key={evt.id}
+                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-[#0078d4] dark:hover:border-[#04a4ec] p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 group"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {eventType === "go_live" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900 text-[#0078d4] dark:text-[#04a4ec]">
+                              <Radio className="w-3 h-3" />
+                              Go Live
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-400">
+                              <Shield className="w-3 h-3" />
+                              Private
+                            </span>
+                          )}
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300">
+                            {formatLabel}
+                          </span>
                         </div>
-                        <div className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-extrabold text-lg py-0.5">
-                          {formattedDay}
-                        </div>
-                      </div>
-
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-base font-heading text-slate-900 dark:text-white group-hover:text-[#0078d4] transition line-clamp-1">
-                          {evt.title}
-                        </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                          {evt.subject}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Assigned Instructor Facilitator */}
-                    {evt.facilitatorName && (
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/80 text-[11px] text-slate-700 dark:text-slate-300 w-full truncate">
-                        <UserCheck className="w-3.5 h-3.5 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
-                        <span className="truncate">
-                          Facilitator: <strong className="font-semibold text-slate-900 dark:text-white">{evt.facilitatorName}</strong> (Instructor)
+                        <span className="text-[11px] font-medium text-slate-500 truncate max-w-[140px]">
+                          {evt.orgName || evt.createdBy?.name || "Verified Organization"}
                         </span>
                       </div>
-                    )}
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500 pt-1">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-[#0078d4]" />
-                        <span>{evt.time || "Scheduled"}</span>
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-12 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-center shrink-0">
+                          <div className="bg-[#0078d4] text-white text-[9px] font-bold py-0.5">
+                            {formattedMonth}
+                          </div>
+                          <div className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-extrabold text-lg py-0.5">
+                            {formattedDay}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0">
+                          <h4
+                            onClick={() => setSelectedHomeEvent(evt)}
+                            className="font-bold text-base font-heading text-slate-900 dark:text-white group-hover:text-[#0078d4] transition line-clamp-1 cursor-pointer"
+                          >
+                            {evt.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                            {evt.subject}
+                          </p>
+                        </div>
+                      </div>
+
+                      {evt.facilitatorName && (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/80 text-[11px] text-slate-700 dark:text-slate-300 w-full truncate">
+                          <UserCheck className="w-3.5 h-3.5 text-[#0078d4] dark:text-[#04a4ec] shrink-0" />
+                          <span className="truncate">
+                            Facilitator:{" "}
+                            <strong className="font-semibold text-slate-900 dark:text-white">
+                              {evt.facilitatorName}
+                            </strong>{" "}
+                            (Instructor)
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3 text-xs text-slate-500 pt-1">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-[#0078d4]" />
+                          <span>{evt.time || "Scheduled"}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 truncate">
+                          {isOnline ? (
+                            <Video className="w-3.5 h-3.5 text-[#0078d4] shrink-0" />
+                          ) : (
+                            <MapPin className="w-3.5 h-3.5 text-[#0078d4] shrink-0" />
+                          )}
+                          <span className="truncate">{evt.location}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                        <span>{evt.attendees?.length || 0} Attending</span>
+                        {organizer && eventType === "go_live" && waitingCount > 0 && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            <Hourglass className="w-3 h-3" />
+                            {waitingCount} waiting
+                          </span>
+                        )}
                       </span>
-                      <span className="inline-flex items-center gap-1 truncate">
-                        <MapPin className="w-3.5 h-3.5 text-[#0078d4] shrink-0" />
-                        <span className="truncate">{evt.location}</span>
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedHomeEvent(evt)}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#0078d4] hover:underline cursor-pointer"
+                      >
+                        <span>
+                          {organizer
+                            ? "Manage / Host"
+                            : eventType === "go_live"
+                              ? "Join Waiting Room"
+                              : "Join & Details"}
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {evt.attendees?.length || 0} Attending
-                    </span>
-                    <Link
-                      to="/events"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-[#0078d4] hover:underline"
-                    >
-                      <span>Join &amp; Details</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            <Pagination
+              currentPage={safeHomeEventPage}
+              totalItems={sortedHomeEvents.length}
+              pageSize={HOME_ITEMS_PER_PAGE}
+              onPageChange={setHomeEventPage}
+              itemLabel="events"
+            />
+          </>
         ) : (
           <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/40 p-8 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-[#d6e9f8]/60 dark:bg-[#0f2231] text-[#0078d4] dark:text-[#04a4ec] border border-[#0078d4]/20 flex items-center justify-center mx-auto">
               <CalendarDays className="w-6 h-6" />
             </div>
             <h4 className="text-base font-bold font-heading text-slate-900 dark:text-white">
-              No Public Events Scheduled Right Now
+              No Events Scheduled Right Now
             </h4>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-              Only verified organizations and platform administrators can create academic events. Check back soon for upcoming seminars, live classrooms, and campus workshops.
+              Organizations can create both Go Live and Private events, while instructors can launch open Go Live sessions. Check back soon for upcoming webinars, summits, and workshops.
             </p>
             <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
               <Link
@@ -1770,8 +1890,16 @@ const Home: React.FC = () => {
         )}
       </section>
 
+      {/* Home Event Details & Waiting Room Modal */}
+      {selectedHomeEvent && (
+        <EventDetailsModel
+          event={selectedHomeEvent}
+          onClose={() => setSelectedHomeEvent(null)}
+        />
+      )}
+
       {/* ======================================================== */}
-      {/* 9. GO LIVE ON BACKPACK (New Feature: Live Broadcasts)     */}
+      {/* 9. GO LIVE ON BACKPACK (Live Broadcasts)                 */}
       {/* ======================================================== */}
       <section className="space-y-6 py-6 border-t border-slate-200 dark:border-slate-800">
         <div className="relative overflow-hidden rounded-3xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-gradient-to-br from-[#f0f7fd] via-white to-[#e8f3fc] dark:from-[#0a1824] dark:via-[#0f2231] dark:to-[#0a1824] p-6 sm:p-10 shadow-xs">
@@ -1783,9 +1911,9 @@ const Home: React.FC = () => {
             {/* Left Content Column */}
             <div className="lg:col-span-7 space-y-5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider">
-                  <span className="w-2 h-2 rounded-full bg-[#0078d4] animate-pulse" />
-                  Coming Soon · Live on Backpack
+                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider">
+                  <Radio className="w-3.5 h-3.5" />
+                  Live on Backpack
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading">
                   <Radio className="w-3.5 h-3.5" />
@@ -2464,6 +2592,51 @@ const Home: React.FC = () => {
                   .toLowerCase()
                   .replace(/[^a-z0-9-]/g, "-")
                   .replace(/-+/g, "-");
+                const hostOrg = organizations.find(
+                  (o) =>
+                    o.ownerId === currentUser.id ||
+                    o.id === currentUser.id ||
+                    (currentUser.orgId &&
+                      (o.id === currentUser.orgId || o.ownerId === currentUser.orgId)),
+                );
+                const todayIso = new Date().toISOString().slice(0, 10);
+                const nowTime = new Date().toLocaleTimeString(undefined, {
+                  hour: "numeric",
+                  minute: "2-digit",
+                });
+                const selectedCourse = courses.find((c) => c.id === selectedLiveCourseId);
+
+                addEvent({
+                  title: liveStreamTitle.trim() || "Live Session",
+                  subject: selectedCourse
+                    ? `Go Live session for ${selectedCourse.title}`
+                    : "Open Go Live Webinar & Interactive Classroom",
+                  description:
+                    "Open Go Live session — anyone can join via the organizer-moderated Waiting Room.",
+                  date: todayIso,
+                  time: nowTime,
+                  location: "Backpack Live Classroom",
+                  mode: "online",
+                  eventType: "go_live",
+                  category: "webinar",
+                  roomName: roomClean,
+                  orgId: hostOrg?.id || currentUser.orgId || currentUser.id,
+                  orgName: hostOrg?.name || currentUser.name,
+                  storageUid: hostOrg?.ownerId || currentUser.id,
+                  facilitatorId:
+                    currentUser.role === "instructor" ? currentUser.id : undefined,
+                  facilitatorName:
+                    currentUser.role === "instructor" ? currentUser.name : undefined,
+                  facilitatorEmail:
+                    currentUser.role === "instructor" ? currentUser.email : undefined,
+                  createdBy: userToCreator({
+                    id: currentUser.id,
+                    name: currentUser.name,
+                    email: currentUser.email,
+                    role: currentUser.role,
+                  }),
+                });
+
                 setShowGoLiveModal(false);
                 navigate(`/live/${roomClean}?name=${encodeURIComponent(currentUser.name || "Instructor")}${selectedLiveCourseId ? `&courseId=${selectedLiveCourseId}` : ""}`);
               }}
@@ -2478,21 +2651,21 @@ const Home: React.FC = () => {
                   required
                   value={liveStreamTitle}
                   onChange={(e) => setLiveStreamTitle(e.target.value)}
-                  placeholder="e.g. Masterclass: Scalable WebSockets with Node.js"
+                  placeholder="e.g. Masterclass: Scalable Systems Webinar"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs outline-none focus:ring-2 focus:ring-red-500/30 text-slate-900 dark:text-white font-body"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
-                  Associated Course Cohort (Optional)
+                  Related Course Topic (Optional)
                 </label>
                 <select
                   value={selectedLiveCourseId}
                   onChange={(e) => setSelectedLiveCourseId(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs outline-none focus:ring-2 focus:ring-[#0078d4]/30 text-slate-900 dark:text-white font-body"
                 >
-                  <option value="">Public Open Broadcast (All Students &amp; Guests)</option>
+                  <option value="">Open Go Live Event (Anyone can request to join)</option>
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.title}
@@ -2503,7 +2676,7 @@ const Home: React.FC = () => {
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
-                  Live Room Identifier / Stream Key
+                  Live Room Identifier
                 </label>
                 <input
                   type="text"
@@ -2514,10 +2687,10 @@ const Home: React.FC = () => {
                 />
               </div>
 
-              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl text-[11px] text-red-700 dark:text-red-300 flex items-start gap-2">
-                <Video className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-[11px] text-slate-700 dark:text-slate-300 flex items-start gap-2">
+                <Video className="w-4 h-4 shrink-0 mt-0.5 text-[#0078d4]" />
                 <span>
-                  Launching this room enables HD video, audio, and screen sharing. Students who join will have attendance recorded automatically.
+                  This Go Live event is saved to the Events hub so anyone can join your Waiting Room until you accept them or accept everyone.
                 </span>
               </div>
 
@@ -2553,17 +2726,17 @@ const Home: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
-                    Join Live Classroom
+                    Join Go Live Event
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-body">
-                    Enter an active broadcast or request session access
+                    Select a scheduled Go Live session or enter a room key
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowJoinStreamModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2577,52 +2750,46 @@ const Home: React.FC = () => {
                   .replace(/[^a-z0-9-]/g, "-")
                   .replace(/-+/g, "-");
                 setShowJoinStreamModal(false);
-                navigate(`/live/${roomClean}?name=${encodeURIComponent(currentUser?.name || "Guest Learner")}`);
+                navigate(`/live/${roomClean}?name=${encodeURIComponent(currentUser?.name || "Guest Participant")}`);
               }}
               className="space-y-4 font-body"
             >
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
-                  Active Channels
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setLiveRoomId("backpack-live-class")}
-                    className={`p-2.5 rounded-xl border text-left transition ${
-                      liveRoomId === "backpack-live-class"
-                        ? "border-[#0078d4] bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] font-bold"
-                        : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                      Faculty Live Class
-                    </span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">Computing &amp; Tech</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setLiveRoomId("backpack-public-classroom")}
-                    className={`p-2.5 rounded-xl border text-left transition ${
-                      liveRoomId === "backpack-public-classroom"
-                        ? "border-[#0078d4] bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] font-bold"
-                        : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Public Auditorium
-                    </span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">Open Orientation</span>
-                  </button>
+              {goLiveEventsList.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
+                    Available Go Live Events
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-44 overflow-y-auto pr-1">
+                    {goLiveEventsList.slice(0, 6).map((evt) => {
+                      const slug = evt.roomName || `evt-${evt.id}`;
+                      return (
+                        <button
+                          key={evt.id}
+                          type="button"
+                          onClick={() => setLiveRoomId(slug)}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                            liveRoomId === slug
+                              ? "border-[#0078d4] bg-[#0078d4]/10 text-[#0078d4] dark:text-[#04a4ec] font-bold"
+                              : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <Radio className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{evt.title}</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+                            {evt.date} · {evt.time}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 font-heading">
-                  Classroom Room ID / Access Key
+                  Live Room ID / Access Key
                 </label>
                 <input
                   type="text"
@@ -2647,7 +2814,7 @@ const Home: React.FC = () => {
                   className="flex-1 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 font-heading shadow-xs cursor-pointer"
                 >
                   <Video className="w-3.5 h-3.5 mr-1" />
-                  <span>Request Access &amp; Enter</span>
+                  <span>Enter Waiting Room</span>
                 </button>
               </div>
             </form>

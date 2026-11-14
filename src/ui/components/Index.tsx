@@ -86,6 +86,7 @@ const Index: React.FC = () => {
                       <Route path="/live" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
                       <Route path="/live/:roomName" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
                       <Route path="/explore" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />
+                      <Route path="/courses" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />
                       <Route path="/org/:orgId" element={<PageWrapper><OrgProfile /></PageWrapper>} />
                       <Route
                         path="/dashboard"
