@@ -369,6 +369,7 @@ export const Navbar = () => {
 
                       {(currentUser.role === "organization" ||
                         currentUser.role === "org_admin" ||
+                        currentUser.role === "instructor" ||
                         currentUser.role === "super_admin" ||
                         currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
                         <Link
@@ -377,7 +378,11 @@ export const Navbar = () => {
                           className={moreItemStyle("/payroll")}
                         >
                           <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>Instructor Payroll</span>
+                          <span>
+                            {currentUser.role === "instructor"
+                              ? "My Payslips"
+                              : "Instructor Payroll"}
+                          </span>
                         </Link>
                       )}
 
@@ -626,6 +631,7 @@ export const Navbar = () => {
           {currentUser &&
             (currentUser.role === "organization" ||
               currentUser.role === "org_admin" ||
+              currentUser.role === "instructor" ||
               currentUser.role === "super_admin" ||
               currentUser.email?.toLowerCase() === "ekenehq@gmail.com") && (
               <Link
@@ -633,7 +639,9 @@ export const Navbar = () => {
                 onClick={closeMenu}
                 className={getMobileLinkStyle("/payroll")}
               >
-                Instructor Payroll
+                {currentUser.role === "instructor"
+                  ? "My Payslips"
+                  : "Instructor Payroll"}
               </Link>
             )}
 

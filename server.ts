@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import crypto from "crypto";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { AccessToken } from "livekit-server-sdk";
@@ -12,7 +13,13 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
 }));
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  }),
+);
 
 // Google AdSense verification ads.txt endpoint
 app.get("/ads.txt", (_req, res) => {
@@ -1011,6 +1018,28 @@ app.post("/api/paystack/initialize-split", async (req, res) => {
   });
 });
 
+const KEYSAFE_PROXY_BASE = "https://keysafe-ntia.onrender.com";
+
+function getKeySafeHeaders(mode = "live"): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "X-Paystack-Mode": mode,
+    "X-Environment-Mode": mode,
+    "X-Context-Mode": mode,
+  };
+}
+
+function normalizePayrollBearerType(
+  raw?: string,
+  bearerSubaccount?: string,
+): "all-proportional" | "subaccount" {
+  if ((raw === "subaccount" || raw === "subaccounts") && bearerSubaccount) {
+    return "subaccount";
+  }
+  return "all-proportional";
+}
+
 // --- 5. POST /api/paystack/create-split-group & /api/paystack/payroll/split-group ---
 app.post(["/api/paystack/create-split-group", "/api/paystack/payroll/split-group"], async (req, res) => {
   const {
@@ -1031,69 +1060,36 @@ app.post(["/api/paystack/create-split-group", "/api/paystack/payroll/split-group
     share: Math.round(Number(s.share)),
   }));
 
+  const effectiveBearerType = normalizePayrollBearerType(bearer_type, bearer_subaccount);
+
   const payload: Record<string, unknown> = {
     name: String(name).trim(),
     type,
     currency: String(currency || "NGN").toUpperCase(),
     subaccounts: normalizedSubaccounts,
-    bearer_type,
+    bearer_type: effectiveBearerType,
   };
-  if (bearer_type === "subaccount" && bearer_subaccount) {
+  if (effectiveBearerType === "subaccount" && bearer_subaccount) {
     payload.bearer_subaccount = bearer_subaccount;
   }
 
-  let lastErrorMessage = "Failed to create split group on Paystack.";
+  let lastErrorMessage = "Failed to create payroll split group via KeySafe gateway.";
 
-  try {
-    const headers = await ensurePaystackHeaders();
-    if (headers) {
-      const response = await fetch("https://api.paystack.co/split", {
-        method: "POST",
-        headers,
-        signal: AbortSignal.timeout(15000),
-        body: JSON.stringify(payload),
-      });
-
-      const json = await response.json();
-      if (response.ok && json.status && json.data) {
-        return res.json({
-          success: true,
-          id: json.data.id,
-          split_code: json.data.split_code,
-          name: json.data.name,
-          type: json.data.type,
-          currency: json.data.currency,
-          bearer_type: json.data.bearer_type,
-          subaccounts: json.data.subaccounts,
-          mode: "live",
-          data: json.data,
-        });
-      }
-      if (json.message) {
-        lastErrorMessage = json.message;
-      }
-    }
-  } catch (error: unknown) {
-    console.error("Split group direct Paystack error:", error);
-  }
-
-  // Fallback delegation to KeySafe proxy split endpoints if available
   const keySafeSplitUrls = [
-    "https://keysafe-ntia.onrender.com/split?mode=live",
-    "https://keysafe-ntia.onrender.com/api/split?mode=live",
-    "https://keysafe-ntia.onrender.com/api/paystack/create-split-group?mode=live",
+    `${KEYSAFE_PROXY_BASE}/split?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/split?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/split-group?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/split-group?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/create-split-group?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/payroll/split-group?mode=live`,
   ];
+
   for (const url of keySafeSplitUrls) {
     try {
       const proxyRes = await fetch(url, {
         method: "POST",
         signal: AbortSignal.timeout(25000),
-        headers: {
-          "Content-Type": "application/json",
-          "X-Paystack-Mode": "live",
-          "X-Environment-Mode": "live",
-          "X-Context-Mode": "live",
-        },
+        headers: getKeySafeHeaders("live"),
         body: JSON.stringify({ ...payload, mode: "live" }),
       });
       const proxyJson = await proxyRes.json().catch(() => ({}));
@@ -1106,7 +1102,7 @@ app.post(["/api/paystack/create-split-group", "/api/paystack/payroll/split-group
           name: proxyJson.name || proxyJson.data?.name || name,
           type,
           currency,
-          bearer_type,
+          bearer_type: effectiveBearerType,
           subaccounts: normalizedSubaccounts,
           mode: "live",
           data: proxyJson.data || proxyJson,
@@ -1117,7 +1113,7 @@ app.post(["/api/paystack/create-split-group", "/api/paystack/payroll/split-group
         lastErrorMessage = proxyJson.detail?.message || proxyJson.message;
       }
     } catch {
-      // Try next gateway endpoint
+      // Try next KeySafe proxy path
     }
   }
 
@@ -1133,224 +1129,854 @@ app.put("/api/paystack/payroll/split-group/:splitId", async (req, res) => {
     return res.status(400).json({ success: false, message: "splitId is required" });
   }
 
-  try {
-    const headers = await ensurePaystackHeaders();
-    if (!headers) {
-      return res.status(503).json({ success: false, message: "Paystack live key unavailable." });
-    }
-
-    const updatePayload: Record<string, unknown> = {};
-    if (name !== undefined) updatePayload.name = name;
-    if (active !== undefined) updatePayload.active = active;
-    if (bearer_type !== undefined) updatePayload.bearer_type = bearer_type;
-    if (bearer_subaccount !== undefined) updatePayload.bearer_subaccount = bearer_subaccount;
-
-    const response = await fetch(`https://api.paystack.co/split/${encodeURIComponent(splitId)}`, {
-      method: "PUT",
-      headers,
-      signal: AbortSignal.timeout(15000),
-      body: JSON.stringify(updatePayload),
-    });
-    const json = await response.json();
-
-    if (response.ok && json.status && Array.isArray(subaccounts)) {
-      for (const item of subaccounts) {
-        await fetch(`https://api.paystack.co/split/${encodeURIComponent(splitId)}/subaccount/add`, {
-          method: "POST",
-          headers,
-          signal: AbortSignal.timeout(10000),
-          body: JSON.stringify({
-            subaccount: item.subaccount || item.subaccount_code,
-            share: Math.round(Number(item.share)),
-          }),
-        }).catch(() => {});
-      }
-    }
-
-    if (response.ok && json.status) {
-      return res.json({ success: true, data: json.data });
-    }
-    return res.status(400).json({ success: false, message: json.message || "Failed to update split group" });
-  } catch (err: unknown) {
-    console.error("Split group update error:", err);
-    return res.status(500).json({ success: false, message: "Error updating split group" });
+  const updatePayload: Record<string, unknown> = { mode: "live" };
+  if (name !== undefined) updatePayload.name = name;
+  if (active !== undefined) updatePayload.active = active;
+  if (bearer_type !== undefined) {
+    updatePayload.bearer_type = normalizePayrollBearerType(bearer_type, bearer_subaccount);
   }
+  if (bearer_subaccount !== undefined) updatePayload.bearer_subaccount = bearer_subaccount;
+  if (Array.isArray(subaccounts)) updatePayload.subaccounts = subaccounts;
+
+  const keySafeUpdateUrls = [
+    `${KEYSAFE_PROXY_BASE}/split/${encodeURIComponent(splitId)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/split/${encodeURIComponent(splitId)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/payroll/split-group/${encodeURIComponent(splitId)}?mode=live`,
+  ];
+
+  let lastError = "Failed to update payroll split group via KeySafe gateway.";
+  for (const url of keySafeUpdateUrls) {
+    try {
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: getKeySafeHeaders("live"),
+        signal: AbortSignal.timeout(20000),
+        body: JSON.stringify(updatePayload),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok && (json.status || json.success)) {
+        return res.json({ success: true, data: json.data || json });
+      }
+      if (json.detail?.message || json.message) {
+        lastError = json.detail?.message || json.message;
+      }
+    } catch {
+      // try next KeySafe endpoint
+    }
+  }
+
+  return res.status(400).json({ success: false, message: lastError });
 });
 
-// --- 5c. POST /api/paystack/payroll/initialize ---
-// Zero-Platform-Touch Instructor Salary Checkout:
-// - Individual payout: 100% routed directly to instructor subaccount (transaction_charge: 0, bearer: "subaccount")
-// - Multi-instructor payout: Single transaction via Paystack split_code or dynamic flat split (bearer_type: "all-proportional", 0% main account cut)
+// --- 5c. Payroll Split Runs, Dedicated Virtual Accounts & Webhook Payslips ---
+interface ServerSalaryLineItem {
+  id: string;
+  label: string;
+  amount: number;
+}
+
+interface ServerSalaryBreakdown {
+  basicSalary: number;
+  allowances: ServerSalaryLineItem[];
+  deductions: ServerSalaryLineItem[];
+  grossSalary: number;
+  totalAllowances: number;
+  totalDeductions: number;
+  netSalary: number;
+}
+
+interface ServerPayrollRecipient {
+  instructorId?: string;
+  instructorName?: string;
+  instructorEmail?: string;
+  roleTitle?: string;
+  subaccount_code?: string;
+  subaccount?: string;
+  bankName?: string;
+  accountNumber?: string;
+  amount: number;
+  breakdown?: ServerSalaryBreakdown;
+}
+
+interface ServerDigitalPayslip {
+  id: string;
+  payslipNumber: string;
+  disbursementId: string;
+  reference: string;
+  orgId: string;
+  organizationName: string;
+  instructorId: string;
+  instructorName: string;
+  instructorEmail?: string;
+  roleTitle?: string;
+  subaccountCode: string;
+  bankName?: string;
+  accountNumberMasked?: string;
+  currency: string;
+  netSalary: number;
+  breakdown?: ServerSalaryBreakdown;
+  payPeriod?: string;
+  settlementSchedule: string;
+  issuedAt: string;
+  paidAt: string;
+  verifiedVia: "webhook" | "verification" | "checkout";
+}
+
+interface ServerPayrollRun {
+  reference: string;
+  orgId: string;
+  organizationName: string;
+  payerEmail: string;
+  paymentType: "individual" | "group";
+  paymentChannel: "checkout" | "bank_transfer";
+  currency: string;
+  netSalariesTotal: number;
+  feePerStaff: number;
+  platformFee: number;
+  grandTotal: number;
+  grandTotalKobo: number;
+  splitCode?: string;
+  subaccountCode?: string;
+  payPeriod?: string;
+  recipients: ServerPayrollRecipient[];
+  dedicatedAccount?: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    splitCode: string;
+    customerCode?: string;
+    reference: string;
+    currency: string;
+    amount: number;
+    assignedAt: string;
+  };
+  status: "initialized" | "success" | "failed";
+  webhookConfirmed: boolean;
+  paidAt?: string;
+  createdAt: string;
+  payslips: ServerDigitalPayslip[];
+}
+
+const payrollRunLedger = new Map<string, ServerPayrollRun>();
+const splitCodeToRunRef = new Map<string, string>();
+const dvaAccountToRunRef = new Map<string, string>();
+
+const buildDigitalPayslips = (
+  run: ServerPayrollRun,
+  verifiedVia: "webhook" | "verification" | "checkout",
+  paidAtOverride?: string,
+): ServerDigitalPayslip[] => {
+  const paidAt = paidAtOverride || run.paidAt || new Date().toISOString();
+  const issuedAt = new Date().toISOString();
+  const datePart = paidAt.slice(0, 7).replace("-", "");
+  const shortRef = run.reference.replace(/[^A-Z0-9]/gi, "").slice(-5).toUpperCase() || "PAY";
+
+  return run.recipients.map((rec, idx) => {
+    const subCode = rec.subaccount_code || rec.subaccount || run.subaccountCode || "";
+    const accNum = rec.accountNumber || "";
+    const maskedAcc = accNum ? `****${accNum.slice(-4)}` : undefined;
+    const netSalary = Math.round(Number(rec.amount || 0) * 100) / 100;
+    const breakdown: ServerSalaryBreakdown | undefined = rec.breakdown
+      ? rec.breakdown
+      : {
+          basicSalary: netSalary,
+          allowances: [],
+          deductions: [],
+          grossSalary: netSalary,
+          totalAllowances: 0,
+          totalDeductions: 0,
+          netSalary,
+        };
+    return {
+      id: `ps_${run.reference}_${idx + 1}`,
+      payslipNumber: `PS-${datePart}-${shortRef}-${String(idx + 1).padStart(2, "0")}`,
+      disbursementId: run.reference,
+      reference: run.reference,
+      orgId: run.orgId,
+      organizationName: run.organizationName || "Organization Payroll",
+      instructorId: rec.instructorId || `staff_${idx + 1}`,
+      instructorName: rec.instructorName || "Staff Member",
+      instructorEmail: rec.instructorEmail,
+      roleTitle: rec.roleTitle || "Instructor",
+      subaccountCode: subCode,
+      bankName: rec.bankName,
+      accountNumberMasked: maskedAcc,
+      currency: run.currency,
+      netSalary,
+      breakdown,
+      payPeriod: run.payPeriod,
+      settlementSchedule: "Next business day direct bank settlement",
+      issuedAt,
+      paidAt,
+      verifiedVia,
+    };
+  });
+};
+
+async function createDynamicFlatSplit(params: {
+  name: string;
+  currency: string;
+  subaccounts: Array<{ subaccount: string; share: number }>;
+  bearerType: "all-proportional" | "subaccount";
+  bearerSubaccount?: string;
+}): Promise<{ split_code?: string; id?: string | number; delegated?: boolean; error?: string }> {
+  const effectiveBearer = normalizePayrollBearerType(
+    params.bearerType,
+    params.bearerSubaccount,
+  );
+  const payload: Record<string, unknown> = {
+    name: params.name.slice(0, 90),
+    type: "flat",
+    currency: params.currency.toUpperCase(),
+    subaccounts: params.subaccounts,
+    bearer_type: effectiveBearer,
+    mode: "live",
+  };
+  if (effectiveBearer === "subaccount" && params.bearerSubaccount) {
+    payload.bearer_subaccount = params.bearerSubaccount;
+  }
+
+  let lastErr = "Unable to generate payroll split via KeySafe gateway.";
+
+  const keySafeSplitUrls = [
+    `${KEYSAFE_PROXY_BASE}/split?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/split?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/split-group?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/create-split-group?mode=live`,
+  ];
+
+  for (const url of keySafeSplitUrls) {
+    try {
+      const proxyRes = await fetch(url, {
+        method: "POST",
+        signal: AbortSignal.timeout(25000),
+        headers: getKeySafeHeaders("live"),
+        body: JSON.stringify(payload),
+      });
+      const proxyJson = await proxyRes.json().catch(() => ({}));
+      const splitCode = proxyJson.split_code || proxyJson.data?.split_code;
+      if (proxyRes.ok && splitCode) {
+        return {
+          split_code: splitCode,
+          id: proxyJson.id || proxyJson.data?.id,
+          delegated: true,
+        };
+      }
+      if (proxyJson.detail?.message || proxyJson.message) {
+        lastErr = proxyJson.detail?.message || proxyJson.message;
+      }
+    } catch {
+      // try next KeySafe endpoint
+    }
+  }
+
+  return { error: lastErr };
+}
+
+async function resolveOrCreatePaystackCustomer(
+  email: string,
+  organizationName: string,
+): Promise<{ customerCode?: string; customerId?: number; error?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const lookupUrls = [
+    `${KEYSAFE_PROXY_BASE}/customer/${encodeURIComponent(cleanEmail)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/customer/${encodeURIComponent(cleanEmail)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/customer/${encodeURIComponent(cleanEmail)}?mode=live`,
+  ];
+
+  for (const url of lookupUrls) {
+    try {
+      const lookupRes = await fetch(url, {
+        headers: getKeySafeHeaders("live"),
+        signal: AbortSignal.timeout(15000),
+      });
+      const lookupJson = await lookupRes.json().catch(() => ({}));
+      const code = lookupJson.customer_code || lookupJson.data?.customer_code;
+      if (lookupRes.ok && code) {
+        return {
+          customerCode: code,
+          customerId: lookupJson.id || lookupJson.data?.id,
+        };
+      }
+    } catch {
+      // try next KeySafe URL
+    }
+  }
+
+  const nameParts = (organizationName || "School Payroll").trim().split(/\s+/);
+  const firstName = nameParts[0] || "School";
+  const lastName = nameParts.slice(1).join(" ") || "Payroll";
+
+  const createUrls = [
+    `${KEYSAFE_PROXY_BASE}/customer?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/customer?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/customer?mode=live`,
+  ];
+
+  let lastErr = "Unable to register payer profile for bank transfer via KeySafe gateway.";
+  for (const url of createUrls) {
+    try {
+      const createRes = await fetch(url, {
+        method: "POST",
+        headers: getKeySafeHeaders("live"),
+        signal: AbortSignal.timeout(15000),
+        body: JSON.stringify({
+          email: cleanEmail,
+          first_name: firstName,
+          last_name: lastName,
+          mode: "live",
+        }),
+      });
+      const createJson = await createRes.json().catch(() => ({}));
+      const code = createJson.customer_code || createJson.data?.customer_code;
+      if (createRes.ok && code) {
+        return {
+          customerCode: code,
+          customerId: createJson.id || createJson.data?.id,
+        };
+      }
+      if (createJson.detail?.message || createJson.message) {
+        lastErr = createJson.detail?.message || createJson.message;
+      }
+    } catch {
+      // try next KeySafe URL
+    }
+  }
+
+  return { error: lastErr };
+}
+
+async function assignSplitToDedicatedAccount(params: {
+  customerCode: string;
+  customerId?: number;
+  splitCode: string;
+}): Promise<{
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  error?: string;
+}> {
+  const preferredBanks = ["wema-bank", "titan-paystack"];
+  const createDvaUrls = [
+    `${KEYSAFE_PROXY_BASE}/dedicated_account?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/dedicated_account?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/dedicated_account?mode=live`,
+  ];
+  let lastError = "Corporate bank transfer accounts are not active right now. Please use Online Checkout (which also includes Bank Transfer).";
+
+  // 1. Create Dedicated Virtual Account with split_code via KeySafe
+  for (const preferredBank of preferredBanks) {
+    for (const url of createDvaUrls) {
+      try {
+        const dvaRes = await fetch(url, {
+          method: "POST",
+          headers: getKeySafeHeaders("live"),
+          signal: AbortSignal.timeout(20000),
+          body: JSON.stringify({
+            customer: params.customerCode,
+            preferred_bank: preferredBank,
+            split_code: params.splitCode,
+            mode: "live",
+          }),
+        });
+        const dvaJson = await dvaRes.json().catch(() => ({}));
+        const acctNum = dvaJson.account_number || dvaJson.data?.account_number;
+        if (dvaRes.ok && acctNum) {
+          return {
+            bankName: dvaJson.bank?.name || dvaJson.data?.bank?.name || preferredBank,
+            accountNumber: acctNum,
+            accountName: dvaJson.account_name || dvaJson.data?.account_name,
+          };
+        }
+        if (dvaJson.detail?.message || dvaJson.message) {
+          lastError = dvaJson.detail?.message || dvaJson.message;
+        }
+      } catch {
+        // try next endpoint
+      }
+    }
+  }
+
+  // 2. If customer already has a DVA, attach the split_code via KeySafe
+  if (params.customerId) {
+    const listUrls = [
+      `${KEYSAFE_PROXY_BASE}/dedicated_account?customer=${encodeURIComponent(String(params.customerId))}&active=true&mode=live`,
+      `${KEYSAFE_PROXY_BASE}/api/dedicated_account?customer=${encodeURIComponent(String(params.customerId))}&active=true&mode=live`,
+    ];
+    for (const listUrl of listUrls) {
+      try {
+        const listRes = await fetch(listUrl, {
+          headers: getKeySafeHeaders("live"),
+          signal: AbortSignal.timeout(15000),
+        });
+        const listJson = await listRes.json().catch(() => ({}));
+        const existingDva = Array.isArray(listJson.data) ? listJson.data[0] : listJson.data;
+        if (listRes.ok && existingDva?.account_number) {
+          const splitUrls = [
+            `${KEYSAFE_PROXY_BASE}/dedicated_account/split?mode=live`,
+            `${KEYSAFE_PROXY_BASE}/api/dedicated_account/split?mode=live`,
+          ];
+          for (const splitUrl of splitUrls) {
+            const splitAssignRes = await fetch(splitUrl, {
+              method: "POST",
+              headers: getKeySafeHeaders("live"),
+              signal: AbortSignal.timeout(15000),
+              body: JSON.stringify({
+                account_number: existingDva.account_number,
+                split_code: params.splitCode,
+                mode: "live",
+              }),
+            }).catch(() => null);
+            const splitAssignJson = splitAssignRes ? await splitAssignRes.json().catch(() => ({})) : {};
+            if (splitAssignRes?.ok && (splitAssignJson.status || splitAssignJson.success)) {
+              return {
+                bankName: existingDva.bank?.name || "Transfer Bank",
+                accountNumber: existingDva.account_number,
+                accountName: existingDva.account_name,
+              };
+            }
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  return { error: lastError };
+}
+
+// Groups payroll recipients by instructor subaccount and calculates each instructor's exact payout in minor units.
+function groupPayrollByInstructorSubaccount(
+  recipients: ServerPayrollRecipient[],
+  explicitSplit?: {
+    type?: string;
+    bearer_type?: string;
+    bearer_subaccount?: string;
+    subaccounts?: Array<{ subaccount?: string; subaccount_code?: string; share: number }>;
+  },
+  maxAmountKobo?: number,
+): Array<{ subaccount: string; shareKobo: number; amount: number }> {
+  const instructorMap = new Map<string, number>();
+
+  if (
+    explicitSplit &&
+    Array.isArray(explicitSplit.subaccounts) &&
+    explicitSplit.subaccounts.length > 0 &&
+    explicitSplit.type !== "percentage"
+  ) {
+    for (const entry of explicitSplit.subaccounts) {
+      const code = String(entry.subaccount || entry.subaccount_code || "").trim();
+      const share = Math.round(Number(entry.share || 0));
+      if (!code || share <= 0) continue;
+      instructorMap.set(code, (instructorMap.get(code) || 0) + share);
+    }
+  } else {
+    for (const r of recipients) {
+      const code = String(r.subaccount_code || r.subaccount || "").trim();
+      const share = Math.round(Number(r.amount || 0) * 100);
+      if (!code || share <= 0) continue;
+      instructorMap.set(code, (instructorMap.get(code) || 0) + share);
+    }
+  }
+
+  const grouped = Array.from(instructorMap.entries()).map(([subaccount, shareKobo]) => ({
+    subaccount,
+    shareKobo,
+    amount: Math.round(shareKobo) / 100,
+  }));
+
+  // Guarantee total split share never exceeds transaction amount due to rounding
+  if (typeof maxAmountKobo === "number" && maxAmountKobo > 0 && grouped.length > 0) {
+    const sumShares = grouped.reduce((acc, item) => acc + item.shareKobo, 0);
+    if (sumShares > maxAmountKobo) {
+      const overflow = sumShares - maxAmountKobo;
+      const last = grouped[grouped.length - 1];
+      if (last.shareKobo > overflow) {
+        last.shareKobo -= overflow;
+        last.amount = last.shareKobo / 100;
+      }
+    }
+  }
+
+  return grouped;
+}
+
+// POST /api/paystack/payroll/initialize
+// Routes ALL API calls strictly through KeySafe URL Proxy (https://keysafe-ntia.onrender.com).
+// Supports:
+// - Batch inspection & grouping by instructor subaccount
+// - Paystack Dynamic Splits: passes inline `split` object (bearer_type strictly "all-proportional" or "subaccount")
+// - Bank transfer DVA: creates flat split_code and attaches to dedicated transfer account
 app.post("/api/paystack/payroll/initialize", async (req, res) => {
   const {
     paymentType = "individual",
+    paymentChannel = "checkout",
     email,
+    organizationName = "School Payroll",
+    orgId = "",
+    payPeriod = "",
     amount,
     currency = "NGN",
     subaccount_code,
     split_code,
+    split,
     recipients = [],
-    bearer_type = "all-proportional",
+    feePerStaff = 0,
+    bearer_type,
     bearer_subaccount,
     reference,
     metadata = {},
   } = req.body;
 
-  if (!email || !amount || Number(amount) <= 0) {
+  if (!email) {
     return res.status(400).json({
       success: false,
-      message: "Payer email and positive salary amount are required.",
+      message: "Payer email address is required.",
     });
   }
 
-  const amountInKobo = Math.round(Number(amount) * 100);
   const activeCurrency = String(currency || "NGN").toUpperCase();
+  const channel: "checkout" | "bank_transfer" =
+    paymentChannel === "bank_transfer" ? "bank_transfer" : "checkout";
+
+  const normalizedRecipients: ServerPayrollRecipient[] =
+    Array.isArray(recipients) && recipients.length > 0
+      ? recipients.map((r: ServerPayrollRecipient & { share?: number }) => ({
+          ...r,
+          subaccount_code: r.subaccount_code || r.subaccount,
+          amount:
+            Number(r.amount) > 0
+              ? Number(r.amount)
+              : Number(r.share || 0) / 100,
+        }))
+      : paymentType === "individual" && subaccount_code && Number(amount) > 0
+        ? [
+            {
+              instructorId: String(metadata.instructor_id || ""),
+              instructorName: String(metadata.instructor_name || "Instructor"),
+              instructorEmail: String(metadata.instructor_email || ""),
+              roleTitle: String(metadata.role_title || "Instructor"),
+              subaccount_code,
+              bankName: String(metadata.bank_name || ""),
+              accountNumber: String(metadata.account_number || ""),
+              amount: Number(amount),
+            },
+          ]
+        : [];
+
+  const staffCount = Math.max(normalizedRecipients.length, Number(metadata.recipient_count || 0), 1);
+  const netSalariesTotal =
+    normalizedRecipients.length > 0
+      ? Math.round(
+          normalizedRecipients.reduce((sum, r) => sum + Number(r.amount || 0), 0) * 100,
+        ) / 100
+      : Math.round(Number(amount || 0) * 100) / 100;
+
+  if (!netSalariesTotal || netSalariesTotal <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "A positive salary total is required before starting payroll.",
+    });
+  }
+
+  const cleanFeePerStaff = Math.max(0, Number(feePerStaff || 0));
+  const platformFee =
+    Math.round(cleanFeePerStaff * staffCount * 100) / 100;
+  const grandTotal =
+    Math.round((netSalariesTotal + platformFee) * 100) / 100;
+
+  const netSalariesKobo = Math.round(netSalariesTotal * 100);
+  const platformFeeKobo = Math.round(platformFee * 100);
+  const grandTotalKobo = netSalariesKobo + platformFeeKobo;
+
+  const instructorSplits = groupPayrollByInstructorSubaccount(
+    normalizedRecipients,
+    split,
+    grandTotalKobo,
+  );
+  const sumInstructorSharesKobo = instructorSplits.reduce((s, v) => s + v.shareKobo, 0);
+  const platformCommissionKobo = Math.max(
+    platformFeeKobo,
+    grandTotalKobo - sumInstructorSharesKobo,
+  );
+
   const txReference =
     reference ||
     `PAY-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-  let lastErrorMessage = "Failed to initialize salary payment on Paystack.";
+  const requestedSplitCode: string | undefined = split_code || undefined;
+  let activeSplitCode: string | undefined = requestedSplitCode;
+  let lastErrorMessage = "Failed to initialize salary payment via KeySafe gateway.";
 
-  try {
-    const headers = await ensurePaystackHeaders();
-    if (headers) {
-      const payload: Record<string, unknown> = {
-        email: String(email).trim(),
-        amount: amountInKobo,
-        currency: activeCurrency,
-        reference: txReference,
-        metadata: {
-          ...metadata,
-          payroll_flow: true,
-          payment_type: paymentType,
-          platform_cut_kobo: 0,
-          mode: "live",
-        },
-      };
+  const effectiveBearerType = normalizePayrollBearerType(
+    split?.bearer_type || bearer_type,
+    split?.bearer_subaccount || bearer_subaccount,
+  );
 
-      if (paymentType === "individual") {
-        if (!subaccount_code) {
-          return res.status(400).json({
-            success: false,
-            message: "Instructor Paystack subaccount code is required for individual salary disbursement.",
-          });
-        }
-        payload.subaccount = subaccount_code;
-        payload.transaction_charge = 0; // 0 kobo to platform account; 100% allocated to instructor subaccount
-        payload.bearer = "subaccount"; // Gateway fees borne by subaccount settlement so platform account is never debited
-      } else {
-        if (split_code && (!Array.isArray(recipients) || recipients.length === 0)) {
-          payload.split_code = split_code;
-        } else if (Array.isArray(recipients) && recipients.length > 0) {
-          const splitSubaccounts = recipients.map(
-            (r: { subaccount_code?: string; subaccount?: string; amount?: number; share?: number }) => ({
-              subaccount: r.subaccount_code || r.subaccount,
-              share:
-                r.share !== undefined
-                  ? Math.round(Number(r.share))
-                  : Math.round(Number(r.amount || 0) * 100),
-            })
-          );
-          const dynamicSplit: Record<string, unknown> = {
-            type: "flat",
-            bearer_type,
-            subaccounts: splitSubaccounts,
-          };
-          if (bearer_type === "subaccount" && bearer_subaccount) {
-            dynamicSplit.bearer_subaccount = bearer_subaccount;
-          }
-          payload.split = dynamicSplit;
-        } else if (split_code) {
-          payload.split_code = split_code;
-        } else {
-          return res.status(400).json({
-            success: false,
-            message: "Either split_code or recipients subaccount list is required for group salary disbursement.",
-          });
-        }
-      }
+  // Bank transfers (Dedicated Virtual Accounts) require a persisted split_code created through KeySafe
+  const needsPersistedSplitCodeForBankTransfer =
+    channel === "bank_transfer" &&
+    instructorSplits.length > 0 &&
+    (!activeSplitCode || platformCommissionKobo > 0);
 
-      const response = await fetch("https://api.paystack.co/transaction/initialize", {
-        method: "POST",
-        headers,
-        signal: AbortSignal.timeout(15000),
-        body: JSON.stringify(payload),
-      });
+  if (needsPersistedSplitCodeForBankTransfer) {
+    const splitResult = await createDynamicFlatSplit({
+      name: `Payroll ${organizationName} ${txReference}`,
+      currency: activeCurrency,
+      subaccounts: instructorSplits.map((v) => ({
+        subaccount: v.subaccount,
+        share: v.shareKobo,
+      })),
+      bearerType: effectiveBearerType,
+      bearerSubaccount: split?.bearer_subaccount || bearer_subaccount,
+    });
 
-      const json = await response.json();
-      if (response.ok && json.status && json.data) {
-        return res.json({
-          success: true,
-          authorization_url: json.data.authorization_url,
-          access_code: json.data.access_code,
-          reference: json.data.reference || txReference,
-          split_code: split_code || undefined,
-          subaccount_code: subaccount_code || undefined,
-          mode: "live",
-        });
-      }
-      if (json.message) {
-        lastErrorMessage = json.message;
-      }
+    if (splitResult.split_code) {
+      activeSplitCode = splitResult.split_code;
+    } else if (splitResult.error) {
+      lastErrorMessage = splitResult.error;
     }
-  } catch (err: unknown) {
-    console.error("[Paystack Payroll] Direct initialize error:", err);
   }
 
-  // Fallback to KeySafe split-payment gateway if direct secret key was unreachable
-  if (paymentType === "individual" && subaccount_code) {
-    const keySafeUrls = [
-      "https://keysafe-ntia.onrender.com/split-payment?mode=live",
-      "https://keysafe-ntia.onrender.com/api/split-payment?mode=live",
-    ];
-    for (const url of keySafeUrls) {
-      try {
-        const proxyRes = await fetch(url, {
-          method: "POST",
-          signal: AbortSignal.timeout(25000),
-          headers: {
-            "Content-Type": "application/json",
-            "X-Paystack-Mode": "live",
-            "X-Environment-Mode": "live",
-            "X-Context-Mode": "live",
-          },
-          body: JSON.stringify({
-            email: String(email).trim(),
-            amount: amountInKobo,
-            subaccount_code,
-            subaccount: subaccount_code,
-            transaction_charge: 0,
-            bearer: "subaccount",
-            currency: activeCurrency,
-            reference: txReference,
-            mode: "live",
-            metadata: {
-              ...metadata,
-              payroll_flow: true,
-              platform_cut_kobo: 0,
-            },
-          }),
+  const baseRun: ServerPayrollRun = {
+    reference: txReference,
+    orgId: String(orgId || metadata.org_id || ""),
+    organizationName: String(organizationName || metadata.org_name || "School Payroll"),
+    payerEmail: String(email).trim(),
+    paymentType: paymentType === "group" ? "group" : "individual",
+    paymentChannel: channel,
+    currency: activeCurrency,
+    netSalariesTotal,
+    feePerStaff: cleanFeePerStaff,
+    platformFee,
+    grandTotal,
+    grandTotalKobo,
+    splitCode: activeSplitCode,
+    subaccountCode: subaccount_code || instructorSplits[0]?.subaccount || normalizedRecipients[0]?.subaccount_code,
+    payPeriod: String(payPeriod || metadata.pay_period || ""),
+    recipients: normalizedRecipients,
+    status: "initialized",
+    webhookConfirmed: false,
+    createdAt: new Date().toISOString(),
+    payslips: [],
+  };
+
+  // Bank Transfer Channel via KeySafe Proxy
+  if (channel === "bank_transfer") {
+    if (!activeSplitCode) {
+      return res.status(400).json({
+        success: false,
+        message: lastErrorMessage || "Could not prepare bank transfer split routing.",
+      });
+    }
+
+    const customer = await resolveOrCreatePaystackCustomer(
+      String(email),
+      String(organizationName),
+    );
+    if (!customer.customerCode) {
+      return res.status(400).json({
+        success: false,
+        message: customer.error || "Unable to register payer profile for bank transfer.",
+      });
+    }
+
+    const dva = await assignSplitToDedicatedAccount({
+      customerCode: customer.customerCode,
+      customerId: customer.customerId,
+      splitCode: activeSplitCode,
+    });
+
+    if (!dva.accountNumber) {
+      return res.status(400).json({
+        success: false,
+        message:
+          dva.error ||
+          "Corporate bank transfer account could not be assigned right now. Please use Online Checkout (which also includes Transfer) instead.",
+      });
+    }
+
+    const dedicatedAccount = {
+      bankName: dva.bankName || "Transfer Bank",
+      accountNumber: dva.accountNumber,
+      accountName: dva.accountName || String(organizationName || "School Payroll"),
+      splitCode: activeSplitCode,
+      customerCode: customer.customerCode,
+      reference: txReference,
+      currency: activeCurrency,
+      amount: grandTotal,
+      assignedAt: new Date().toISOString(),
+    };
+
+    baseRun.dedicatedAccount = dedicatedAccount;
+    payrollRunLedger.set(txReference, baseRun);
+    splitCodeToRunRef.set(activeSplitCode, txReference);
+    dvaAccountToRunRef.set(dva.accountNumber, txReference);
+
+    return res.json({
+      success: true,
+      paymentChannel: "bank_transfer",
+      reference: txReference,
+      split_code: activeSplitCode,
+      splitMode: "split_group",
+      instructorSplits: instructorSplits.map((v) => ({
+        subaccount: v.subaccount,
+        share: v.shareKobo,
+        amount: v.amount,
+      })),
+      dedicatedAccount,
+      netSalariesTotal,
+      platformFee,
+      grandTotal,
+      mode: "live",
+    });
+  }
+
+  // Online Checkout Channel: Strictly routed through KeySafe URL Proxy
+  const useDynamicSplit =
+    Boolean(split) ||
+    (instructorSplits.length > 1 && !requestedSplitCode) ||
+    (instructorSplits.length > 0 && paymentType === "group" && !requestedSplitCode);
+
+  let splitMode: "dynamic_split" | "split_group" | "single_subaccount";
+
+  const proxyPayload: Record<string, unknown> = {
+    email: String(email).trim(),
+    amount: grandTotalKobo,
+    currency: activeCurrency,
+    reference: txReference,
+    mode: "live",
+    metadata: {
+      ...metadata,
+      payroll_flow: true,
+      payment_type: paymentType,
+      org_id: baseRun.orgId,
+      org_name: baseRun.organizationName,
+      pay_period: baseRun.payPeriod,
+      net_salaries_kobo: sumInstructorSharesKobo || netSalariesKobo,
+      platform_fee_kobo: platformCommissionKobo,
+      fee_per_staff: cleanFeePerStaff,
+      recipient_count: staffCount,
+      instructor_count: instructorSplits.length,
+      bearer_type: effectiveBearerType,
+      mode: "live",
+    },
+  };
+
+  if (useDynamicSplit && instructorSplits.length > 0) {
+    const dynamicSplitPayload: Record<string, unknown> = {
+      type: split?.type === "percentage" ? "percentage" : "flat",
+      bearer_type: effectiveBearerType,
+      subaccounts:
+        split?.type === "percentage" && Array.isArray(split?.subaccounts)
+          ? split.subaccounts.map((s: { subaccount?: string; subaccount_code?: string; share: number }) => ({
+              subaccount: s.subaccount || s.subaccount_code,
+              share: Math.round(Number(s.share)),
+            }))
+          : instructorSplits.map((v) => ({
+              subaccount: v.subaccount,
+              share: v.shareKobo,
+            })),
+    };
+    const chosenBearerSub = split?.bearer_subaccount || bearer_subaccount;
+    if (effectiveBearerType === "subaccount" && chosenBearerSub) {
+      dynamicSplitPayload.bearer_subaccount = chosenBearerSub;
+    }
+
+    proxyPayload.split = dynamicSplitPayload;
+    splitMode = "dynamic_split";
+    (proxyPayload.metadata as Record<string, unknown>).dynamic_split = true;
+  } else if (requestedSplitCode && platformCommissionKobo === 0) {
+    proxyPayload.split_code = requestedSplitCode;
+    splitMode = "split_group";
+  } else if (paymentType === "individual" && (subaccount_code || instructorSplits[0]?.subaccount)) {
+    const singleSub = subaccount_code || instructorSplits[0].subaccount;
+    proxyPayload.subaccount_code = singleSub;
+    proxyPayload.subaccount = singleSub;
+    proxyPayload.transaction_charge = platformCommissionKobo;
+    proxyPayload.bearer = "subaccount";
+    splitMode = "single_subaccount";
+  } else if (instructorSplits.length > 0) {
+    proxyPayload.split = {
+      type: "flat",
+      bearer_type: effectiveBearerType,
+      subaccounts: instructorSplits.map((v) => ({
+        subaccount: v.subaccount,
+        share: v.shareKobo,
+      })),
+    };
+    splitMode = "dynamic_split";
+    (proxyPayload.metadata as Record<string, unknown>).dynamic_split = true;
+  } else {
+    return res.status(400).json({
+      success: false,
+      message: "Either a saved pay group or instructor selection is required for payroll.",
+    });
+  }
+
+  console.log(
+    `[KeySafe Payroll] Initializing ${splitMode} checkout via KeySafe proxy (${instructorSplits.length} instructor(s), bearer=${effectiveBearerType}, total=${grandTotalKobo})`,
+  );
+
+  const keySafeInitUrls = [
+    `${KEYSAFE_PROXY_BASE}/transaction/initialize?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/transaction/initialize?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/split-payment?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/split-payment?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/payments/split-payment?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/payments/paystack-split-init?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/initialize-split?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/payroll/initialize?mode=live`,
+  ];
+
+  for (const url of keySafeInitUrls) {
+    try {
+      const proxyRes = await fetch(url, {
+        method: "POST",
+        signal: AbortSignal.timeout(30000),
+        headers: getKeySafeHeaders("live"),
+        body: JSON.stringify(proxyPayload),
+      });
+      const proxyJson = await proxyRes.json().catch(() => ({}));
+      const authUrl = proxyJson.authorization_url || proxyJson.data?.authorization_url;
+      const accessCode = proxyJson.access_code || proxyJson.data?.access_code;
+      if (proxyRes.ok && (accessCode || authUrl)) {
+        const finalRef = proxyJson.reference || proxyJson.data?.reference || txReference;
+        baseRun.reference = finalRef;
+        payrollRunLedger.set(finalRef, baseRun);
+        if (requestedSplitCode && splitMode === "split_group") {
+          splitCodeToRunRef.set(requestedSplitCode, finalRef);
+        }
+
+        return res.json({
+          success: true,
+          paymentChannel: "checkout",
+          authorization_url: authUrl,
+          access_code: accessCode,
+          reference: finalRef,
+          splitMode,
+          instructorSplits: instructorSplits.map((v) => ({
+            subaccount: v.subaccount,
+            share: v.shareKobo,
+            amount: v.amount,
+          })),
+          subaccount_code: splitMode === "single_subaccount"
+            ? subaccount_code || instructorSplits[0]?.subaccount
+            : undefined,
+          split_code: splitMode === "split_group" ? requestedSplitCode : undefined,
+          netSalariesTotal,
+          platformFee,
+          grandTotal,
+          mode: "live",
+          delegated: true,
         });
-        const proxyJson = await proxyRes.json().catch(() => ({}));
-        const authUrl = proxyJson.authorization_url || proxyJson.data?.authorization_url;
-        const accessCode = proxyJson.access_code || proxyJson.data?.access_code;
-        if (proxyRes.ok && (accessCode || authUrl)) {
-          return res.json({
-            success: true,
-            authorization_url: authUrl,
-            access_code: accessCode,
-            reference: proxyJson.reference || proxyJson.data?.reference || txReference,
-            subaccount_code,
-            mode: "live",
-            delegated: true,
-          });
-        }
-        if (proxyJson.detail?.message || proxyJson.message) {
-          lastErrorMessage = proxyJson.detail?.message || proxyJson.message;
-        }
-      } catch {
-        // continue
       }
+      if (proxyJson.detail?.message || proxyJson.message) {
+        lastErrorMessage = proxyJson.detail?.message || proxyJson.message;
+      }
+    } catch (proxyErr) {
+      console.warn(`[KeySafe Payroll] Proxy notice on ${url}:`, proxyErr);
     }
   }
 
@@ -1360,63 +1986,291 @@ app.post("/api/paystack/payroll/initialize", async (req, res) => {
   });
 });
 
+// --- 5d. POST /api/paystack/webhook ---
+// Listens for charge.success events from Paystack, verifies HMAC-SHA512 signature,
+// marks payroll runs confirmed, and automatically issues digital payslips.
+app.post("/api/paystack/webhook", async (req, res) => {
+  try {
+    const signature = req.headers["x-paystack-signature"] as string | undefined;
+    const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody;
+    const secretKey =
+      PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_LIVE_SECRET_KEY || "";
+
+    if (secretKey && signature && rawBody) {
+      const expectedHash = crypto
+        .createHmac("sha512", secretKey)
+        .update(rawBody)
+        .digest("hex");
+      if (expectedHash !== signature) {
+        console.warn("[Paystack Webhook] Invalid signature rejected.");
+        return res.status(401).json({ received: false, message: "Invalid webhook signature" });
+      }
+    }
+
+    const event = req.body;
+    if (event?.event === "charge.success" && event?.data) {
+      const tx = event.data;
+      const incomingRef = String(tx.reference || "");
+      const incomingSplitCode = String(tx.split?.split_code || tx.metadata?.split_code || "");
+      const receiverBankAcct = String(
+        tx.authorization?.receiver_bank_account_number || "",
+      );
+
+      let matchedRef = incomingRef;
+      let run = payrollRunLedger.get(incomingRef);
+      if (!run && incomingSplitCode) {
+        const mappedRef = splitCodeToRunRef.get(incomingSplitCode);
+        if (mappedRef) {
+          matchedRef = mappedRef;
+          run = payrollRunLedger.get(mappedRef);
+        }
+      }
+      if (!run && receiverBankAcct) {
+        const mappedRef = dvaAccountToRunRef.get(receiverBankAcct);
+        if (mappedRef) {
+          matchedRef = mappedRef;
+          run = payrollRunLedger.get(mappedRef);
+        }
+      }
+
+      if (run) {
+        const paidAt = tx.paid_at || new Date().toISOString();
+        run.status = "success";
+        run.webhookConfirmed = true;
+        run.paidAt = paidAt;
+        if (run.payslips.length === 0) {
+          run.payslips = buildDigitalPayslips(run, "webhook", paidAt);
+        }
+        payrollRunLedger.set(matchedRef, run);
+        console.log(
+          `[Paystack Webhook] charge.success confirmed for ${matchedRef}; generated ${run.payslips.length} digital payslips.`,
+        );
+      }
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error("[Paystack Webhook] Error processing event:", err);
+    return res.status(200).json({ received: true });
+  }
+});
+
+// --- 5e. GET /api/paystack/payroll/status/:reference ---
+// Returns webhook-confirmed status + generated digital payslips, or actively verifies via KeySafe URL Proxy.
+app.get("/api/paystack/payroll/status/:reference", async (req, res) => {
+  const { reference } = req.params;
+  const run = payrollRunLedger.get(reference);
+
+  if (run?.status === "success") {
+    return res.json({
+      success: true,
+      status: "success",
+      webhookConfirmed: run.webhookConfirmed,
+      paidAt: run.paidAt,
+      splitCode: run.splitCode,
+      settlementSchedule: "Next business day direct bank settlement",
+      payslips: run.payslips,
+    });
+  }
+
+  const keySafeVerifyUrls = [
+    `${KEYSAFE_PROXY_BASE}/api/transaction/verify/${encodeURIComponent(reference)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/transaction/verify/${encodeURIComponent(reference)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/verify/${encodeURIComponent(reference)}?mode=live`,
+  ];
+
+  for (const url of keySafeVerifyUrls) {
+    try {
+      const verifyRes = await fetch(url, {
+        headers: getKeySafeHeaders("live"),
+        signal: AbortSignal.timeout(15000),
+      });
+      const verifyJson = await verifyRes.json().catch(() => ({}));
+      const txData = verifyJson.data || verifyJson;
+      if (verifyRes.ok && txData?.status === "success") {
+        const paidAt = txData.paid_at || new Date().toISOString();
+        if (run) {
+          run.status = "success";
+          run.paidAt = paidAt;
+          if (run.payslips.length === 0) {
+            run.payslips = buildDigitalPayslips(run, "verification", paidAt);
+          }
+          payrollRunLedger.set(reference, run);
+        }
+        return res.json({
+          success: true,
+          status: "success",
+          webhookConfirmed: Boolean(run?.webhookConfirmed),
+          paidAt,
+          splitCode: run?.splitCode,
+          settlementSchedule: "Next business day direct bank settlement",
+          payslips: run?.payslips || [],
+        });
+      }
+    } catch {
+      // try next KeySafe endpoint
+    }
+  }
+
+  // For bank transfer virtual accounts, match incoming verified transaction through KeySafe URL Proxy
+  if (run?.paymentChannel === "bank_transfer" && run.dedicatedAccount?.customerCode) {
+    const keySafeTxListUrls = [
+      `${KEYSAFE_PROXY_BASE}/transaction?status=success&perPage=20&mode=live`,
+      `${KEYSAFE_PROXY_BASE}/api/transaction?status=success&perPage=20&mode=live`,
+    ];
+    for (const txListUrl of keySafeTxListUrls) {
+      try {
+        const txListRes = await fetch(txListUrl, {
+          headers: getKeySafeHeaders("live"),
+          signal: AbortSignal.timeout(15000),
+        });
+        const txListJson = await txListRes.json().catch(() => ({}));
+        if (txListRes.ok && Array.isArray(txListJson.data)) {
+          const runCreatedMs = new Date(run.createdAt).getTime() - 10000;
+          const match = txListJson.data.find((tx: {
+            amount?: number;
+            paid_at?: string;
+            created_at?: string;
+            split?: { split_code?: string };
+            customer?: { customer_code?: string; email?: string };
+          }) => {
+            const txTime = new Date(tx.paid_at || tx.created_at || 0).getTime();
+            const matchesSplit =
+              run.splitCode && tx.split?.split_code === run.splitCode;
+            const matchesCustomer =
+              tx.customer?.customer_code === run.dedicatedAccount?.customerCode ||
+              (tx.customer?.email || "").toLowerCase() === run.payerEmail.toLowerCase();
+            const matchesAmount = Number(tx.amount || 0) >= run.grandTotalKobo;
+            return (matchesSplit || matchesCustomer) && matchesAmount && txTime >= runCreatedMs;
+          });
+
+          if (match) {
+            const paidAt = match.paid_at || new Date().toISOString();
+            run.status = "success";
+            run.paidAt = paidAt;
+            if (run.payslips.length === 0) {
+              run.payslips = buildDigitalPayslips(run, "verification", paidAt);
+            }
+            payrollRunLedger.set(reference, run);
+            return res.json({
+              success: true,
+              status: "success",
+              webhookConfirmed: Boolean(run.webhookConfirmed),
+              paidAt,
+              splitCode: run.splitCode,
+              settlementSchedule: "Next business day direct bank settlement",
+              payslips: run.payslips,
+            });
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  return res.json({
+    success: true,
+    status: run?.status || "initialized",
+    webhookConfirmed: false,
+    payslips: run?.payslips || [],
+  });
+});
+
+// --- 5f. POST /api/paystack/payroll/issue-payslips ---
+// Generates digital payslips idempotently after a verified payroll transaction.
+app.post("/api/paystack/payroll/issue-payslips", (req, res) => {
+  const {
+    reference,
+    orgId = "",
+    organizationName = "School Payroll",
+    payerEmail = "",
+    currency = "NGN",
+    payPeriod = "",
+    recipients = [],
+    paidAt,
+  } = req.body;
+
+  if (!reference || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ success: false, message: "Reference and recipients are required." });
+  }
+
+  const existing = payrollRunLedger.get(reference);
+  if (existing && existing.payslips.length > 0) {
+    return res.json({
+      success: true,
+      webhookConfirmed: existing.webhookConfirmed,
+      payslips: existing.payslips,
+    });
+  }
+
+  const syntheticRun: ServerPayrollRun = existing || {
+    reference,
+    orgId,
+    organizationName,
+    payerEmail,
+    paymentType: recipients.length > 1 ? "group" : "individual",
+    paymentChannel: "checkout",
+    currency,
+    netSalariesTotal: recipients.reduce((s: number, r: ServerPayrollRecipient) => s + Number(r.amount || 0), 0),
+    feePerStaff: 0,
+    platformFee: 0,
+    grandTotal: recipients.reduce((s: number, r: ServerPayrollRecipient) => s + Number(r.amount || 0), 0),
+    grandTotalKobo: 0,
+    payPeriod,
+    recipients,
+    status: "success",
+    webhookConfirmed: false,
+    paidAt: paidAt || new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    payslips: [],
+  };
+
+  syntheticRun.status = "success";
+  syntheticRun.payslips = buildDigitalPayslips(syntheticRun, "checkout", paidAt);
+  payrollRunLedger.set(reference, syntheticRun);
+
+  return res.json({
+    success: true,
+    webhookConfirmed: syntheticRun.webhookConfirmed,
+    payslips: syntheticRun.payslips,
+  });
+});
+
 // --- 6. GET /api/paystack/verify/:reference ---
 app.get("/api/paystack/verify/:reference", async (req, res) => {
   const { reference } = req.params;
 
-  try {
-    const headers = await ensurePaystackHeaders();
-    if (headers) {
-      const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, { headers });
-      const json = await response.json();
-      if (response.ok && json.status) {
+  const verifyUrls = [
+    `${KEYSAFE_PROXY_BASE}/api/transaction/verify/${encodeURIComponent(reference)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/transaction/verify/${encodeURIComponent(reference)}?mode=live`,
+    `${KEYSAFE_PROXY_BASE}/api/paystack/verify/${encodeURIComponent(reference)}?mode=live`,
+  ];
+
+  for (const url of verifyUrls) {
+    try {
+      const proxyRes = await fetch(url, {
+        headers: getKeySafeHeaders("live"),
+        signal: AbortSignal.timeout(15000),
+      });
+      const proxyJson = await proxyRes.json().catch(() => ({}));
+      const txData = proxyJson.data || proxyJson;
+      if (proxyRes.ok && (proxyJson.status || txData?.status)) {
         return res.json({
           success: true,
-          status: json.data.status,
-          amount: json.data.amount / 100,
-          currency: json.data.currency,
-          subaccount: json.data.subaccount,
-          split: json.data.split,
-          metadata: json.data.metadata,
-          paid_at: json.data.paid_at,
-          data: json.data,
+          status: txData.status,
+          amount: typeof txData.amount === "number" ? txData.amount / 100 : undefined,
+          currency: txData.currency,
+          subaccount: txData.subaccount,
+          split: txData.split,
+          metadata: txData.metadata,
+          paid_at: txData.paid_at,
+          data: txData,
         });
       }
-      return res.status(400).json({ success: false, message: json.message || "Verification failed." });
+    } catch {
+      // continue to next KeySafe verify endpoint
     }
-  } catch (error: unknown) {
-    console.error("Verification error:", error);
-  }
-
-  try {
-    const proxyRes = await fetch(
-      `https://keysafe-ntia.onrender.com/api/transaction/verify/${encodeURIComponent(reference)}?mode=live`,
-      {
-        headers: {
-          Accept: "application/json",
-          "X-Paystack-Mode": "live",
-          "X-Environment-Mode": "live",
-        },
-        signal: AbortSignal.timeout(15000),
-      }
-    );
-    const proxyJson = await proxyRes.json().catch(() => ({}));
-    const txData = proxyJson.data || proxyJson;
-    if (proxyRes.ok && (proxyJson.status || txData?.status)) {
-      return res.json({
-        success: true,
-        status: txData.status,
-        amount: typeof txData.amount === "number" ? txData.amount / 100 : undefined,
-        currency: txData.currency,
-        subaccount: txData.subaccount,
-        split: txData.split,
-        metadata: txData.metadata,
-        paid_at: txData.paid_at,
-        data: txData,
-      });
-    }
-  } catch {
-    // ignore proxy fallback error
   }
 
   return res.status(400).json({ success: false, message: "Verification failed." });

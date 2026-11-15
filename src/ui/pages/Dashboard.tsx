@@ -66,7 +66,7 @@ const Dashboard = () => {
     submissions,
     attendanceRecords,
     teacherDutyRecords,
-    payrollRecipients,
+    allUsers,
     payrollSplitGroups,
     payrollDisbursements,
   } = useAppContext();
@@ -981,8 +981,29 @@ const Dashboard = () => {
             currentUser.role === "organization" ? currentUser.id : undefined,
           ].filter(Boolean) as string[],
         );
-        const orgLinkedRecipients = payrollRecipients.filter(
-          (r) => !r.orgId || orgIds.has(r.orgId),
+        const orgCourseInstructorIds = new Set<string>();
+        courses
+          .filter((c) => orgIds.has(c.orgId))
+          .forEach((c) => {
+            if (c.instructorId) orgCourseInstructorIds.add(c.instructorId);
+            if (Array.isArray(c.instructors)) {
+              c.instructors.forEach((id) => orgCourseInstructorIds.add(id));
+            }
+          });
+        const orgMemberInstructorKeys = new Set(
+          orgMembers
+            .filter((m) => orgIds.has(m.orgId) && m.role === "instructor")
+            .flatMap((m) => [m.userId, m.id, m.email?.toLowerCase()].filter(Boolean) as string[]),
+        );
+        const orgLinkedRecipients = allUsers.filter(
+          (u) =>
+            u.role !== "super_admin" &&
+            u.email?.toLowerCase() !== "ekenehq@gmail.com" &&
+            Boolean(u.paystackSubaccount?.subaccount_code) &&
+            (orgIds.has(u.orgId || "") ||
+              orgCourseInstructorIds.has(u.id) ||
+              orgMemberInstructorKeys.has(u.id) ||
+              (u.email && orgMemberInstructorKeys.has(u.email.toLowerCase()))),
         ).length;
         const orgSplitGroupCount = payrollSplitGroups.filter(
           (g) => !g.orgId || orgIds.has(g.orgId),
@@ -997,14 +1018,14 @@ const Dashboard = () => {
               <div className="flex items-center space-x-2">
                 <Banknote className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white font-heading">
-                  Instructor Payroll &amp; Direct Bank Payouts
+                  Instructor Payroll &amp; Multi-Split Checkout
                 </h2>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Pay instructors individually straight to their bank accounts or pay multiple instructors together in a single checkout—with zero platform fees.
+                Add instructors to a payroll cart, enter each salary amount, and pay everyone in a single checkout or corporate bank transfer—every instructor receives their exact share automatically in their own payout account, with digital payslips issued.
               </p>
               <div className="flex flex-wrap items-center gap-4 pt-1 text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                <span>{orgLinkedRecipients} Linked Bank Accounts</span>
+                <span>{orgLinkedRecipients} Instructors Ready for Payout</span>
                 <span>•</span>
                 <span>{orgSplitGroupCount} Payroll Groups</span>
                 <span>•</span>

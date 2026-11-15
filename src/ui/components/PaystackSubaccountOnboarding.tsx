@@ -256,20 +256,35 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     }
   };
 
-  // Register / Save Paystack Subaccount
+  // Register / Save Settlement Subaccount
   const handleRegisterSubaccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setSubaccountError("");
     setSuccessMessage("");
 
-    if (!accountNumber || accountNumber.length < 10) {
-      setSubaccountError("Account number must be 10 digits.");
+    const curBank = banks.find((b) => b.code === selectedBankCode);
+    const activeCountry =
+      selectedCountry !== "all"
+        ? selectedCountry
+        : selectedBankCountry || curBank?.country || curBank?.country_id || "";
+    const spec =
+      !activeCountry || (selectedCountry === "all" && !selectedBankCode)
+        ? { minLen: 6, maxLen: 30, description: "a valid account number" }
+        : getCountryAccountSpec(activeCountry);
+
+    if (!selectedBankCode) {
+      setSubaccountError("Please select a settlement bank.");
+      setSubmitting(false);
+      return;
+    }
+    if (!accountNumber || accountNumber.length < spec.minLen) {
+      setSubaccountError(`Please enter ${spec.description}.`);
       setSubmitting(false);
       return;
     }
     if (!businessName.trim()) {
-      setSubaccountError("Business / Organization name is required.");
+      setSubaccountError("Business / Organization / Provider name is required.");
       setSubmitting(false);
       return;
     }
@@ -334,7 +349,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         }
 
         setSuccessMessage(
-          `Your bank payout account (${selectedBankName || selectedBankObj?.name || "Bank"} •••• ${accountNumber.trim().slice(-4)}) is connected! Tuition payments will go straight to your bank account.`,
+          `Your bank payout account (${selectedBankName || selectedBankObj?.name || "Bank"} •••• ${accountNumber.trim().slice(-4)}) is connected! Tuition fees and school salary payments will settle straight to your bank account.`,
         );
         setIsEditing(false);
       } else {
@@ -367,8 +382,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
             Provider Payout & Bank Settlement
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-xs mt-0.5">
-            Connect your local bank account to automatically receive 100% direct settlements
-            of your tuition fees. The 15% platform fee is added automatically for students.
+            Connect your bank account to receive direct settlements for course tuition fees and school salary payments. For student course purchases, the 15% platform fee is added automatically.
           </p>
         </div>
 
@@ -857,6 +871,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
         subaccountCode={currentSubaccount?.subaccount_code}
         bankName={currentSubaccount?.bank_name || selectedBankName}
         accountNumber={currentSubaccount?.account_number || accountNumber}
+        isOrganization={isOrg}
       />
     </div>
   );

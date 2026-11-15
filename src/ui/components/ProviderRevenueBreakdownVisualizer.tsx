@@ -29,6 +29,7 @@ interface ProviderRevenueBreakdownVisualizerProps {
   bankName?: string;
   accountNumber?: string;
   className?: string;
+  isOrganization?: boolean;
 }
 
 export const ProviderRevenueBreakdownVisualizer: React.FC<
@@ -40,6 +41,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
   bankName,
   accountNumber,
   className = "",
+  isOrganization = true,
 }) => {
   const [tuitionAmount, setTuitionAmount] = useState<number>(initialTuition);
   const [activeTab, setActiveTab] = useState<"calculator" | "projections">(
@@ -60,7 +62,7 @@ export const ProviderRevenueBreakdownVisualizer: React.FC<
   // Donut chart data
   const pieData = [
     {
-      name: "Your School (100% Tuition)",
+      name: isOrganization ? "Your School (100% Tuition)" : "Your Payout (100% Base)",
       value: baseTuition,
       percentage: "100% Tuition",
       color: "#10b981", // emerald-500

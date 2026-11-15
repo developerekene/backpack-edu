@@ -748,9 +748,9 @@ export const Settings = () => {
                 </div>
             </div>
 
-            {/* Instructor Paystack Split Payouts Subaccount */}
+            {/* Instructor Payout Settlement Account */}
             {currentUser.role === 'instructor' && (
-                <div className="pt-2">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 shadow-sm">
                     <PaystackSubaccountOnboarding />
                 </div>
             )}

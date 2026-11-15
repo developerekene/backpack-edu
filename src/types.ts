@@ -71,22 +71,40 @@ export interface InstructorPayrollRecipient {
   updatedAt?: string;
 }
 
+export interface PayrollSalaryLineItem {
+  id: string;
+  label: string;
+  amount: number;
+}
+
+export interface PayrollSalaryBreakdown {
+  basicSalary: number;
+  allowances: PayrollSalaryLineItem[];
+  deductions: PayrollSalaryLineItem[];
+  grossSalary: number;
+  totalAllowances: number;
+  totalDeductions: number;
+  netSalary: number;
+}
+
 export interface PayrollSplitMember {
   instructorId: string;
   instructorName: string;
   instructorEmail?: string;
+  roleTitle?: string;
   subaccountCode: string;
   bankName?: string;
   accountNumber?: string;
   amount: number; // Fixed amount in major currency unit (e.g. NGN 150000) when flat split
   sharePercentage?: number; // % share when percentage split
+  breakdown?: PayrollSalaryBreakdown;
 }
 
 export interface PayrollSplitGroup {
   id: string;
   orgId: string;
   name: string;
-  splitCode: string; // Live Paystack SPL_... code
+  splitCode: string; // Live split code
   paystackSplitId?: number | string;
   type: "flat" | "percentage";
   currency: string;
@@ -99,26 +117,71 @@ export interface PayrollSplitGroup {
   updatedAt?: string;
 }
 
+export interface PayrollPayslip {
+  id: string;
+  payslipNumber: string;
+  disbursementId: string;
+  reference: string;
+  orgId: string;
+  organizationName: string;
+  instructorId: string;
+  instructorName: string;
+  instructorEmail?: string;
+  roleTitle?: string;
+  subaccountCode: string;
+  bankName?: string;
+  accountNumberMasked?: string;
+  currency: string;
+  netSalary: number;
+  breakdown?: PayrollSalaryBreakdown;
+  payPeriod?: string;
+  settlementSchedule: string;
+  issuedAt: string;
+  paidAt: string;
+  verifiedVia: "webhook" | "verification" | "checkout";
+}
+
+export interface PayrollDedicatedAccount {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  splitCode: string;
+  customerCode?: string;
+  reference: string;
+  currency: string;
+  amount: number;
+  assignedAt: string;
+}
+
 export interface PayrollDisbursement {
   id: string;
   orgId: string;
   reference: string;
   paymentType: "individual" | "split_group" | "batch_split";
+  paymentChannel?: "checkout" | "bank_transfer";
   splitGroupId?: string;
   splitCode?: string;
   splitGroupName?: string;
   payerEmail: string;
   currency: string;
+  netSalariesTotal?: number;
+  feePerStaff?: number;
   totalAmount: number;
-  platformCut: 0; // Guaranteed zero platform touch
+  platformCut: number;
+  dedicatedAccount?: PayrollDedicatedAccount;
+  webhookConfirmed?: boolean;
+  settlementStatus?: "awaiting_transfer" | "confirmed_settling" | "settled";
+  payslips?: PayrollPayslip[];
   recipients: Array<{
     instructorId: string;
     instructorName: string;
     instructorEmail?: string;
+    roleTitle?: string;
     subaccountCode: string;
     bankName?: string;
     accountNumber?: string;
     amount: number;
+    breakdown?: PayrollSalaryBreakdown;
   }>;
   status: "success" | "failed" | "initialized";
   note?: string;

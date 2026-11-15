@@ -49,6 +49,7 @@ import {
   InstructorPayrollRecipient,
   PayrollSplitGroup,
   PayrollDisbursement,
+  PayrollPayslip,
   AppEvent,
 } from "../types";
 import { useAuth } from "./AuthContext";
@@ -279,11 +280,13 @@ interface AppState {
   payrollRecipients: InstructorPayrollRecipient[];
   payrollSplitGroups: PayrollSplitGroup[];
   payrollDisbursements: PayrollDisbursement[];
+  payrollPayslips: PayrollPayslip[];
   savePayrollRecipient: (recipient: InstructorPayrollRecipient) => Promise<void>;
   removePayrollRecipient: (id: string) => Promise<void>;
   savePayrollSplitGroup: (group: PayrollSplitGroup) => Promise<void>;
   deletePayrollSplitGroup: (id: string) => Promise<void>;
   recordPayrollDisbursement: (disbursement: PayrollDisbursement) => Promise<void>;
+  savePayrollPayslips: (orgId: string, payslips: PayrollPayslip[]) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -410,6 +413,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [payrollDisbursements, setPayrollDisbursements] = useState<
     PayrollDisbursement[]
   >(() => loadCache("school.payrollDisbursements", []));
+  const [payrollPayslips, setPayrollPayslips] = useState<PayrollPayslip[]>(() =>
+    loadCache("school.payrollPayslips", []),
+  );
 
   // Helper to update personalInformation within the user object of a backpack document
   const updateBackpackPersonalInfo = async (
@@ -630,6 +636,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const allPayrollRecipients: InstructorPayrollRecipient[] = [];
       const allPayrollSplitGroups: PayrollSplitGroup[] = [];
       const allPayrollDisbursements: PayrollDisbursement[] = [];
+      const allPayrollPayslips: PayrollPayslip[] = [];
 
       backpackSnap.docs.forEach((docSnap) => {
         const data = docSnap.data();
@@ -825,6 +832,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             ...(schoolObj.payrollDisbursements as PayrollDisbursement[]),
           );
         }
+        if (schoolObj && Array.isArray(schoolObj.payrollPayslips)) {
+          allPayrollPayslips.push(
+            ...(schoolObj.payrollPayslips as PayrollPayslip[]),
+          );
+        }
 
         const teacherObj = userObj.teacher as Record<string, unknown> | undefined;
         if (teacherObj && Array.isArray(teacherObj.duty)) {
@@ -980,6 +992,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         "school.payrollDisbursements",
         dedupeById(allPayrollDisbursements),
         setPayrollDisbursements,
+      );
+      updateAndCache(
+        "school.payrollPayslips",
+        dedupeById(allPayrollPayslips),
+        setPayrollPayslips,
       );
       updateAndCache(
         "teacher.duty",
@@ -2822,6 +2839,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     ).catch(console.error);
   };
 
+  const savePayrollPayslips = async (
+    orgId: string,
+    payslips: PayrollPayslip[],
+  ) => {
+    if (!Array.isArray(payslips) || payslips.length === 0) return;
+    const cleaned = payslips.map((p) => sanitizeForFirestore(p));
+    const targetUid = resolvePayrollOrgDocUid(orgId);
+    const incomingIds = new Set(cleaned.map((p) => p.id));
+
+    if (targetUid) {
+      await updateBackpackUserField<PayrollPayslip>(
+        targetUid,
+        "school.payrollPayslips",
+        (list) => [...cleaned, ...list.filter((p) => !incomingIds.has(p.id))],
+      );
+    }
+
+    setPayrollPayslips((prev) => {
+      const next = [...cleaned, ...prev.filter((p) => !incomingIds.has(p.id))];
+      try {
+        localStorage.setItem(
+          "bp_cache_school.payrollPayslips",
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   const recordPayrollDisbursement = async (disbursement: PayrollDisbursement) => {
     const cleaned = sanitizeForFirestore(disbursement);
     const targetUid = resolvePayrollOrgDocUid(disbursement.orgId);
@@ -2830,12 +2878,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       await updateBackpackUserField<PayrollDisbursement>(
         targetUid,
         "school.payrollDisbursements",
-        (list) => [cleaned, ...list.filter((d) => d.id !== cleaned.id)],
+        (list) => [
+          cleaned,
+          ...list.filter(
+            (d) => d.id !== cleaned.id && d.reference !== cleaned.reference,
+          ),
+        ],
       );
     }
 
     setPayrollDisbursements((prev) => {
-      const next = [cleaned, ...prev.filter((d) => d.id !== cleaned.id)];
+      const next = [
+        cleaned,
+        ...prev.filter(
+          (d) => d.id !== cleaned.id && d.reference !== cleaned.reference,
+        ),
+      ];
       try {
         localStorage.setItem(
           "bp_cache_school.payrollDisbursements",
@@ -2846,6 +2904,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       return next;
     });
+
+    if (cleaned.payslips && cleaned.payslips.length > 0) {
+      await savePayrollPayslips(cleaned.orgId, cleaned.payslips);
+    }
 
     if (cleaned.status === "success") {
       for (const rec of cleaned.recipients) {
@@ -2858,10 +2920,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (matchedUser && matchedUser.id !== currentUser?.id) {
           addNotification({
             userId: matchedUser.id,
-            title: `Salary Payment Received`,
-            message: `${cleaned.currency} ${rec.amount.toLocaleString()} has been sent directly to your linked bank account${rec.bankName ? ` (${rec.bankName})` : ""} (Ref: ${cleaned.reference}).`,
+            title: `Salary Payment & Digital Payslip Ready`,
+            message: `${cleaned.currency} ${rec.amount.toLocaleString()} has been confirmed for direct settlement to your bank account${rec.bankName ? ` (${rec.bankName})` : ""} (Ref: ${cleaned.reference}). View your digital payslip on the Payroll page.`,
             type: "info",
-            linkUrl: "/dashboard",
+            linkUrl: "/payroll",
           });
         }
       }
@@ -3637,11 +3699,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         payrollRecipients,
         payrollSplitGroups,
         payrollDisbursements,
+        payrollPayslips,
         savePayrollRecipient,
         removePayrollRecipient,
         savePayrollSplitGroup,
         deletePayrollSplitGroup,
         recordPayrollDisbursement,
+        savePayrollPayslips,
       }}
     >
       {children}
