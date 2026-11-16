@@ -83,7 +83,7 @@ const Signup = () => {
     setShowConfirmPassword(true);
     setSuggestedNotice("Strong password generated and applied to both fields!");
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(strong).catch(() => {});
+      navigator.clipboard.writeText(strong).catch(() => { });
     }
   };
 
@@ -95,7 +95,7 @@ const Signup = () => {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   };
 
@@ -363,18 +363,16 @@ const Signup = () => {
                       key={item.value}
                       type="button"
                       onClick={() => setRole(item.value as Role)}
-                      className={`p-2.5 sm:p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                        isSelected
+                      className={`p-2.5 sm:p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${isSelected
                           ? "bg-[#d6e9f8]/60 dark:bg-[#1a384f] border-[#0078d4] text-[#0078d4] dark:text-[#04a4ec] shadow-xs"
                           : "bg-[#f8fafd] dark:bg-[#132838] border-[#d6e9f8] dark:border-[#1e3a52] text-slate-600 dark:text-slate-400 hover:border-blue-200 dark:hover:border-blue-800"
-                      }`}
+                        }`}
                     >
                       <Icon
-                        className={`w-4 h-4 ${
-                          isSelected
+                        className={`w-4 h-4 ${isSelected
                             ? "text-[#0078d4] dark:text-[#04a4ec]"
                             : "text-slate-400"
-                        }`}
+                          }`}
                       />
                       <span className="text-xs font-bold font-heading">
                         {item.label}
@@ -616,7 +614,7 @@ const Signup = () => {
 
           {/* App Version Tag */}
           <div className="pt-2 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 font-heading tracking-wider">
-            v0.1.9
+            v0.2.1
           </div>
         </div>
       </div>

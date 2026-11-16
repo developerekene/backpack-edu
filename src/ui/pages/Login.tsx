@@ -313,7 +313,7 @@ const Login = () => {
 
           {/* App Version Tag */}
           <div className="pt-2 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 font-heading tracking-wider">
-            v0.1.9
+            v0.2.1
           </div>
         </div>
       </div>
