@@ -19,7 +19,7 @@ export interface CheckoutDisclosureProps {
   feeAmount?: number;
   feeLabel?: string;
   providerName?: string;
-  transactionType?: "tuition" | "donation" | "sponsorship";
+  transactionType?: "tuition" | "donation" | "sponsorship" | "payroll";
   isAcknowledged: boolean;
   onAcknowledgeChange: (acknowledged: boolean) => void;
   compact?: boolean;
@@ -78,9 +78,11 @@ export const CheckoutDisclosure: React.FC<CheckoutDisclosureProps> = ({
           <span className="truncate pr-2 font-medium">
             {transactionType === "tuition"
               ? `Tuition: ${itemTitle}`
-              : transactionType === "sponsorship"
-              ? `Student Sponsorship: ${itemTitle}`
-              : `General Course Tuition Contribution: ${itemTitle}`}
+              : transactionType === "payroll"
+                ? `Instructor Net Salaries: ${itemTitle}`
+                : transactionType === "sponsorship"
+                  ? `Student Sponsorship: ${itemTitle}`
+                  : `General Course Tuition Contribution: ${itemTitle}`}
           </span>
           <span className="font-semibold shrink-0">
             {currency} {formatPriceWithDecimals(displayBase)}
@@ -96,7 +98,8 @@ export const CheckoutDisclosure: React.FC<CheckoutDisclosureProps> = ({
           </div>
         )}
 
-        {displayFee === 0 && transactionType === "tuition" && (
+        {displayFee === 0 &&
+          (transactionType === "tuition" || transactionType === "payroll") && (
           <div className="flex justify-between items-center text-slate-500 text-[11px]">
             <span>Estimated Processing / Platform Addition:</span>
             <span className="font-medium text-emerald-600 dark:text-emerald-400">
@@ -126,7 +129,10 @@ export const CheckoutDisclosure: React.FC<CheckoutDisclosureProps> = ({
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
           <span>
             <strong>Supplier of Record:</strong>{" "}
-            {providerName ? `${providerName} via ` : ""}Backpack Digital Educational Services. Billing is a transparent one-time transaction; no recurring subscriptions or unauthorized debits will occur.
+            {transactionType === "payroll"
+              ? `${providerName ? `${providerName} Payroll via ` : ""}Backpack Verified Salary Settlement.`
+              : `${providerName ? `${providerName} via ` : ""}Backpack Digital Educational Services.`}{" "}
+            Billing is a transparent one-time transaction; no recurring subscriptions or unauthorized debits will occur.
           </span>
         </div>
         <div className="flex items-start space-x-2">

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   LiveKitRoom,
   VideoConference,
-  RoomAudioRenderer,
+  useAudioPlayback,
+  useRoomContext,
 } from '@livekit/components-react';
+import { RoomEvent } from 'livekit-client';
 import '@livekit/components-styles';
 import {
   Mic,
@@ -41,6 +43,114 @@ interface LiveKitCallProps {
   onClose?: () => void;
 }
 
+/**
+ * Unlocks remote WebRTC audio playback inside mobile & strict-autoplay browsers.
+ * Automatically calls `room.startAudio()` on any touch/pointer/key gesture and shows
+ * a prominent tap-to-enable audio banner whenever `canPlaybackAudio` is blocked.
+ */
+const MobileAudioPlaybackGuard: React.FC<{
+  mediaWarning: string | null;
+  onDismissMediaWarning: () => void;
+}> = ({ mediaWarning, onDismissMediaWarning }) => {
+  const room = useRoomContext();
+  const { canPlayAudio, startAudio } = useAudioPlayback(room);
+  const [unlocking, setUnlocking] = useState(false);
+
+  const handleUnlockAudio = useCallback(async () => {
+    setUnlocking(true);
+    try {
+      await startAudio();
+      // Also resume any unmuted <audio> elements created by LiveKit in this room
+      if (typeof document !== 'undefined') {
+        document.querySelectorAll('audio').forEach((el) => {
+          try {
+            el.muted = false;
+            el.volume = 1;
+            const playPromise = el.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+              playPromise.catch(() => {});
+            }
+          } catch {
+            // ignore
+          }
+        });
+      }
+    } catch {
+      // browser may still require direct tap on the button
+    } finally {
+      setUnlocking(false);
+    }
+  }, [startAudio]);
+
+  // Whenever a remote audio track is subscribed, ensure playback elements aren't stuck paused
+  useEffect(() => {
+    if (!room) return;
+    const onTrackSubscribed = () => {
+      if (room.canPlaybackAudio) {
+        document.querySelectorAll('audio').forEach((el) => {
+          el.muted = false;
+          el.volume = 1;
+          el.play().catch(() => {});
+        });
+      }
+    };
+    room.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
+    return () => {
+      room.off(RoomEvent.TrackSubscribed, onTrackSubscribed);
+    };
+  }, [room]);
+
+  // Unlock on first user interaction anywhere in the viewport if autoplay was blocked
+  useEffect(() => {
+    if (canPlayAudio) return;
+    const triggerOnGesture = () => {
+      handleUnlockAudio();
+    };
+    window.addEventListener('touchstart', triggerOnGesture, { passive: true });
+    window.addEventListener('pointerdown', triggerOnGesture, { passive: true });
+    window.addEventListener('keydown', triggerOnGesture, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', triggerOnGesture);
+      window.removeEventListener('pointerdown', triggerOnGesture);
+      window.removeEventListener('keydown', triggerOnGesture);
+    };
+  }, [canPlayAudio, handleUnlockAudio]);
+
+  if (canPlayAudio && !mediaWarning) return null;
+
+  return (
+    <div className="absolute top-3 inset-x-3 z-40 flex flex-col items-center gap-2 pointer-events-none">
+      {!canPlayAudio && (
+        <button
+          type="button"
+          onClick={handleUnlockAudio}
+          className="pointer-events-auto px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs sm:text-sm shadow-xl flex items-center space-x-2 animate-bounce cursor-pointer border border-amber-300"
+        >
+          <Volume2 className="w-4 h-4 shrink-0" />
+          <span>
+            {unlocking ? 'Enabling Call Audio...' : 'Audio Blocked by Browser — Tap Here to Hear Class'}
+          </span>
+        </button>
+      )}
+      {mediaWarning && (
+        <div className="pointer-events-auto max-w-md bg-slate-900/95 border border-amber-500/40 text-amber-200 px-3.5 py-2 rounded-xl text-[11px] flex items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>{mediaWarning}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onDismissMediaWarning}
+            className="text-slate-400 hover:text-white font-bold px-1.5 cursor-pointer"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface ChatMessage {
   sender: string;
   text: string;
@@ -60,6 +170,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [resolvedWsUrl, setResolvedWsUrl] = useState<string | null>(null);
   const [useLiveKitRoom, setUseLiveKitRoom] = useState<boolean>(true);
   const [sessionAccessError, setSessionAccessError] = useState<string | null>(null);
+  const [mediaDeviceWarning, setMediaDeviceWarning] = useState<string | null>(null);
+  const [publishMediaEnabled, setPublishMediaEnabled] = useState<{ audio: boolean; video: boolean }>({
+    audio: true,
+    video: true,
+  });
+  const [sessionInstanceId] = useState<string>(() => Math.random().toString(36).substring(2, 7));
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -153,6 +269,11 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const roleLabel = effectiveRole === 'instructor' ? 'Lead Instructor' : 'Learner';
 
   // Request LiveKit Token from server-side SDK endpoint (backed by Render URL service)
+  const uniqueParticipantIdentity = `${(currentUser?.id || displayName || 'guest')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .slice(0, 32)}_${sessionInstanceId}`;
+
   useEffect(() => {
     let isMounted = true;
 
@@ -164,7 +285,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             room: cleanRoomName,
-            identity: displayName,
+            identity: uniqueParticipantIdentity,
             roomName: cleanRoomName,
             participantName: displayName,
             role: effectiveRole,
@@ -214,7 +335,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [cleanRoomName, displayName, effectiveRole, wsUrlFromEnv, courseId]);
+  }, [cleanRoomName, displayName, uniqueParticipantIdentity, effectiveRole, wsUrlFromEnv, courseId]);
 
   const handleRegenerateToken = async () => {
     setIsConnecting(true);
@@ -224,10 +345,11 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           room: cleanRoomName,
-          identity: displayName,
+          identity: uniqueParticipantIdentity,
           roomName: cleanRoomName,
           participantName: displayName,
           role: effectiveRole,
+          courseId,
         }),
       });
       const data = await res.json();
@@ -448,9 +570,9 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       <div
         ref={containerRef}
         className={`bg-slate-950 overflow-hidden shadow-2xl border border-slate-800 relative w-full flex flex-col transition-all duration-300 ${
-          isFullscreen ? 'fixed inset-0 z-[9999] w-screen h-screen rounded-none border-none' : 'rounded-2xl'
+          isFullscreen ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] rounded-none border-none' : 'rounded-2xl min-h-[480px]'
         }`}
-        style={{ height: isFullscreen ? '100vh' : '78vh' }}
+        style={{ height: isFullscreen ? '100dvh' : '78dvh' }}
       >
         {/* Streamlined Compact Top Bar */}
         <div className="bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex items-center justify-between z-20 shrink-0 gap-2">
@@ -526,22 +648,60 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         </div>
 
         {/* LiveKit Official Room and Video Conference */}
-        <div className="flex-1 relative overflow-hidden bg-slate-950">
+        <div className="flex-1 min-h-0 relative overflow-hidden bg-slate-950">
           <LiveKitRoom
-            video={!isVideoOff}
-            audio={!isMuted}
+            video={publishMediaEnabled.video && !isVideoOff}
+            audio={publishMediaEnabled.audio && !isMuted}
             token={token}
             serverUrl={resolvedWsUrl}
+            connectOptions={{ autoSubscribe: true }}
+            options={{
+              adaptiveStream: true,
+              dynacast: true,
+              audioCaptureDefaults: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            }}
             data-lk-theme="default"
-            style={{ height: '100%' }}
+            style={{ height: '100%', width: '100%' }}
             onDisconnected={handleLeave}
+            onMediaDeviceFailure={(failure) => {
+              console.warn('Media device unavailable, staying connected in listen-only mode:', failure);
+              setPublishMediaEnabled({ audio: false, video: false });
+              setMediaDeviceWarning(
+                'Camera or microphone permission is unavailable on this device — you remain connected in listen-only mode so you can still hear the class.'
+              );
+            }}
             onError={(err) => {
-              console.warn('LiveKit WebSocket error, switching to native WebRTC mode:', err);
-              setUseLiveKitRoom(false);
+              const msg = err?.message?.toLowerCase() || '';
+              const isDeviceError =
+                msg.includes('permission') ||
+                msg.includes('notallowed') ||
+                msg.includes('notfound') ||
+                msg.includes('device') ||
+                msg.includes('mediadevices') ||
+                msg.includes('getusermedia');
+              if (isDeviceError) {
+                console.warn('Media device error caught; staying in LiveKit room listen-only:', err);
+                setPublishMediaEnabled({ audio: false, video: false });
+                setMediaDeviceWarning(
+                  'Microphone/camera access was blocked or unavailable — you are connected in listen-only mode and can still hear the call.'
+                );
+                return;
+              }
+              console.warn('LiveKit connection error:', err);
+              setSessionAccessError(
+                'Unable to reach the live classroom audio/video server. Please tap Check Status to reconnect.'
+              );
             }}
           >
+            <MobileAudioPlaybackGuard
+              mediaWarning={mediaDeviceWarning}
+              onDismissMediaWarning={() => setMediaDeviceWarning(null)}
+            />
             <VideoConference />
-            <RoomAudioRenderer />
           </LiveKitRoom>
         </div>
       </div>

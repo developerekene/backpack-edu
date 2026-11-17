@@ -29,7 +29,7 @@ import {
 
 export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const { currentUser, updateCurrentUser } = useAuth();
-  const { organizations, updateOrganization } = useAppContext();
+  const { organizations, updateOrganization, deletePaystackSubaccount } = useAppContext();
 
   // Determine current provider entity (Organization or Instructor)
   const isOrg = currentUser?.role === "organization";
@@ -101,7 +101,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
   const [deletingSubaccount, setDeletingSubaccount] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Permanently delete/disconnect subaccount from both app and Paystack
+  // Permanently delete/disconnect subaccount from frontend, Firestore, split configs, and deactivate in gateway via KeySafe
   const handleDeleteSubaccount = async () => {
     if (!currentSubaccount?.subaccount_code) return;
     setDeletingSubaccount(true);
@@ -109,15 +109,12 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
     setSuccessMessage("");
 
     try {
-      const res = await centralApiClient(
-        `/api/paystack/subaccount/${encodeURIComponent(currentSubaccount.subaccount_code)}`,
-        { method: "DELETE" }
+      const targetOwnerId = isOrg && myOrg ? myOrg.ownerId || myOrg.id : currentUser?.id;
+      const result = await deletePaystackSubaccount(
+        currentSubaccount.subaccount_code,
+        targetOwnerId,
       );
-      const json = await res.json().catch(() => ({}));
 
-      if (isOrg && myOrg) {
-        await updateOrganization(myOrg.id, { paystackSubaccount: null as unknown as undefined });
-      }
       if (currentUser) {
         await updateCurrentUser({ paystackSubaccount: null as unknown as undefined });
       }
@@ -132,7 +129,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
       setShowDeleteConfirm(false);
       setIsEditing(true);
       setSuccessMessage(
-        json.message || "Payout bank account permanently removed."
+        result.message || "Payout bank account permanently removed.",
       );
     } catch {
       setSubaccountError("Failed to remove payout bank account. Please try again.");
@@ -337,6 +334,7 @@ export const PaystackSubaccountOnboarding: React.FC<{ onClose?: () => void }> = 
           updatedAt: new Date().toISOString(),
         };
 
+        setDeletedLocally(false);
         setSavedSubaccount(newSubaccountData);
 
         if (isOrg && myOrg) {

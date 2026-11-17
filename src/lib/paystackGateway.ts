@@ -310,3 +310,25 @@ export async function issuePayrollPayslips(params: {
   return res.json();
 }
 
+export async function deactivateAndDeleteSubaccount(
+  subaccountCode: string,
+  splitGroups: Array<{
+    paystackSplitId?: string | number;
+    splitCode?: string;
+    remainingSubaccounts?: Array<{ subaccount: string; share: number }>;
+  }> = [],
+): Promise<{
+  success: boolean;
+  deactivatedRemotely?: boolean;
+  updatedSplitsCount?: number;
+  message?: string;
+}> {
+  const res = await centralApiClient(
+    `/api/paystack/subaccount/${encodeURIComponent(subaccountCode)}`,
+    {
+      method: "DELETE",
+      body: JSON.stringify({ splitGroups }),
+    },
+  );
+  return res.json().catch(() => ({ success: res.ok }));
+}

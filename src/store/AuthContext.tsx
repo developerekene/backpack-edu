@@ -251,8 +251,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           updatedPersonalInfo.kycVerified = updates.kycVerified;
         if (updates.userDocuments !== undefined)
           updatedPersonalInfo.userDocuments = updates.userDocuments;
-        if (updates.paystackSubaccount !== undefined)
+        if (updates.paystackSubaccount === null) {
+          delete updatedPersonalInfo.paystackSubaccount;
+        } else if (updates.paystackSubaccount !== undefined) {
           updatedPersonalInfo.paystackSubaccount = updates.paystackSubaccount;
+        }
 
         // Organization data stored directly within personalInformation map
         if (updates.description !== undefined)
@@ -314,7 +317,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       // Optimistic update
-      setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
+      setCurrentUser((prev) => {
+        if (!prev) return null;
+        const next = { ...prev, ...updates };
+        if (updates.paystackSubaccount === null) {
+          delete next.paystackSubaccount;
+        }
+        return next;
+      });
     } catch (err) {
       console.error("Error updating user", err);
     }
@@ -325,6 +335,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribeAuth = onAuthStateChanged(
       auth,
       (user: FirebaseUser | null) => {
+        if (unsubscribeDoc) {
+          unsubscribeDoc();
+          unsubscribeDoc = null;
+        }
         setFirebaseUser(user);
         if (user) {
           // Use onSnapshot to continuously sync the user doc

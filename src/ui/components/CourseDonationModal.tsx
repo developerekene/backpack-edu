@@ -134,13 +134,19 @@ export const CourseDonationModal: React.FC<CourseDonationModalProps> = ({
       .map((s) => s.email)
       .filter((email) => email.length > 0);
 
+    const activeOrgSubaccount =
+      org?.paystackSubaccount?.subaccount_code?.startsWith("ACCT_") &&
+      org?.paystackSubaccount?.is_active !== false
+        ? org.paystackSubaccount
+        : undefined;
+
     triggerPaystackPayment({
       email: payerEmail,
       amount: computedAmount,
       currency,
-      subaccount: org?.paystackSubaccount?.subaccount_code,
-      subaccount_code: org?.paystackSubaccount?.subaccount_code,
-      mode: org?.paystackSubaccount?.mode || "live",
+      subaccount: activeOrgSubaccount?.subaccount_code,
+      subaccount_code: activeOrgSubaccount?.subaccount_code,
+      mode: activeOrgSubaccount?.mode || "live",
       reference: generatedRef,
       studentDetails: {
         firstName: isAnonymous ? "Generous" : (donorName.trim().split(" ")[0] || "Generous"),
@@ -154,8 +160,8 @@ export const CourseDonationModal: React.FC<CourseDonationModalProps> = ({
         courseTitle: course.title,
         donationType,
         numberOfStudents: donationType === "sponsorship" ? studentCount : undefined,
-        subaccount_code: org?.paystackSubaccount?.subaccount_code,
-        mode: org?.paystackSubaccount?.mode || "live",
+        subaccount_code: activeOrgSubaccount?.subaccount_code,
+        mode: activeOrgSubaccount?.mode || "live",
       },
       onSuccess: async (res) => {
         const finalRef = res?.reference || generatedRef;

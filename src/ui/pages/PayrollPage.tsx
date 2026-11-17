@@ -44,8 +44,13 @@ import {
   issuePayrollPayslips,
   verifyTransaction,
 } from "../../lib/paystackGateway";
-import { triggerPayrollPaystackCheckout } from "../../lib/paystack";
+import {
+  generateReferenceNumber,
+  triggerPayrollPaystackCheckout,
+} from "../../lib/paystack";
 import { generateId } from "../../lib/id";
+import { CheckoutDisclosure } from "../components/CheckoutDisclosure";
+import { formatPriceWithDecimals } from "../../lib/price";
 
 interface UnifiedPayrollInstructor {
   id: string;
@@ -58,6 +63,22 @@ interface UnifiedPayrollInstructor {
   accountNumber?: string;
   accountName?: string;
   currency: string;
+}
+
+interface PayrollCheckoutDraft {
+  reference: string;
+  paymentType: "individual" | "split_group" | "batch_split";
+  title: string;
+  currency: string;
+  netSalariesTotal: number;
+  platformFee: number;
+  grandTotal: number;
+  subaccountCode?: string;
+  splitCode?: string;
+  splitGroupId?: string;
+  splitGroupName?: string;
+  recipients: PayrollDisbursement["recipients"];
+  clearSelectionOnSuccess?: boolean;
 }
 
 const SUPPORTED_PAYROLL_CURRENCIES = ["NGN", "GHS", "KES", "ZAR", "USD"];
@@ -318,6 +339,13 @@ export const PayrollPage: React.FC = () => {
     label: string;
   } | null>(null);
 
+  // Tuition-style Payroll Checkout Review Modal (processed via Paystack Public Key)
+  const [payrollCheckoutDraft, setPayrollCheckoutDraft] =
+    useState<PayrollCheckoutDraft | null>(null);
+  const [isPayrollDisclosureAcknowledged, setIsPayrollDisclosureAcknowledged] =
+    useState(false);
+  const [isCheckoutPopupActive, setIsCheckoutPopupActive] = useState(false);
+
   // Build unified list of organization instructors using ONLY their own self-created payout accounts
   const unifiedInstructors = useMemo<UnifiedPayrollInstructor[]>(() => {
     if (!currentUser) return [];
@@ -378,7 +406,11 @@ export const PayrollPage: React.FC = () => {
 
       const existing = map.get(existingKey);
       const effectiveId = userMatch?.id || existing?.id || params.id;
-      const instructorSubaccount = userMatch?.paystackSubaccount;
+      const rawSub = userMatch?.paystackSubaccount;
+      const instructorSubaccount =
+        rawSub?.subaccount_code?.startsWith("ACCT_") && rawSub?.is_active !== false
+          ? rawSub
+          : undefined;
 
       const courseTitles = new Set(existing?.courseTitles || []);
       if (params.courseTitle) courseTitles.add(params.courseTitle);
@@ -1232,137 +1264,113 @@ export const PayrollPage: React.FC = () => {
     const platformFee = Math.round(feePerStaff * 100) / 100;
     const grandTotal = Math.round((netSalary + platformFee) * 100) / 100;
 
-    setProcessingKey(`ind_${inst.id}`);
     setStatusBanner(null);
 
-    try {
-      const recipientsPayload = [
-        {
-          instructorId: inst.id,
-          instructorName: inst.name,
-          instructorEmail: inst.email,
-          roleTitle,
-          subaccountCode: inst.subaccountCode,
-          bankName: inst.bankName,
-          accountNumber: inst.accountNumber,
-          amount: netSalary,
-          breakdown,
-        },
-      ];
-
-      const init = await initializePayrollTransaction({
-        paymentType: "individual",
-        paymentChannel,
-        email: payerEmail.trim(),
-        organizationName: myOrg?.name || currentUser.name,
-        orgId,
-        payPeriod,
+    const recipientsPayload = [
+      {
+        instructorId: inst.id,
+        instructorName: inst.name,
+        instructorEmail: inst.email,
+        roleTitle,
+        subaccountCode: inst.subaccountCode,
+        bankName: inst.bankName,
+        accountNumber: inst.accountNumber,
         amount: netSalary,
-        currency,
-        subaccount_code: inst.subaccountCode,
-        feePerStaff,
-        recipients: recipientsPayload.map((r) => ({
-          ...r,
-          subaccount_code: r.subaccountCode,
-        })),
-        metadata: {
-          org_id: orgId,
-          org_name: myOrg?.name || currentUser.name,
-          instructor_id: inst.id,
-          instructor_name: inst.name,
-          pay_period: payPeriod,
-          note: paymentNote || `Salary payment for ${inst.name}`,
-        },
-      });
+        breakdown,
+      },
+    ];
 
-      if (init.paymentChannel === "bank_transfer" && init.dedicatedAccount) {
-        const pendingDisbursement: PayrollDisbursement = {
-          id: generateId("pay"),
-          orgId,
-          reference: init.reference,
+    if (paymentChannel === "bank_transfer") {
+      setProcessingKey(`ind_${inst.id}`);
+      try {
+        const init = await initializePayrollTransaction({
           paymentType: "individual",
           paymentChannel: "bank_transfer",
-          splitCode: init.split_code,
-          payerEmail: payerEmail.trim(),
+          email: payerEmail.trim(),
+          organizationName: myOrg?.name || currentUser.name,
+          orgId,
+          payPeriod,
+          amount: netSalary,
           currency,
-          netSalariesTotal: netSalary,
+          subaccount_code: inst.subaccountCode,
           feePerStaff,
-          totalAmount: init.grandTotal ?? grandTotal,
-          platformCut: init.platformFee ?? platformFee,
-          dedicatedAccount: init.dedicatedAccount,
-          settlementStatus: "awaiting_transfer",
-          recipients: recipientsPayload,
-          status: "initialized",
-          note: paymentNote || undefined,
-          payPeriod: payPeriod || undefined,
-          paidAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          initiatedBy: currentUser.name,
-        };
-        await recordPayrollDisbursement(pendingDisbursement);
-        setProcessingKey(null);
-        setTransferModalDisbursement(pendingDisbursement);
-        return;
-      }
+          recipients: recipientsPayload.map((r) => ({
+            ...r,
+            subaccount_code: r.subaccountCode,
+          })),
+          metadata: {
+            org_id: orgId,
+            org_name: myOrg?.name || currentUser.name,
+            instructor_id: inst.id,
+            instructor_name: inst.name,
+            pay_period: payPeriod,
+            note: paymentNote || `Salary payment for ${inst.name}`,
+          },
+        });
 
-      triggerPayrollPaystackCheckout({
-        accessCode: init.access_code,
-        email: payerEmail.trim(),
-        amount: init.grandTotal ?? grandTotal,
-        currency,
-        splitCode: init.split_code,
-        subaccountCode: init.split_code ? undefined : inst.subaccountCode,
-        reference: init.reference,
-        onSuccess: async (txRes) => {
-          const finalRef = txRes.reference || init.reference;
-          const saved = await finalizeCheckoutDisbursement({
-            reference: finalRef,
+        if (init.paymentChannel === "bank_transfer" && init.dedicatedAccount) {
+          const pendingDisbursement: PayrollDisbursement = {
+            id: generateId("pay"),
+            orgId,
+            reference: init.reference,
             paymentType: "individual",
+            paymentChannel: "bank_transfer",
             splitCode: init.split_code,
-            netSalariesTotal: netSalary,
-            platformFee: init.platformFee ?? platformFee,
-            grandTotal: init.grandTotal ?? grandTotal,
+            payerEmail: payerEmail.trim(),
             currency,
+            netSalariesTotal: netSalary,
+            feePerStaff,
+            totalAmount: init.grandTotal ?? grandTotal,
+            platformCut: init.platformFee ?? platformFee,
+            dedicatedAccount: init.dedicatedAccount,
+            settlementStatus: "awaiting_transfer",
             recipients: recipientsPayload,
-          });
-
+            status: "initialized",
+            note: paymentNote || undefined,
+            payPeriod: payPeriod || undefined,
+            paidAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            initiatedBy: currentUser.name,
+          };
+          await recordPayrollDisbursement(pendingDisbursement);
           setProcessingKey(null);
-          setStatusBanner({
-            type: "success",
-            title: "Salary Paid & Digital Payslip Issued",
-            message: `${currency} ${netSalary.toLocaleString()} will settle directly into ${inst.name}'s bank account on the next business day. Digital payslip issued (Ref: ${saved.reference}).`,
-          });
-        },
-        onCancel: () => {
-          setProcessingKey(null);
-          setStatusBanner({
-            type: "info",
-            title: "Payment Cancelled",
-            message: `Salary payment for ${inst.name} was cancelled.`,
-          });
-        },
-        onError: (err) => {
-          setProcessingKey(null);
-          setStatusBanner({
-            type: "error",
-            title: "Payment Could Not Complete",
-            message:
-              err?.message ||
-              "Payment checkout could not be completed. Please try again.",
-          });
-        },
-      });
-    } catch (err) {
-      setProcessingKey(null);
-      setStatusBanner({
-        type: "error",
-        title: "Initialization Failed",
-        message:
-          err instanceof Error
-            ? err.message
-            : "Could not initialize salary checkout.",
-      });
+          setTransferModalDisbursement(pendingDisbursement);
+          return;
+        }
+        setProcessingKey(null);
+        setStatusBanner({
+          type: "error",
+          title: "Bank Transfer Account Unavailable",
+          message:
+            "Could not generate a dedicated bank transfer account right now. Switch to Online Checkout or try again.",
+        });
+      } catch (err) {
+        setProcessingKey(null);
+        setStatusBanner({
+          type: "error",
+          title: "Transfer Setup Failed",
+          message:
+            err instanceof Error
+              ? err.message
+              : "Could not set up corporate bank transfer.",
+        });
+      }
+      return;
     }
+
+    // Online Checkout: Open Tuition-style Review Modal and pay via Public Key directly
+    setIsPayrollDisclosureAcknowledged(false);
+    setPayrollCheckoutDraft({
+      reference: generateReferenceNumber("PAY"),
+      paymentType: "individual",
+      title: `${inst.name}${payPeriod ? ` (${payPeriod})` : ""}`,
+      currency,
+      netSalariesTotal: netSalary,
+      platformFee,
+      grandTotal,
+      subaccountCode: inst.subaccountCode,
+      recipients: recipientsPayload,
+    });
   };
 
   // Multi-Instructor Single Payroll Batch Payment / Bank Transfer
@@ -1431,29 +1439,33 @@ export const PayrollPage: React.FC = () => {
         };
       });
 
-      // Group selected instructors by payout subaccount and build Dynamic Split payload
+      // Group selected instructors by payout subaccount and create a flat Transaction Split via Secret Key
       const batchSplitSummary = buildPayrollDynamicSplit(
         recipientsPayload,
         feePerStaff,
       );
 
-      let createdSplitCode: string | undefined;
+      const splitGroupDisplayName = saveBatchAsGroup
+        ? batchGroupName.trim()
+        : `Payroll Batch ${payPeriod || new Date().toISOString().slice(0, 10)}`;
+
+      const groupRes = await createPayrollSplitGroup({
+        name: splitGroupDisplayName,
+        type: "flat",
+        currency,
+        bearer_type: "all-proportional",
+        subaccounts: batchSplitSummary.instructorSplits,
+      });
+
+      const createdSplitCode = groupRes.split_code;
       let createdGroupRecord: PayrollSplitGroup | undefined;
 
       if (saveBatchAsGroup) {
-        const groupRes = await createPayrollSplitGroup({
-          name: batchGroupName.trim(),
-          type: "flat",
-          currency,
-          bearer_type: "all-proportional",
-          subaccounts: batchSplitSummary.instructorSplits,
-        });
-        createdSplitCode = groupRes.split_code;
         createdGroupRecord = {
           id: generateId("spl"),
           orgId,
           name: batchGroupName.trim(),
-          splitCode: groupRes.split_code,
+          splitCode: createdSplitCode,
           paystackSplitId: groupRes.id,
           type: "flat",
           currency,
@@ -1476,127 +1488,96 @@ export const PayrollPage: React.FC = () => {
         await savePayrollSplitGroup(createdGroupRecord);
       }
 
-      // Online salary run passes an inline Dynamic Split (`split`) containing only the selected instructors;
-      // Corporate Bank Transfer attaches a persisted `split_code` to the dedicated transfer account.
-      const init = await initializePayrollTransaction({
-        paymentType: "group",
-        paymentChannel,
-        email: payerEmail.trim(),
-        organizationName: myOrg?.name || currentUser.name,
-        orgId,
-        payPeriod,
-        amount: batchSplitSummary.netTotal,
-        currency,
-        split_code:
-          paymentChannel === "bank_transfer" ? createdSplitCode : undefined,
-        split:
-          paymentChannel === "checkout"
-            ? batchSplitSummary.dynamicSplit
-            : undefined,
-        feePerStaff,
-        bearer_type: "all-proportional",
-        recipients: recipientsPayload.map((r) => ({
-          ...r,
-          subaccount_code: r.subaccountCode,
-          share: Math.round(r.amount * 100),
-        })),
-        metadata: {
-          org_id: orgId,
-          org_name: myOrg?.name || currentUser.name,
-          pay_period: payPeriod,
-          recipient_count: recipientsPayload.length,
-          instructor_count: batchSplitSummary.instructorSplits.length,
-          note:
-            paymentNote ||
-            `Multi-instructor payroll (${recipientsPayload.length} instructors)`,
-        },
-      });
-
-      if (init.paymentChannel === "bank_transfer" && init.dedicatedAccount) {
-        const pendingDisbursement: PayrollDisbursement = {
-          id: generateId("pay"),
-          orgId,
-          reference: init.reference,
-          paymentType: createdSplitCode ? "split_group" : "batch_split",
+      if (paymentChannel === "bank_transfer") {
+        const init = await initializePayrollTransaction({
+          paymentType: "group",
           paymentChannel: "bank_transfer",
-          splitGroupId: createdGroupRecord?.id,
-          splitCode: init.split_code || createdSplitCode,
-          splitGroupName: createdGroupRecord?.name,
-          payerEmail: payerEmail.trim(),
+          email: payerEmail.trim(),
+          organizationName: myOrg?.name || currentUser.name,
+          orgId,
+          payPeriod,
+          amount: batchSplitSummary.netTotal,
           currency,
-          netSalariesTotal: batchTotalAmount,
+          split_code: createdSplitCode,
           feePerStaff,
-          totalAmount: init.grandTotal ?? grandTotal,
-          platformCut: init.platformFee ?? platformFee,
-          dedicatedAccount: init.dedicatedAccount,
-          settlementStatus: "awaiting_transfer",
-          recipients: recipientsPayload,
-          status: "initialized",
-          note: paymentNote || undefined,
-          payPeriod: payPeriod || undefined,
-          paidAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          initiatedBy: currentUser.name,
-        };
-        await recordPayrollDisbursement(pendingDisbursement);
-        setProcessingKey(null);
-        setSelectedIds([]);
-        setSaveBatchAsGroup(false);
-        setBatchGroupName("");
-        setTransferModalDisbursement(pendingDisbursement);
-        return;
-      }
+          bearer_type: "all-proportional",
+          recipients: recipientsPayload.map((r) => ({
+            ...r,
+            subaccount_code: r.subaccountCode,
+            share: Math.round(r.amount * 100),
+          })),
+          metadata: {
+            org_id: orgId,
+            org_name: myOrg?.name || currentUser.name,
+            pay_period: payPeriod,
+            recipient_count: recipientsPayload.length,
+            instructor_count: batchSplitSummary.instructorSplits.length,
+            note:
+              paymentNote ||
+              `Multi-instructor payroll (${recipientsPayload.length} instructors)`,
+          },
+        });
 
-      triggerPayrollPaystackCheckout({
-        accessCode: init.access_code,
-        email: payerEmail.trim(),
-        amount: init.grandTotal ?? grandTotal,
-        currency,
-        splitCode: init.split_code || createdSplitCode,
-        reference: init.reference,
-        onSuccess: async (txRes) => {
-          const finalRef = txRes.reference || init.reference;
-          await finalizeCheckoutDisbursement({
-            reference: finalRef,
-            paymentType: createdSplitCode ? "split_group" : "batch_split",
+        if (init.paymentChannel === "bank_transfer" && init.dedicatedAccount) {
+          const pendingDisbursement: PayrollDisbursement = {
+            id: generateId("pay"),
+            orgId,
+            reference: init.reference,
+            paymentType: saveBatchAsGroup ? "split_group" : "batch_split",
+            paymentChannel: "bank_transfer",
             splitGroupId: createdGroupRecord?.id,
             splitCode: init.split_code || createdSplitCode,
             splitGroupName: createdGroupRecord?.name,
-            netSalariesTotal: batchTotalAmount,
-            platformFee: init.platformFee ?? platformFee,
-            grandTotal: init.grandTotal ?? grandTotal,
+            payerEmail: payerEmail.trim(),
             currency,
+            netSalariesTotal: batchTotalAmount,
+            feePerStaff,
+            totalAmount: init.grandTotal ?? grandTotal,
+            platformCut: init.platformFee ?? platformFee,
+            dedicatedAccount: init.dedicatedAccount,
+            settlementStatus: "awaiting_transfer",
             recipients: recipientsPayload,
-          });
-
+            status: "initialized",
+            note: paymentNote || undefined,
+            payPeriod: payPeriod || undefined,
+            paidAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            initiatedBy: currentUser.name,
+          };
+          await recordPayrollDisbursement(pendingDisbursement);
           setProcessingKey(null);
           setSelectedIds([]);
           setSaveBatchAsGroup(false);
           setBatchGroupName("");
-          setStatusBanner({
-            type: "success",
-            title: "Bulk Payroll Paid & Itemized Payslips Issued",
-            message: `${currency} ${batchTotalAmount.toLocaleString()} in net salaries is scheduled for direct settlement across ${recipientsPayload.length} instructor accounts on the next business day, and ${recipientsPayload.length} itemized digital payslips are ready (Ref: ${finalRef}).`,
-          });
-        },
-        onCancel: () => {
-          setProcessingKey(null);
-          setStatusBanner({
-            type: "info",
-            title: "Payment Cancelled",
-            message: "Multi-instructor payroll checkout was cancelled.",
-          });
-        },
-        onError: (err) => {
-          setProcessingKey(null);
-          setStatusBanner({
-            type: "error",
-            title: "Payroll Checkout Failed",
-            message:
-              err?.message ||
-              "Could not complete payment. Please ensure all selected instructors are using the same currency.",
-          });
-        },
+          setTransferModalDisbursement(pendingDisbursement);
+          return;
+        }
+        setProcessingKey(null);
+        setStatusBanner({
+          type: "error",
+          title: "Bank Transfer Account Unavailable",
+          message:
+            "Could not generate a dedicated bank transfer account right now. Switch to Online Checkout or try again.",
+        });
+        return;
+      }
+
+      // Online Checkout: Open Tuition-style Review Modal with prepared split_code, pay via Public Key
+      setProcessingKey(null);
+      setIsPayrollDisclosureAcknowledged(false);
+      setPayrollCheckoutDraft({
+        reference: generateReferenceNumber("PAY"),
+        paymentType: saveBatchAsGroup ? "split_group" : "batch_split",
+        title: `${recipientsPayload.length} Instructors${payPeriod ? ` (${payPeriod})` : ""}`,
+        currency,
+        netSalariesTotal: batchTotalAmount,
+        platformFee,
+        grandTotal,
+        splitCode: createdSplitCode,
+        splitGroupId: createdGroupRecord?.id,
+        splitGroupName: createdGroupRecord?.name,
+        recipients: recipientsPayload,
+        clearSelectionOnSuccess: true,
       });
     } catch (err) {
       setProcessingKey(null);
@@ -1857,116 +1838,103 @@ export const PayrollPage: React.FC = () => {
         feePerStaff,
       );
 
-      const init = await initializePayrollTransaction({
-        paymentType: "group",
-        paymentChannel,
-        email: payerEmail.trim(),
-        organizationName: myOrg?.name || currentUser.name,
-        orgId,
-        payPeriod,
-        amount: netTotalAmount,
-        currency: activeCurrency,
-        split_code: feePerStaff > 0 ? undefined : group.splitCode,
-        split:
-          paymentChannel === "checkout" &&
-          (feePerStaff > 0 || !group.splitCode)
-            ? groupSplitSummary.dynamicSplit
-            : undefined,
-        feePerStaff,
-        bearer_type: "all-proportional",
-        recipients: computedRecipients.map((r) => ({
-          ...r,
-          subaccount_code: r.subaccountCode,
-          share: Math.round(r.amount * 100),
-        })),
-        metadata: {
-          org_id: orgId,
-          split_group_id: group.id,
-          split_group_name: group.name,
-          split_code: group.splitCode,
-          pay_period: payPeriod,
-        },
-      });
-
-      if (init.paymentChannel === "bank_transfer" && init.dedicatedAccount) {
-        const pendingDisbursement: PayrollDisbursement = {
-          id: generateId("pay"),
-          orgId,
-          reference: init.reference,
-          paymentType: "split_group",
+      if (paymentChannel === "bank_transfer") {
+        const init = await initializePayrollTransaction({
+          paymentType: "group",
           paymentChannel: "bank_transfer",
-          splitGroupId: group.id,
-          splitCode: init.split_code || group.splitCode,
-          splitGroupName: group.name,
-          payerEmail: payerEmail.trim(),
+          email: payerEmail.trim(),
+          organizationName: myOrg?.name || currentUser.name,
+          orgId,
+          payPeriod,
+          amount: netTotalAmount,
           currency: activeCurrency,
-          netSalariesTotal: netTotalAmount,
+          split_code: feePerStaff > 0 ? undefined : group.splitCode,
           feePerStaff,
-          totalAmount: init.grandTotal ?? grandTotal,
-          platformCut: init.platformFee ?? platformFee,
-          dedicatedAccount: init.dedicatedAccount,
-          settlementStatus: "awaiting_transfer",
-          recipients: computedRecipients,
-          status: "initialized",
-          note: paymentNote || undefined,
-          payPeriod: payPeriod || undefined,
-          paidAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          initiatedBy: currentUser.name,
-        };
-        await recordPayrollDisbursement(pendingDisbursement);
-        setProcessingKey(null);
-        setTransferModalDisbursement(pendingDisbursement);
-        return;
-      }
+          bearer_type: "all-proportional",
+          recipients: computedRecipients.map((r) => ({
+            ...r,
+            subaccount_code: r.subaccountCode,
+            share: Math.round(r.amount * 100),
+          })),
+          metadata: {
+            org_id: orgId,
+            split_group_id: group.id,
+            split_group_name: group.name,
+            split_code: group.splitCode,
+            pay_period: payPeriod,
+          },
+        });
 
-      triggerPayrollPaystackCheckout({
-        accessCode: init.access_code,
-        email: payerEmail.trim(),
-        amount: init.grandTotal ?? grandTotal,
-        currency: activeCurrency,
-        splitCode: init.split_code || group.splitCode,
-        reference: init.reference,
-        onSuccess: async (txRes) => {
-          const finalRef = txRes.reference || init.reference;
-          await finalizeCheckoutDisbursement({
-            reference: finalRef,
+        if (init.paymentChannel === "bank_transfer" && init.dedicatedAccount) {
+          const pendingDisbursement: PayrollDisbursement = {
+            id: generateId("pay"),
+            orgId,
+            reference: init.reference,
             paymentType: "split_group",
+            paymentChannel: "bank_transfer",
             splitGroupId: group.id,
             splitCode: init.split_code || group.splitCode,
             splitGroupName: group.name,
-            netSalariesTotal: netTotalAmount,
-            platformFee: init.platformFee ?? platformFee,
-            grandTotal: init.grandTotal ?? grandTotal,
+            payerEmail: payerEmail.trim(),
             currency: activeCurrency,
+            netSalariesTotal: netTotalAmount,
+            feePerStaff,
+            totalAmount: init.grandTotal ?? grandTotal,
+            platformCut: init.platformFee ?? platformFee,
+            dedicatedAccount: init.dedicatedAccount,
+            settlementStatus: "awaiting_transfer",
             recipients: computedRecipients,
-          });
+            status: "initialized",
+            note: paymentNote || undefined,
+            payPeriod: payPeriod || undefined,
+            paidAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            initiatedBy: currentUser.name,
+          };
+          await recordPayrollDisbursement(pendingDisbursement);
+          setProcessingKey(null);
+          setTransferModalDisbursement(pendingDisbursement);
+          return;
+        }
+        setProcessingKey(null);
+        setStatusBanner({
+          type: "error",
+          title: "Bank Transfer Account Unavailable",
+          message:
+            "Could not generate a dedicated bank transfer account right now. Switch to Online Checkout or try again.",
+        });
+        return;
+      }
 
-          setProcessingKey(null);
-          setStatusBanner({
-            type: "success",
-            title: "Group Payroll Paid & Digital Payslips Issued",
-            message: `${activeCurrency} ${netTotalAmount.toLocaleString()} in salaries is confirmed across ${group.members.length} instructors, and itemized digital payslips are ready (Ref: ${finalRef}).`,
-          });
-        },
-        onCancel: () => {
-          setProcessingKey(null);
-          setStatusBanner({
-            type: "info",
-            title: "Payment Cancelled",
-            message: `Checkout for "${group.name}" was cancelled.`,
-          });
-        },
-        onError: (err) => {
-          setProcessingKey(null);
-          setStatusBanner({
-            type: "error",
-            title: "Group Payment Failed",
-            message:
-              err?.message ||
-              "Could not complete payment for this pay group.",
-          });
-        },
+      // Online Checkout: reuse flat split_code or create exact flat split_code via Secret Key for percentage/modified runs
+      let activeSplitCode =
+        group.type === "flat" && group.splitCode ? group.splitCode : undefined;
+
+      if (!activeSplitCode) {
+        const splitRes = await createPayrollSplitGroup({
+          name: `${group.name} (${payPeriod || new Date().toISOString().slice(0, 10)})`,
+          type: "flat",
+          currency: activeCurrency,
+          bearer_type: "all-proportional",
+          subaccounts: groupSplitSummary.instructorSplits,
+        });
+        activeSplitCode = splitRes.split_code;
+      }
+
+      setProcessingKey(null);
+      setIsPayrollDisclosureAcknowledged(false);
+      setPayrollCheckoutDraft({
+        reference: generateReferenceNumber("PAY"),
+        paymentType: "split_group",
+        title: `${group.name} (${computedRecipients.length} instructors)`,
+        currency: activeCurrency,
+        netSalariesTotal: netTotalAmount,
+        platformFee,
+        grandTotal,
+        splitCode: activeSplitCode,
+        splitGroupId: group.id,
+        splitGroupName: group.name,
+        recipients: computedRecipients,
       });
     } catch (err) {
       setProcessingKey(null);
@@ -1976,12 +1944,111 @@ export const PayrollPage: React.FC = () => {
         message:
           err instanceof Error
             ? err.message
-            : "Unable to start group payroll checkout.",
+            : "Unable to prepare group payroll checkout.",
       });
     }
   };
 
+  // Trigger Public-Key Checkout directly on button click from the Tuition-Style Review Modal
+  const handleConfirmPayrollCheckout = () => {
+    if (!payrollCheckoutDraft) return;
+    const draft = payrollCheckoutDraft;
+    setIsCheckoutPopupActive(true);
+    setStatusBanner(null);
+
+    triggerPayrollPaystackCheckout({
+      email: payerEmail.trim(),
+      amount: draft.grandTotal,
+      baseAmount: draft.netSalariesTotal,
+      transactionCharge: draft.platformFee,
+      currency: draft.currency,
+      subaccountCode: draft.splitCode ? undefined : draft.subaccountCode,
+      splitCode: draft.splitCode,
+      reference: draft.reference,
+      organizationName: myOrg?.name || currentUser.name,
+      payPeriod,
+      recipientCount: draft.recipients.length,
+      metadata: {
+        org_id: orgId,
+        org_name: myOrg?.name || currentUser.name,
+        pay_period: payPeriod,
+        split_group_id: draft.splitGroupId,
+        split_group_name: draft.splitGroupName,
+        recipient_count: draft.recipients.length,
+        note: paymentNote || undefined,
+      },
+      onSuccess: async (txRes) => {
+        const finalRef = txRes.reference || draft.reference;
+        const saved = await finalizeCheckoutDisbursement({
+          reference: finalRef,
+          paymentType: draft.paymentType,
+          splitGroupId: draft.splitGroupId,
+          splitCode: draft.splitCode,
+          splitGroupName: draft.splitGroupName,
+          netSalariesTotal: draft.netSalariesTotal,
+          platformFee: draft.platformFee,
+          grandTotal: draft.grandTotal,
+          currency: draft.currency,
+          recipients: draft.recipients,
+        });
+
+        setIsCheckoutPopupActive(false);
+        setPayrollCheckoutDraft(null);
+        if (draft.clearSelectionOnSuccess) {
+          setSelectedIds([]);
+          setSaveBatchAsGroup(false);
+          setBatchGroupName("");
+        }
+
+        const isSingle = draft.recipients.length === 1;
+        setStatusBanner({
+          type: "success",
+          title: isSingle
+            ? "Salary Paid & Digital Payslip Issued"
+            : "Payroll Paid & Itemized Payslips Issued",
+          message: isSingle
+            ? `${draft.currency} ${draft.netSalariesTotal.toLocaleString()} will settle directly into ${draft.recipients[0].instructorName}'s bank account on the next business day. Digital payslip issued (Ref: ${saved.reference}).`
+            : `${draft.currency} ${draft.netSalariesTotal.toLocaleString()} in net salaries is scheduled for direct settlement across ${draft.recipients.length} instructor accounts on the next business day, and ${draft.recipients.length} itemized digital payslips are ready (Ref: ${saved.reference}).`,
+        });
+      },
+      onCancel: () => {
+        setIsCheckoutPopupActive(false);
+        setStatusBanner({
+          type: "info",
+          title: "Payment Cancelled",
+          message: "Payroll checkout was closed before completing payment.",
+        });
+      },
+      onError: (err) => {
+        setIsCheckoutPopupActive(false);
+        setStatusBanner({
+          type: "error",
+          title: "Payment Could Not Complete",
+          message:
+            err?.message ||
+            "Payment checkout could not be completed. Please ensure recipient accounts match the active currency and try again.",
+        });
+      },
+    });
+  };
+
   const handleTriggerGroupPay = (group: PayrollSplitGroup) => {
+    const activeSubCodes = new Set(
+      linkedInstructors
+        .map((i) => i.subaccountCode)
+        .filter((c): c is string => Boolean(c)),
+    );
+    const removedMember = group.members.find(
+      (m) => !m.subaccountCode || !activeSubCodes.has(m.subaccountCode),
+    );
+    if (removedMember) {
+      setStatusBanner({
+        type: "error",
+        title: "Outdated Pay Group Member",
+        message: `${removedMember.instructorName} disconnected their payout bank account. Remove them or load this group into Run Payroll to rebuild the split.`,
+      });
+      return;
+    }
     if (group.type === "flat") {
       const exactTotal = group.members.reduce(
         (sum, m) => sum + (m.amount || 0),
@@ -3929,6 +3996,167 @@ export const PayrollPage: React.FC = () => {
           onClose={() => setPreviewPayslip(null)}
           onDownload={() => downloadPayslipPdf(previewPayslip)}
         />
+      )}
+
+      {/* MODAL 7: TUITION-STYLE PAYROLL CHECKOUT REVIEW MODAL */}
+      {payrollCheckoutDraft && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl max-h-[92vh]">
+            <div className="flex justify-between items-center p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                    Complete Payroll Payment
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {payrollCheckoutDraft.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isCheckoutPopupActive}
+                onClick={() => setPayrollCheckoutDraft(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-5 text-sm overflow-y-auto">
+              {/* Automated Split Breakdown Card (mirrors CoursePaymentModal) */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="text-xs text-slate-400 uppercase font-semibold block">
+                      Total Due Now
+                    </span>
+                    <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums">
+                      {payrollCheckoutDraft.currency}{" "}
+                      {formatPriceWithDecimals(payrollCheckoutDraft.grandTotal)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-indigo-500 dark:text-indigo-400 font-semibold flex items-center justify-end">
+                      <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Secure Split
+                      Gateway
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Powered by Secure Gateway
+                    </span>
+                  </div>
+                </div>
+
+                {/* Split Allocation Breakdown */}
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-700/80 text-xs space-y-1.5">
+                  <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                    <span className="flex items-center text-[11px]">
+                      <Banknote className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+                      Direct to {payrollCheckoutDraft.recipients.length}{" "}
+                      Instructor
+                      {payrollCheckoutDraft.recipients.length === 1 ? "" : "s"}{" "}
+                      (100% Net Salary):
+                    </span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                      {payrollCheckoutDraft.currency}{" "}
+                      {formatPriceWithDecimals(
+                        payrollCheckoutDraft.netSalariesTotal,
+                      )}
+                    </span>
+                  </div>
+
+                  {payrollCheckoutDraft.platformFee > 0 && (
+                    <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                      <span>Platform Payroll Processing Fee:</span>
+                      <span className="tabular-nums">
+                        {payrollCheckoutDraft.currency}{" "}
+                        {formatPriceWithDecimals(
+                          payrollCheckoutDraft.platformFee,
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center text-[10.5px] text-slate-500 dark:text-slate-400">
+                    <span>Settlement Routing:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      Direct Bank Split (Zero Platform Custody)
+                    </span>
+                  </div>
+
+                  {/* Recipient list */}
+                  <div className="pt-2 space-y-1 max-h-32 overflow-y-auto">
+                    {payrollCheckoutDraft.recipients.map((r) => (
+                      <div
+                        key={r.instructorId}
+                        className="flex items-center justify-between text-[11px] bg-white dark:bg-slate-900/70 rounded-lg px-2.5 py-1.5 border border-slate-200/70 dark:border-slate-700/70"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
+                            {r.instructorName}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {r.bankName || "Connected Bank"} •{" "}
+                            {r.accountNumber || "Verified"}
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0 tabular-nums">
+                          {payrollCheckoutDraft.currency}{" "}
+                          {formatPriceWithDecimals(r.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Consumer Protection & Cost Transparency Disclosure */}
+              <CheckoutDisclosure
+                amount={payrollCheckoutDraft.grandTotal}
+                currency={payrollCheckoutDraft.currency}
+                itemTitle={payrollCheckoutDraft.title}
+                baseAmount={payrollCheckoutDraft.netSalariesTotal}
+                feeAmount={payrollCheckoutDraft.platformFee}
+                feeLabel="Payroll Processing Addition"
+                providerName={myOrg?.name || currentUser.name}
+                transactionType="payroll"
+                isAcknowledged={isPayrollDisclosureAcknowledged}
+                onAcknowledgeChange={setIsPayrollDisclosureAcknowledged}
+              />
+            </div>
+
+            <div className="p-5 sm:p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 space-y-2 shrink-0">
+              {!isPayrollDisclosureAcknowledged && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 text-center font-medium">
+                  Please review and check the disclosure box above to proceed
+                  with payment.
+                </p>
+              )}
+              <button
+                type="button"
+                disabled={
+                  isCheckoutPopupActive || !isPayrollDisclosureAcknowledged
+                }
+                onClick={handleConfirmPayrollCheckout}
+                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isCheckoutPopupActive ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <CreditCard className="w-5 h-5" />
+                )}
+                <span>
+                  {isCheckoutPopupActive
+                    ? "Completing Payment..."
+                    : `Pay ${payrollCheckoutDraft.currency} ${formatPriceWithDecimals(payrollCheckoutDraft.grandTotal)} Now`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

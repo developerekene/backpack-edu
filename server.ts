@@ -663,78 +663,152 @@ app.post(["/api/paystack/subaccount", "/api/subaccount", "/subaccount"], async (
   });
 });
 
-// --- DELETE /api/paystack/subaccount/:code, /api/subaccount/:code, /subaccount/:code ---
-app.delete(["/api/paystack/subaccount/:code", "/api/subaccount/:code", "/subaccount/:code"], async (req, res) => {
+// --- DELETE /api/paystack/subaccount/:code (and PUT deactivate aliases) ---
+async function handleDeactivateSubaccount(req: express.Request, res: express.Response) {
   const { code } = req.params;
   if (!code) {
     return res.status(400).json({ success: false, message: "Subaccount code is required." });
   }
 
-  let deletedRemotely = false;
+  const splitGroups: Array<{
+    paystackSplitId?: string | number;
+    splitCode?: string;
+    remainingSubaccounts?: Array<{ subaccount: string; share: number }>;
+  }> = Array.isArray(req.body?.splitGroups) ? req.body.splitGroups : [];
+
+  let deactivatedRemotely = false;
+  let updatedSplitsCount = 0;
   let lastError = "";
 
-  // 1. Attempt deletion via KeySafe Render proxy (keysafe-ntia.onrender.com)
-  const deleteUrls = [
-    `https://keysafe-ntia.onrender.com/subaccount/${encodeURIComponent(code)}?mode=live`,
-    `https://keysafe-ntia.onrender.com/api/subaccount/${encodeURIComponent(code)}?mode=live`,
+  // 1. Deactivate subaccount in Paystack using the Secret Key strictly through keysafe-ntia.onrender.com
+  // Paystack deactivates subaccounts via PUT /subaccount/:code with { active: false }.
+  const deactivateRequests: Array<{ url: string; method: "PUT" | "POST" | "DELETE"; body?: Record<string, unknown> }> = [
+    {
+      url: `${KEYSAFE_PROXY_BASE}/subaccount/${encodeURIComponent(code)}?mode=live`,
+      method: "PUT",
+      body: { active: false, mode: "live" },
+    },
+    {
+      url: `${KEYSAFE_PROXY_BASE}/api/subaccount/${encodeURIComponent(code)}?mode=live`,
+      method: "PUT",
+      body: { active: false, mode: "live" },
+    },
+    {
+      url: `${KEYSAFE_PROXY_BASE}/api/paystack/subaccount/${encodeURIComponent(code)}?mode=live`,
+      method: "PUT",
+      body: { active: false, mode: "live" },
+    },
+    {
+      url: `${KEYSAFE_PROXY_BASE}/subaccount/${encodeURIComponent(code)}/deactivate?mode=live`,
+      method: "POST",
+      body: { active: false, mode: "live" },
+    },
+    {
+      url: `${KEYSAFE_PROXY_BASE}/api/subaccount/${encodeURIComponent(code)}/deactivate?mode=live`,
+      method: "POST",
+      body: { active: false, mode: "live" },
+    },
+    {
+      url: `${KEYSAFE_PROXY_BASE}/subaccount/${encodeURIComponent(code)}?mode=live`,
+      method: "DELETE",
+    },
+    {
+      url: `${KEYSAFE_PROXY_BASE}/api/subaccount/${encodeURIComponent(code)}?mode=live`,
+      method: "DELETE",
+    },
   ];
 
-  for (const url of deleteUrls) {
+  for (const attempt of deactivateRequests) {
     try {
-      const delRes = await fetch(url, {
-        method: "DELETE",
-        signal: AbortSignal.timeout(15000),
-        headers: {
-          "Content-Type": "application/json",
-          "X-Paystack-Mode": "live",
-          "X-Environment-Mode": "live",
-          "X-Context-Mode": "live",
-        },
+      const proxyRes = await fetch(attempt.url, {
+        method: attempt.method,
+        signal: AbortSignal.timeout(20000),
+        headers: getKeySafeHeaders("live"),
+        ...(attempt.body ? { body: JSON.stringify(attempt.body) } : {}),
       });
-      if (delRes.ok) {
-        deletedRemotely = true;
+      const proxyJson = await proxyRes.json().catch(() => ({}));
+      if (proxyRes.ok && proxyJson.status !== false && proxyJson.success !== false) {
+        deactivatedRemotely = true;
+        console.log(`[Gateway] Deactivated subaccount ${code} via KeySafe (${attempt.method} ${attempt.url})`);
         break;
       }
-      const errJson = await delRes.json().catch(() => ({}));
-      if (errJson.detail?.message || errJson.message) {
-        lastError = errJson.detail?.message || errJson.message;
+      if (proxyJson.detail?.message || proxyJson.message) {
+        lastError = String(proxyJson.detail?.message || proxyJson.message);
       }
     } catch {
-      // continue to next endpoint
+      // continue to next KeySafe endpoint
     }
   }
 
-  // 2. If KeySafe doesn't expose DELETE, use direct Paystack API if configured (deactivate subaccount)
-  if (!deletedRemotely) {
-    const headers = getPaystackHeaders();
-    if (headers) {
+  // 2. Remove the subaccount code from any Paystack Transaction Split groups via KeySafe
+  for (const grp of splitGroups) {
+    const splitRef = String(grp.paystackSplitId || grp.splitCode || "").trim();
+    if (!splitRef) continue;
+    const remaining = Array.isArray(grp.remainingSubaccounts) ? grp.remainingSubaccounts : [];
+
+    const splitRequests: Array<{ url: string; method: "POST" | "PUT"; body: Record<string, unknown> }> = [
+      {
+        url: `${KEYSAFE_PROXY_BASE}/split/${encodeURIComponent(splitRef)}/subaccount/remove?mode=live`,
+        method: "POST",
+        body: { subaccount: code, mode: "live" },
+      },
+      {
+        url: `${KEYSAFE_PROXY_BASE}/api/split/${encodeURIComponent(splitRef)}/subaccount/remove?mode=live`,
+        method: "POST",
+        body: { subaccount: code, mode: "live" },
+      },
+      {
+        url: `${KEYSAFE_PROXY_BASE}/split/${encodeURIComponent(splitRef)}?mode=live`,
+        method: "PUT",
+        body: {
+          active: remaining.length >= 2,
+          ...(remaining.length > 0 ? { subaccounts: remaining } : {}),
+          mode: "live",
+        },
+      },
+      {
+        url: `${KEYSAFE_PROXY_BASE}/api/split/${encodeURIComponent(splitRef)}?mode=live`,
+        method: "PUT",
+        body: {
+          active: remaining.length >= 2,
+          ...(remaining.length > 0 ? { subaccounts: remaining } : {}),
+          mode: "live",
+        },
+      },
+    ];
+
+    for (const reqCfg of splitRequests) {
       try {
-        const psRes = await fetch(`https://api.paystack.co/subaccount/${encodeURIComponent(code)}`, {
-          method: "PUT",
-          headers,
-          signal: AbortSignal.timeout(10000),
-          body: JSON.stringify({ active: false }),
+        const splitRes = await fetch(reqCfg.url, {
+          method: reqCfg.method,
+          signal: AbortSignal.timeout(15000),
+          headers: getKeySafeHeaders("live"),
+          body: JSON.stringify(reqCfg.body),
         });
-        if (psRes.ok) {
-          deletedRemotely = true;
-        } else {
-          const psJson = await psRes.json().catch(() => ({}));
-          lastError = psJson.message || lastError;
+        const splitJson = await splitRes.json().catch(() => ({}));
+        if (splitRes.ok && splitJson.status !== false && splitJson.success !== false) {
+          updatedSplitsCount += 1;
+          break;
         }
       } catch {
-        // ignore
+        // continue
       }
     }
   }
 
   return res.json({
     success: true,
-    deletedRemotely,
-    message: deletedRemotely
-      ? `Subaccount ${code} permanently removed from Paystack and disconnected from the app.`
-      : `Subaccount ${code} disconnected from the app.${lastError ? ` (Gateway notice: ${lastError})` : ""}`,
+    deactivatedRemotely,
+    deletedRemotely: deactivatedRemotely,
+    updatedSplitsCount,
+    message: deactivatedRemotely
+      ? `Payout account ${code} deactivated via payment gateway and removed from active splits & app storage.`
+      : `Payout account ${code} removed from app storage and transaction splits.${lastError ? ` (Gateway notice: ${lastError})` : ""}`,
   });
-});
+}
+
+app.delete(["/api/paystack/subaccount/:code", "/api/subaccount/:code", "/subaccount/:code"], handleDeactivateSubaccount);
+app.put(["/api/paystack/subaccount/:code/deactivate", "/api/subaccount/:code/deactivate"], handleDeactivateSubaccount);
 
 // --- GET /api/paystack/subaccount/:code, /api/subaccount/:code, /subaccount/:code ---
 app.get(["/api/paystack/subaccount/:code", "/api/subaccount/:code", "/subaccount/:code"], async (req, res) => {

@@ -43,6 +43,7 @@ export const SuperAdmin: React.FC = () => {
     deleteUserAccount,
     sendDirectNotification,
     refreshData,
+    deletePaystackSubaccount,
   } = useAppContext();
 
   // Filters
@@ -75,6 +76,7 @@ export const SuperAdmin: React.FC = () => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [deletingUserSubaccount, setDeletingUserSubaccount] = useState(false);
 
   const showFeedback = (msg: string) => {
     setActionSuccess(msg);
@@ -1022,6 +1024,37 @@ export const SuperAdmin: React.FC = () => {
                         {selectedUser.paystackSubaccount.percentage_charge}% to
                         provider / 15% platform fee
                       </span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={deletingUserSubaccount}
+                        onClick={async () => {
+                          const code = selectedUser.paystackSubaccount?.subaccount_code;
+                          if (!code) return;
+                          setDeletingUserSubaccount(true);
+                          try {
+                            const res = await deletePaystackSubaccount(code, selectedUser.id);
+                            setSelectedUser((prev) => {
+                              if (!prev) return null;
+                              const copy = { ...prev };
+                              delete copy.paystackSubaccount;
+                              return copy;
+                            });
+                            showFeedback(res.message);
+                          } finally {
+                            setDeletingUserSubaccount(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-xs font-bold inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>
+                          {deletingUserSubaccount
+                            ? "Removing & Deactivating..."
+                            : "Deactivate & Delete Subaccount"}
+                        </span>
+                      </button>
                     </div>
                   </div>
                 ) : (

@@ -127,7 +127,14 @@ export const updateBackpackPersonalInfo = async (
       const userObj = getUserData(data);
       const personalInfo =
         (userObj.personalInformation as Record<string, unknown>) || {};
-      const updatedPersonalInfo = { ...personalInfo, ...updates };
+      const updatedPersonalInfo: Record<string, unknown> = { ...personalInfo };
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v === null) {
+          delete updatedPersonalInfo[k];
+        } else if (v !== undefined) {
+          updatedPersonalInfo[k] = v;
+        }
+      });
       const updatedUser = {
         ...userObj,
         personalInformation: updatedPersonalInfo,

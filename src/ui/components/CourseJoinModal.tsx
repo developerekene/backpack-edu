@@ -29,7 +29,8 @@ export const CourseJoinModal: React.FC<CourseJoinModalProps> = ({
     const instructorUser = allUsers.find(
         u => u.id === course.instructorId || u.id === course.createdBy || (Boolean(course.instructorName) && u.name?.toLowerCase() === course.instructorName?.toLowerCase())
     );
-    const subaccount = providerOrg?.paystackSubaccount || instructorUser?.paystackSubaccount || (currentUser?.role !== 'student' ? currentUser?.paystackSubaccount : undefined);
+    const rawSubaccount = providerOrg?.paystackSubaccount || instructorUser?.paystackSubaccount || (currentUser?.role !== 'student' ? currentUser?.paystackSubaccount : undefined);
+    const subaccount = rawSubaccount?.subaccount_code?.startsWith("ACCT_") && rawSubaccount?.is_active !== false ? rawSubaccount : undefined;
 
     // Check requirement flags
     const feeRequired = invite.requiresPayment !== false && course.price > 0;

@@ -52,10 +52,14 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
       u.id === course.createdBy ||
       (Boolean(course.instructorName) && u.name?.toLowerCase() === course.instructorName?.toLowerCase())
   );
-  const subaccount =
+  const rawSubaccount =
     providerOrg?.paystackSubaccount ||
     instructorUser?.paystackSubaccount ||
     (currentUser?.role !== "student" ? currentUser?.paystackSubaccount : undefined);
+  const subaccount =
+    rawSubaccount?.subaccount_code?.startsWith("ACCT_") && rawSubaccount?.is_active !== false
+      ? rawSubaccount
+      : undefined;
   const providerName =
     providerOrg?.name || instructorUser?.name || course.instructorName || "Course Provider";
 

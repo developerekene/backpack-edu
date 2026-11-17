@@ -414,7 +414,8 @@ const CourseUpload = () => {
     isSuperAdmin ||
     Boolean(
       activeSubaccount?.subaccount_code &&
-        activeSubaccount.subaccount_code.startsWith("ACCT_"),
+        activeSubaccount.subaccount_code.startsWith("ACCT_") &&
+        activeSubaccount.is_active !== false,
     );
 
   // Organization existing courses and tier check

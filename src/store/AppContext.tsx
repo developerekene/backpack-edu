@@ -5,9 +5,11 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
 import { db } from "../lib/firebase";
+import { deactivateAndDeleteSubaccount } from "../lib/paystackGateway";
 import {
   collection,
   getDocs,
@@ -287,6 +289,14 @@ interface AppState {
   deletePayrollSplitGroup: (id: string) => Promise<void>;
   recordPayrollDisbursement: (disbursement: PayrollDisbursement) => Promise<void>;
   savePayrollPayslips: (orgId: string, payslips: PayrollPayslip[]) => Promise<void>;
+  deletePaystackSubaccount: (
+    subaccountCode: string,
+    targetUserId?: string,
+  ) => Promise<{
+    deactivatedRemotely: boolean;
+    updatedSplitsCount: number;
+    message: string;
+  }>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -329,6 +339,10 @@ const loadCache = <T,>(key: string, fallback: T): T => {
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser } = useAuth();
+  const currentUserIdRef = useRef<string | undefined>(currentUser?.id);
+  useEffect(() => {
+    currentUserIdRef.current = currentUser?.id;
+  }, [currentUser?.id]);
 
   const [isLoadingApp, setIsLoadingApp] = useState(true);
   const [organizations, setOrganizations] = useState<Organization[]>(() =>
@@ -432,10 +446,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const personalInfo =
           (userObj.personalInformation as Record<string, unknown>) || {};
 
-        const updatedPersonalInfo = {
+        const updatedPersonalInfo: Record<string, unknown> = {
           ...personalInfo,
           ...sanitizeForFirestore(updates),
         };
+        Object.entries(updates).forEach(([k, v]) => {
+          if (v === null) {
+            delete updatedPersonalInfo[k];
+          }
+        });
 
         const updatedUser = {
           ...userObj,
@@ -843,7 +862,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           allTeacherDuties.push(...(teacherObj.duty as TeacherDutyRecord[]));
         }
 
-        if (docSnap.id === currentUser?.id) {
+        if (docSnap.id === currentUserIdRef.current) {
           if (Array.isArray(userObj.notifications)) {
             setNotifications(userObj.notifications as AppNotification[]);
           }
@@ -1071,7 +1090,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoadingApp(false);
     }
-  }, [currentUser?.id]);
+  }, []);
 
   // Super Admin Management Functions
   const suspendUser = async (userId: string, reason?: string) => {
@@ -1165,23 +1184,74 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Sync current user's notifications when auth resolves without restarting the global collection stream
   useEffect(() => {
-    loadAllBackpackData();
-    let unsubscribe: (() => void) | undefined;
-    try {
-      unsubscribe = onSnapshot(
-        collection(db, "backpack"),
-        (snap) => {
-          loadAllBackpackData(snap);
-        },
-        (err) => {
-          console.warn("Backpack realtime listener notice:", err?.message || err);
-        },
-      );
-    } catch (e) {
-      console.warn("Could not bind backpack listener:", e);
-    }
+    if (!currentUser?.id) return;
+    let active = true;
+    getDoc(doc(db, "backpack", currentUser.id))
+      .then((snap) => {
+        if (!active || !snap.exists()) return;
+        const userObj = getUserData(snap.data());
+        if (Array.isArray(userObj.notifications)) {
+          setNotifications(userObj.notifications as AppNotification[]);
+        }
+      })
+      .catch((err) => {
+        console.warn("Notification sync notice:", err?.message || err);
+      });
     return () => {
+      active = false;
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    let deliveredInitial = false;
+    let disposed = false;
+
+    // Defer stream binding by one tick so React StrictMode double-mounts don't open
+    // and immediately abort an in-flight Firestore WebChannel Listen connection.
+    const startTimer = window.setTimeout(() => {
+      if (disposed) return;
+      try {
+        unsubscribe = onSnapshot(
+          collection(db, "backpack"),
+          (snap) => {
+            deliveredInitial = true;
+            loadAllBackpackData(snap);
+          },
+          (err) => {
+            console.warn("Backpack realtime listener notice:", err?.message || err);
+            if (!deliveredInitial) {
+              loadAllBackpackData();
+            }
+          },
+        );
+      } catch (e) {
+        console.warn("Could not bind backpack listener:", e);
+        loadAllBackpackData();
+      }
+    }, 50);
+
+    // Fallback one-shot fetch only if realtime stream takes longer than 5s to deliver
+    const fallbackTimer = window.setTimeout(() => {
+      if (!disposed && !deliveredInitial) {
+        loadAllBackpackData();
+      }
+    }, 5000);
+
+    const handleOnline = () => {
+      if (!disposed) {
+        loadAllBackpackData();
+      }
+    };
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(startTimer);
+      window.clearTimeout(fallbackTimer);
+      window.removeEventListener("online", handleOnline);
       if (unsubscribe) unsubscribe();
     };
   }, [loadAllBackpackData]);
@@ -1209,12 +1279,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
 
     setOrganizations((prev) =>
-      prev.map((o) =>
-        o.id === id || o.ownerId === id || o.id === targetUid
-          ? { ...o, ...cleaned }
-          : o,
-      ),
+      prev.map((o) => {
+        if (o.id === id || o.ownerId === id || o.id === targetUid) {
+          const next = { ...o, ...cleaned };
+          if (updates.paystackSubaccount === null) {
+            delete next.paystackSubaccount;
+          }
+          return next;
+        }
+        return o;
+      }),
     );
+
+    if (updates.paystackSubaccount === null && targetUid) {
+      setAllUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === targetUid || u.id === id || u.orgId === id) {
+            const copy = { ...u };
+            delete copy.paystackSubaccount;
+            return copy;
+          }
+          return u;
+        }),
+      );
+    }
   };
 
   const deleteOrganization = async (id: string) => {
@@ -2839,6 +2927,174 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     ).catch(console.error);
   };
 
+  // Complete Subaccount Removal Pipeline:
+  // 1. Deactivate subaccount in Paystack via Secret Key through keysafe-ntia.onrender.com & remove from Paystack split groups
+  // 2. Remove the subaccount code from all transaction split configs & payroll recipients in Firestore + state
+  // 3. Delete paystackSubaccount from Firestore user/org documents and frontend state
+  const deletePaystackSubaccount = async (
+    subaccountCode: string,
+    targetUserId?: string,
+  ): Promise<{
+    deactivatedRemotely: boolean;
+    updatedSplitsCount: number;
+    message: string;
+  }> => {
+    const cleanCode = String(subaccountCode || "").trim();
+    if (!cleanCode) {
+      return {
+        deactivatedRemotely: false,
+        updatedSplitsCount: 0,
+        message: "No subaccount code specified.",
+      };
+    }
+
+    // 1. Inspect all transaction split configurations referencing this subaccount
+    const affectedGroups = payrollSplitGroups.filter((g) =>
+      g.members?.some((m) => m.subaccountCode === cleanCode),
+    );
+
+    const splitGroupsPayload = affectedGroups.map((g) => {
+      const remaining = (g.members || []).filter(
+        (m) => m.subaccountCode !== cleanCode,
+      );
+      return {
+        paystackSplitId: g.paystackSplitId,
+        splitCode: g.splitCode,
+        remainingSubaccounts: remaining.map((m) => ({
+          subaccount: m.subaccountCode,
+          share:
+            g.type === "flat"
+              ? Math.round((m.amount || 0) * 100)
+              : Math.round(m.sharePercentage || 0),
+        })),
+      };
+    });
+
+    // Deactivate on Paystack + remove from Paystack split configs via KeySafe proxy
+    let gatewayRes: {
+      success: boolean;
+      deactivatedRemotely?: boolean;
+      updatedSplitsCount?: number;
+      message?: string;
+    } = { success: false };
+
+    try {
+      gatewayRes = await deactivateAndDeleteSubaccount(
+        cleanCode,
+        splitGroupsPayload,
+      );
+    } catch (err) {
+      console.warn("Gateway subaccount deactivation notice:", err);
+    }
+
+    // 2. Remove subaccount code from local & Firestore transaction split configurations
+    for (const grp of affectedGroups) {
+      const remainingMembers = (grp.members || []).filter(
+        (m) => m.subaccountCode !== cleanCode,
+      );
+      if (remainingMembers.length < 2) {
+        await deletePayrollSplitGroup(grp.id);
+      } else {
+        const updatedTotal =
+          grp.type === "flat"
+            ? remainingMembers.reduce((sum, m) => sum + (m.amount || 0), 0)
+            : grp.totalAmount;
+        await savePayrollSplitGroup({
+          ...grp,
+          members: remainingMembers,
+          totalAmount: updatedTotal,
+        });
+      }
+    }
+
+    // Remove any stored payroll recipients referencing this subaccountCode
+    const affectedRecipients = payrollRecipients.filter(
+      (r) => r.subaccountCode === cleanCode,
+    );
+    for (const rec of affectedRecipients) {
+      await removePayrollRecipient(rec.id);
+    }
+
+    // 3. Delete paystackSubaccount from every matching Firestore backpack document
+    const candidateDocIds = new Set<string>();
+    if (targetUserId) candidateDocIds.add(targetUserId);
+    allUsers
+      .filter((u) => u.paystackSubaccount?.subaccount_code === cleanCode)
+      .forEach((u) => candidateDocIds.add(u.id));
+    organizations
+      .filter((o) => o.paystackSubaccount?.subaccount_code === cleanCode)
+      .forEach((o) => {
+        if (o.ownerId) candidateDocIds.add(o.ownerId);
+        if (o.id) candidateDocIds.add(o.id);
+      });
+
+    for (const uid of candidateDocIds) {
+      await updateBackpackPersonalInfo(uid, {
+        paystackSubaccount: null,
+      });
+    }
+
+    // Also scan Firestore backpack docs for any residual reference to this subaccount code
+    try {
+      const snap = await getDocs(collection(db, "backpack"));
+      const cleanupOps: Promise<unknown>[] = [];
+      snap.docs.forEach((d) => {
+        const userObj = getUserData(d.data());
+        const personalInfo = (userObj.personalInformation || {}) as Record<
+          string,
+          unknown
+        >;
+        const sub = personalInfo.paystackSubaccount as
+          | { subaccount_code?: string }
+          | undefined;
+        if (sub?.subaccount_code === cleanCode && !candidateDocIds.has(d.id)) {
+          cleanupOps.push(
+            updateBackpackPersonalInfo(d.id, { paystackSubaccount: null }),
+          );
+        }
+      });
+      await Promise.all(cleanupOps);
+    } catch (scanErr) {
+      console.warn("Firestore residual subaccount scan notice:", scanErr);
+    }
+
+    // 4. Clear subaccount from frontend React state (organizations & allUsers)
+    setOrganizations((prev) =>
+      prev.map((o) => {
+        if (
+          o.paystackSubaccount?.subaccount_code === cleanCode ||
+          (targetUserId && (o.id === targetUserId || o.ownerId === targetUserId))
+        ) {
+          const copy = { ...o };
+          delete copy.paystackSubaccount;
+          return copy;
+        }
+        return o;
+      }),
+    );
+    setAllUsers((prev) =>
+      prev.map((u) => {
+        if (
+          u.paystackSubaccount?.subaccount_code === cleanCode ||
+          (targetUserId && u.id === targetUserId)
+        ) {
+          const copy = { ...u };
+          delete copy.paystackSubaccount;
+          return copy;
+        }
+        return u;
+      }),
+    );
+
+    return {
+      deactivatedRemotely: Boolean(gatewayRes.deactivatedRemotely),
+      updatedSplitsCount: affectedGroups.length,
+      message:
+        gatewayRes.message ||
+        "Payout bank account deleted from app & Firestore, removed from split configurations, and deactivated.",
+    };
+  };
+
   const savePayrollPayslips = async (
     orgId: string,
     payslips: PayrollPayslip[],
@@ -3706,6 +3962,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         deletePayrollSplitGroup,
         recordPayrollDisbursement,
         savePayrollPayslips,
+        deletePaystackSubaccount,
       }}
     >
       {children}

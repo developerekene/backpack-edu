@@ -15,11 +15,11 @@ export const PAYSTACK_LIVE_PUBLIC_KEY =
 
 export const PAYSTACK_KEY = PAYSTACK_LIVE_PUBLIC_KEY;
 
-export const generateReferenceNumber = (): string => {
-  const prefix = "DT";
+export const generateReferenceNumber = (prefix = "DT"): string => {
+  const cleanPrefix = (prefix || "DT").replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "DT";
   const timestamp = Date.now().toString(36); // Base36 for compact form
   const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `${prefix}-${timestamp}-${random}`;
+  return `${cleanPrefix}-${timestamp}-${random}`;
 };
 
 export interface PaystackTransactionOptions {
@@ -252,7 +252,6 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
 
     if (targetSubaccount) {
       txConfig.subaccount = targetSubaccount;
-      txConfig.subaccount_code = targetSubaccount;
       txConfig.transaction_charge = transactionChargeInKobo;
       txConfig.bearer = "account";
     }
@@ -296,13 +295,17 @@ At Backpack & D'roid Technologies, we believe in learning, competing, and growin
 };
 
 export interface PayrollPaystackCheckoutOptions {
-  accessCode?: string;
   email: string;
-  amount: number; // In major currency unit (e.g. NGN)
+  amount: number; // Total charged to organization in major currency unit (e.g. NGN)
+  baseAmount?: number; // Net salaries total paid to instructors
+  transactionCharge?: number; // Processing fee retained by platform (in major unit)
   currency?: string;
   subaccountCode?: string;
   splitCode?: string;
   reference: string;
+  organizationName?: string;
+  payPeriod?: string;
+  recipientCount?: number;
   metadata?: Record<string, unknown>;
   onSuccess: (res: { reference?: string; trxref?: string; status?: string }) => void;
   onCancel?: () => void;
@@ -311,21 +314,58 @@ export interface PayrollPaystackCheckoutOptions {
 }
 
 /**
- * Dedicated Zero-Platform-Touch Instructor Salary Checkout.
- * Strictly requires either a server-initialized `accessCode` (routed to instructor subaccount / split group)
- * or explicit `subaccountCode` / `splitCode` with 0 transaction_charge and `subaccount` fee bearer.
- * NEVER falls back to unsplit main platform account.
+ * Organization Payroll Checkout using the Paystack Public Key (`PAYSTACK_LIVE_PUBLIC_KEY`),
+ * working identically to student tuition checkout while strictly routing funds to instructor
+ * subaccounts (`ACCT_...`) or secret-key created split groups (`SPL_...`).
+ * NEVER strips subaccount/split routing and NEVER sets bearer to `"account"`.
  */
 export const triggerPayrollPaystackCheckout = (options: PayrollPaystackCheckoutOptions) => {
-  if (!options.accessCode && !options.subaccountCode && !options.splitCode) {
+  if (!options.subaccountCode && !options.splitCode) {
     options.onError?.(
-      new Error("Missing instructor payout bank details or payroll group selection. Salaries must go directly to instructor bank accounts.")
+      new Error("Missing instructor payout bank details or payroll split group. Salaries must go directly to instructor bank accounts.")
     );
     return;
   }
 
-  const handleSuccess = (res: { reference?: string; trxref?: string; status?: string }) => {
+  if (!options.email) {
+    options.onError?.(new Error("Please enter a valid organization email address."));
+    return;
+  }
+
+  const amountInKobo = Math.round(options.amount * 100);
+  const transactionChargeInKobo =
+    options.transactionCharge !== undefined && options.transactionCharge >= 0
+      ? Math.round(options.transactionCharge * 100)
+      : options.baseAmount !== undefined && options.baseAmount > 0
+        ? Math.max(0, amountInKobo - Math.round(options.baseAmount * 100))
+        : 0;
+
+  const handleSuccess = async (res: { reference?: string; trxref?: string; status?: string }) => {
     const finalRef = res?.reference || res?.trxref || options.reference;
+
+    // Send confirmation receipt email via EmailJS just like student tuition checkout
+    try {
+      const orgName = options.organizationName || "Organization";
+      const periodLabel = options.payPeriod || "Payroll Run";
+      const staffCount = options.recipientCount || 1;
+
+      await emailjs.send(
+        SERVICE_ID,
+        TEMPLATE_ID,
+        {
+          name: orgName,
+          title: `Payroll Payment Confirmed (${periodLabel}) — ${staffCount} Instructor${staffCount === 1 ? "" : "s"}`,
+          email: options.email,
+          reference_number: finalRef,
+          amount: `${(options.currency || "NGN").toUpperCase()} ${options.amount.toLocaleString()}`,
+          course_title: `Instructor Payroll (${periodLabel})`,
+        },
+        PUBLIC_KEY,
+      );
+    } catch (emailErr) {
+      console.warn("Payroll receipt email notice:", emailErr);
+    }
+
     options.onSuccess({ ...res, reference: finalRef });
   };
 
@@ -338,52 +378,61 @@ export const triggerPayrollPaystackCheckout = (options: PayrollPaystackCheckoutO
     options.onError?.(err);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const txConfig: any = {
+    key: PAYSTACK_LIVE_PUBLIC_KEY,
+    email: options.email,
+    amount: amountInKobo,
+    currency: (options.currency || "NGN").toUpperCase(),
+    ref: options.reference,
+    onSuccess: handleSuccess,
+    onCancel: handleCancel,
+    onError: handleError,
+    metadata: {
+      ...(options.metadata || {}),
+      payroll_flow: true,
+      base_salaries_kobo: Math.max(0, amountInKobo - transactionChargeInKobo),
+      platform_fee_kobo: transactionChargeInKobo,
+      mode: "live",
+    },
+  };
+
+  if (options.splitCode) {
+    txConfig.split_code = options.splitCode;
+    txConfig.metadata.bearer_type = "all-proportional";
+  } else if (options.subaccountCode) {
+    txConfig.subaccount = options.subaccountCode;
+    txConfig.transaction_charge = transactionChargeInKobo;
+    txConfig.bearer = "subaccount";
+    txConfig.metadata.subaccount_code = options.subaccountCode;
+    txConfig.metadata.bearer = "subaccount";
+  }
+
   try {
     const popup = new PaystackPop();
-
-    // Primary path: Resume server-initialized split/subaccount transaction via access_code
-    if (options.accessCode && typeof popup.resumeTransaction === "function") {
-      popup.resumeTransaction(options.accessCode, {
-        onSuccess: handleSuccess,
-        onCancel: handleCancel,
-        onError: handleError,
-      });
-      return;
-    }
-
-    // Secondary path (strictly requires subaccountCode or splitCode; never stripped)
+    popup.newTransaction(txConfig);
+  } catch (inlineErr) {
+    console.warn("Falling back to window.PaystackPop / setup for payroll:", inlineErr);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const config: any = {
-      key: PAYSTACK_LIVE_PUBLIC_KEY,
-      email: options.email,
-      amount: Math.round(options.amount * 100),
-      currency: (options.currency || "NGN").toUpperCase(),
-      ref: options.reference,
-      onSuccess: handleSuccess,
-      onCancel: handleCancel,
-      onError: handleError,
-      metadata: {
-        ...(options.metadata || {}),
-        payroll_flow: true,
-        platform_cut_kobo: 0,
-        mode: "live",
-      },
-    };
-
-    if (options.splitCode) {
-      config.split_code = options.splitCode;
-    } else if (options.subaccountCode) {
-      config.subaccount = options.subaccountCode;
-      config.subaccountCode = options.subaccountCode;
-      config.subaccount_code = options.subaccountCode;
-      config.transactionCharge = 0;
-      config.transaction_charge = 0;
-      config.bearer = "subaccount";
+    const win = window as any;
+    if (win.PaystackPop && typeof win.PaystackPop.setup === "function") {
+      try {
+        const handler = win.PaystackPop.setup({
+          ...txConfig,
+          callback: (res: { reference?: string; trxref?: string; status?: string }) => {
+            handleSuccess(res);
+          },
+          onClose: () => {
+            handleCancel();
+          },
+        });
+        handler.openIframe();
+      } catch (winErr) {
+        handleError(winErr);
+      }
+    } else {
+      handleError(inlineErr);
     }
-
-    popup.newTransaction(config);
-  } catch (err) {
-    handleError(err);
   }
 };
 
