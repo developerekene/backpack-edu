@@ -30,6 +30,8 @@ import {
   ChevronDown,
   ChevronUp,
   Menu,
+  Loader2,
+  Search,
 } from "lucide-react";
 import { OrgPlanUpgradeModal } from "../components/OrgPlanUpgradeModal";
 
@@ -153,38 +155,14 @@ const CourseUpload = () => {
     if (Array.isArray(initialDraft?.modules) && initialDraft.modules.length > 0) {
       return initialDraft.modules;
     }
-    return [
-      {
-        id: generateId("mod"),
-        title: "",
-        description: "",
-        learningGoals: "",
-        sections: [
-          {
-            id: generateId("sec"),
-            title: "",
-            description: "",
-            learningObjectives: "",
-            items: [
-              {
-                id: generateId("lec"),
-                title: "",
-                description: "",
-                learningOutcome: "",
-                type: "text",
-                formats: ["text"],
-              },
-            ],
-          },
-        ],
-        items: [],
-      },
-    ];
+    return [];
   });
 
   const [showSubaccountModal, setShowSubaccountModal] = useState(false);
   const [bypassSubaccount, setBypassSubaccount] = useState(false);
+  const [instructorEmailSearch, setInstructorEmailSearch] = useState("");
   const [isDraftRestored, setIsDraftRestored] = useState(() => Boolean(initialDraft));
+  const [submitError, setSubmitError] = useState("");
   const [collapsedModuleIds, setCollapsedModuleIds] = useState<Record<string, boolean>>({});
   const [alertConfig, setAlertConfig] = useState<{
     isOpen: boolean;
@@ -321,33 +299,8 @@ const CourseUpload = () => {
     setCertificationDetails("");
     setRefundPolicy("");
     setFaqs([]);
-    setModules([
-      {
-        id: generateId("mod"),
-        title: "",
-        description: "",
-        learningGoals: "",
-        sections: [
-          {
-            id: generateId("sec"),
-            title: "",
-            description: "",
-            learningObjectives: "",
-            items: [
-              {
-                id: generateId("lec"),
-                title: "",
-                description: "",
-                learningOutcome: "",
-                type: "text",
-                formats: ["text"],
-              },
-            ],
-          },
-        ],
-        items: [],
-      },
-    ]);
+    setModules([]);
+    setSubmitError("");
     setIsDraftRestored(false);
   };
 
@@ -441,6 +394,15 @@ const CourseUpload = () => {
     );
   });
 
+  const matchingPlatformInstructors = availableOrgInstructors.filter((inst) => {
+    const q = instructorEmailSearch.trim().toLowerCase();
+    if (q.length < 2) return false;
+    return (
+      inst.email?.toLowerCase().includes(q) ||
+      inst.name?.toLowerCase().includes(q)
+    );
+  });
+
   // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
   if (currentUser.role === "instructor" && approvedOrgs.length === 0) {
     return (
@@ -482,15 +444,31 @@ const CourseUpload = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!currentUser) return;
+    if (!currentUser) {
+      setSubmitError("You must be signed in to publish a course.");
+      setAlertConfig({
+        isOpen: true,
+        title: "Authentication Required",
+        message: "You must be signed in to publish an institutional course.",
+        confirmText: "Understood",
+        type: "warning",
+      });
+      return;
+    }
+    setSubmitError("");
 
     const orgIdToUse =
-      currentUser.role === "organization" ? currentUser.id : selectedOrgId;
+      currentUser.role === "organization"
+        ? currentUser.id
+        : selectedOrgId || approvedOrgs[0]?.id || (isSuperAdmin ? "org_backpack_global" : "");
     if (!orgIdToUse) {
+      const msg = "Please select the authorized partner organization sponsoring this course.";
+      setSubmitError(msg);
+      setCurrentStep(1);
       setAlertConfig({
         isOpen: true,
         title: "Sponsoring Organization Required",
-        message: "Please select the authorized partner organization sponsoring this course.",
+        message: msg,
         confirmText: "Select Organization",
         type: "warning",
         onConfirm: () => setCurrentStep(1),
@@ -498,19 +476,97 @@ const CourseUpload = () => {
       return;
     }
 
-    if (!hasSubaccount && !bypassSubaccount) {
-      setShowSubaccountModal(true);
+    if (!title.trim()) {
+      const msg = "Please enter a course title before publishing.";
+      setSubmitError(msg);
+      setCurrentStep(1);
+      setAlertConfig({
+        isOpen: true,
+        title: "Course Title Required",
+        message: msg,
+        confirmText: "Go to Step 1",
+        type: "warning",
+        onConfirm: () => setCurrentStep(1),
+      });
+      return;
+    }
+
+    if (!description.trim()) {
+      const msg = "Please enter a course description before publishing.";
+      setSubmitError(msg);
+      setCurrentStep(1);
+      setAlertConfig({
+        isOpen: true,
+        title: "Course Description Required",
+        message: msg,
+        confirmText: "Go to Step 1",
+        type: "warning",
+        onConfirm: () => setCurrentStep(1),
+      });
       return;
     }
 
     const targetOrg = organizations.find(
-      (o) => o.id === orgIdToUse || o.ownerId === orgIdToUse,
+      (o) =>
+        o.id === orgIdToUse ||
+        o.id === `org_${orgIdToUse}` ||
+        o.ownerId === orgIdToUse,
     );
-    const isHigherEduOrg = targetOrg?.orgType === "higher";
-    const isVocationalOrg = targetOrg?.orgType === "vocational";
+    const targetIsHigherEduOrg =
+      targetOrg?.orgType === "higher" || isSuperAdmin;
+    const targetIsVocationalOrg = targetOrg?.orgType === "vocational";
     const isHigherDegree = ["bachelors", "masters", "doctorate"].includes(
       qualificationType,
     );
+
+    if (isHigherDegree && !targetIsHigherEduOrg) {
+      const msg = "Higher education degrees (Bachelors, Masters, Doctorate) can only be offered by Higher Education Institutions.";
+      setSubmitError(msg);
+      setCurrentStep(1);
+      setAlertConfig({
+        isOpen: true,
+        title: "Higher Education Credential Restricted",
+        message: msg,
+        confirmText: "Adjust Qualification",
+        type: "warning",
+        onConfirm: () => setCurrentStep(1),
+      });
+      return;
+    }
+
+    if (
+      targetIsVocationalOrg &&
+      fundingModel === "donations_sponsorships" &&
+      !(Number(tuitionCostPerStudent || price) > 0)
+    ) {
+      const msg = "Please enter a valid tuition cost per student greater than 0.";
+      setSubmitError(msg);
+      setCurrentStep(2);
+      setAlertConfig({
+        isOpen: true,
+        title: "Tuition Cost Required",
+        message: msg,
+        confirmText: "Go to Step 2",
+        type: "warning",
+        onConfirm: () => setCurrentStep(2),
+      });
+      return;
+    }
+
+    if (price !== "" && Number(price) < 0) {
+      const msg = "Tuition fee cannot be negative.";
+      setSubmitError(msg);
+      setCurrentStep(2);
+      setAlertConfig({
+        isOpen: true,
+        title: "Invalid Tuition Fee",
+        message: msg,
+        confirmText: "Go to Step 2",
+        type: "warning",
+        onConfirm: () => setCurrentStep(2),
+      });
+      return;
+    }
 
     if (isHigherDegree && !isHigherEduOrg) {
       setAlertConfig({
@@ -531,9 +587,16 @@ const CourseUpload = () => {
     }
 
     const effectiveTuitionCost =
-      isVocationalOrg && fundingModel === "donations_sponsorships"
+      targetIsVocationalOrg && fundingModel === "donations_sponsorships"
         ? Number(tuitionCostPerStudent) || Number(price) || 0
         : Number(price) || 0;
+
+    // Subaccount check: ONLY relevant for paid courses with tuition > 0, and non-blocking if bypassed
+    const isPaidCourse = effectiveTuitionCost > 0;
+    if (isPaidCourse && !hasSubaccount && !bypassSubaccount) {
+      setShowSubaccountModal(true);
+      return;
+    }
 
     let paymentTermsAllowed: "one-time" | "installment" | "both" = "both";
     if (allowPayInFull && allowInstallments) {
@@ -578,10 +641,10 @@ const CourseUpload = () => {
         price: effectiveTuitionCost,
         currency,
         paymentTermsAllowed:
-          isVocationalOrg && fundingModel === "donations_sponsorships"
+          targetIsVocationalOrg && fundingModel === "donations_sponsorships"
             ? "one-time"
             : paymentTermsAllowed,
-        fundingModel: isVocationalOrg ? fundingModel : "direct_tuition",
+        fundingModel: targetIsVocationalOrg ? fundingModel : "direct_tuition",
         tuitionCostPerStudent: effectiveTuitionCost,
         totalDonationsReceived: 0,
         installmentInterval: allowInstallments
@@ -634,15 +697,34 @@ const CourseUpload = () => {
         admissionSessions: [initialSession],
         requirements: studentReqList.join("\n"),
         requiredDocuments: requiredDocList,
-        modules: modules.map((mod) => {
-          const sections = mod.sections || [];
-          const allLectures = sections.flatMap((sec) => sec.items || []);
-          return {
-            ...mod,
-            sections,
-            items: allLectures.length > 0 ? allLectures : (mod.items || []),
-          };
-        }),
+        modules: modules
+          .map((mod) => {
+            const sections = mod.sections || [];
+            const allLectures = sections
+              .flatMap((sec) => sec.items || [])
+              .filter(
+                (item) =>
+                  Boolean(item.title?.trim()) ||
+                  Boolean(item.content?.trim()) ||
+                  Boolean(item.url?.trim()) ||
+                  Boolean(item.videoUrl?.trim()) ||
+                  Boolean(item.documentUrl?.trim()) ||
+                  Boolean(item.embedUrl?.trim()),
+              );
+            const items = allLectures.length > 0 ? allLectures : (mod.items || []);
+            return {
+              ...mod,
+              sections,
+              items,
+            };
+          })
+          .filter(
+            (mod) =>
+              Boolean(mod.title?.trim()) ||
+              Boolean(mod.description?.trim()) ||
+              Boolean(mod.content?.trim()) ||
+              (mod.items && mod.items.length > 0),
+          ),
       });
 
       if (selectedInstructor && updateOrgMember) {
@@ -658,6 +740,18 @@ const CourseUpload = () => {
       navigate("/dashboard");
     } catch (err) {
       console.error("Failed to upload course", err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to publish course. Please try again.";
+      setSubmitError(msg);
+      setAlertConfig({
+        isOpen: true,
+        title: "Course Publishing Notice",
+        message: msg,
+        confirmText: "Dismiss",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -981,7 +1075,22 @@ const CourseUpload = () => {
       <div className="w-full bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-md overflow-hidden">
           
           <div className="p-6 sm:p-8">
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
+              {submitError && (
+                <div className="mb-6 p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300 text-sm font-semibold flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                    <span>{submitError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSubmitError("")}
+                    className="text-red-400 hover:text-red-600 p-0.5 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               
               {/* STEP 1: Basic Information */}
               <div className={currentStep === 1 ? 'block animate-in fade-in slide-in-from-right-4 space-y-6' : 'hidden'}>
@@ -992,7 +1101,6 @@ const CourseUpload = () => {
                       Sponsoring Organization {isSuperAdmin ? "(Override)" : ""} <span className="text-red-500">*</span>
                     </label>
                     <select
-                      required
                       value={selectedOrgId || (isSuperAdmin ? "org_backpack_global" : "")}
                       onChange={(e) => setSelectedOrgId(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0078d4]/40 focus:border-[#0078d4] transition shadow-2xs appearance-none cursor-pointer"
@@ -1023,7 +1131,6 @@ const CourseUpload = () => {
                   <div className="relative group">
                     <input
                       type="text"
-                      required
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="e.g. Master of Software Architecture"
@@ -1045,7 +1152,6 @@ const CourseUpload = () => {
                   </label>
                   <div className="relative group">
                     <textarea
-                      required
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Detailed overview of the curriculum and learning outcomes..."
@@ -1224,7 +1330,6 @@ const CourseUpload = () => {
                         <div className="relative">
                           <input
                             type="number"
-                            required={fundingModel === "donations_sponsorships"}
                             min="1"
                             value={tuitionCostPerStudent || price}
                             onChange={(e) => {
@@ -1251,7 +1356,6 @@ const CourseUpload = () => {
                       </label>
                       <input
                         type="number"
-                        required
                         min="0"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
@@ -1412,7 +1516,6 @@ const CourseUpload = () => {
                       <div className="relative group">
                         <input
                           type="text"
-                          required
                           value={sessionName}
                           onChange={(e) => setSessionName(e.target.value)}
                           placeholder="e.g. 2026/2027 Session"
@@ -1762,6 +1865,70 @@ const CourseUpload = () => {
                     </div>
                   )}
 
+                  {/* Email-Based Instructor Search (Privacy-Preserving) */}
+                  <div className="mb-5 p-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 font-heading flex items-center">
+                        <Search className="w-3.5 h-3.5 mr-1 text-[#0078d4]" /> Search Instructor by Email
+                      </label>
+                      <span className="text-[10px] text-slate-400">Search instructor accounts by email</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={instructorEmailSearch}
+                        onChange={(e) => setInstructorEmailSearch(e.target.value)}
+                        placeholder="Enter instructor email to search and auto-assign..."
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0078d4]"
+                      />
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                      {instructorEmailSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setInstructorEmailSearch("")}
+                          className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {instructorEmailSearch.trim().length >= 2 && (
+                      <div className="pt-2">
+                        {matchingPlatformInstructors.length === 0 ? (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                            No matching approved instructor found for "{instructorEmailSearch}". You can enter details manually below.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                            {matchingPlatformInstructors.map((inst) => (
+                              <div
+                                key={inst.id}
+                                className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                              >
+                                <div className="truncate min-w-0 pr-2">
+                                  <p className="font-bold text-slate-900 dark:text-white truncate">{inst.name}</p>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{inst.email}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedInstructorMemberId(inst.id);
+                                    setInstructorName(inst.name);
+                                    if (inst.department) setInstructorTitle(inst.department);
+                                    setInstructorEmailSearch("");
+                                  }}
+                                  className="px-2.5 py-1 bg-[#0078d4] hover:bg-[#006cbd] text-white font-semibold rounded-md text-xs shrink-0 cursor-pointer"
+                                >
+                                  Assign
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-heading">
@@ -1852,6 +2019,22 @@ const CourseUpload = () => {
                 </div>
 
                 <div className="space-y-6">
+                  {modules.length === 0 && (
+                    <div className="p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl space-y-3 bg-white dark:bg-slate-800">
+                      <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                        No modules created yet. Click "Add Module" to start structuring your curriculum.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleAddModule}
+                        className="px-4 py-2 bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs font-bold rounded-xl shadow-2xs font-heading cursor-pointer inline-flex items-center"
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" /> Add First Module
+                      </button>
+                    </div>
+                  )}
+
                   {modules.map((mod, mIdx) => {
                     const sections = mod.sections || [];
                     const isCollapsed = Boolean(collapsedModuleIds[mod.id]);
@@ -2361,21 +2544,54 @@ const CourseUpload = () => {
                   })}
                 </div>
 
+                {/* Submit Error Display on Step 6 */}
+                {submitError && (
+                  <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300 text-sm font-semibold flex items-start justify-between gap-3 animate-in fade-in">
+                    <div className="flex items-start gap-2.5">
+                      <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                      <span>{submitError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSubmitError("")}
+                      className="text-red-400 hover:text-red-600 p-0.5 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex gap-3 pt-6 mt-4 border-t border-slate-200 dark:border-slate-700">
                   <button
                     type="button"
-                    onClick={() => setCurrentStep((prev) => prev - 1)}
+                    onClick={() => {
+                      setSubmitError("");
+                      setCurrentStep((prev) => prev - 1);
+                    }}
                     className="px-6 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-sm font-bold transition shadow-2xs cursor-pointer font-heading flex items-center justify-center"
                   >
                     <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
                   </button>
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }}
                     disabled={loading}
                     className="flex-1 px-8 py-4 bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white rounded-2xl text-base font-bold flex items-center justify-center transition shadow-md cursor-pointer font-heading"
                   >
-                    {loading ? "Publishing Course..." : "Publish Institutional Course"}{" "}
-                    <CheckCircle2 className="w-5 h-5 ml-2.5" />
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2.5 animate-spin" />
+                        Publishing Course...
+                      </>
+                    ) : (
+                      <>
+                        Publish Institutional Course
+                        <CheckCircle2 className="w-5 h-5 ml-2.5" />
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -2386,7 +2602,10 @@ const CourseUpload = () => {
                   {currentStep > 1 && (
                     <button 
                       type="button" 
-                      onClick={() => setCurrentStep(prev => prev - 1)} 
+                      onClick={() => {
+                        setSubmitError("");
+                        setCurrentStep(prev => prev - 1);
+                      }} 
                       className="px-6 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold transition shadow-2xs cursor-pointer font-heading flex items-center justify-center"
                     >
                       <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
@@ -2394,7 +2613,10 @@ const CourseUpload = () => {
                   )}
                   <button 
                     type="button" 
-                    onClick={() => setCurrentStep(prev => prev + 1)}
+                    onClick={() => {
+                      setSubmitError("");
+                      setCurrentStep(prev => prev + 1);
+                    }}
                     disabled={currentStep === 1 && (!title.trim() || !description.trim())}
                     className="flex-1 bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-50 text-white rounded-xl py-3.5 text-sm font-bold flex items-center justify-center transition shadow-sm cursor-pointer font-heading ml-auto"
                   >
@@ -2417,7 +2639,10 @@ const CourseUpload = () => {
               </h3>
               <button
                 type="button"
-                onClick={() => setShowSubaccountModal(false)}
+                onClick={() => {
+                  setShowSubaccountModal(false);
+                  setBypassSubaccount(true);
+                }}
                 className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -2429,6 +2654,21 @@ const CourseUpload = () => {
                 setBypassSubaccount(true);
               }}
             />
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSubaccountModal(false);
+                  setBypassSubaccount(true);
+                  setTimeout(() => {
+                    handleSubmit();
+                  }, 50);
+                }}
+                className="text-xs font-bold text-[#0078d4] dark:text-[#04a4ec] hover:underline cursor-pointer flex items-center py-1"
+              >
+                Skip for now & Publish Course (Set up payout account later) <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2445,7 +2685,7 @@ const CourseUpload = () => {
 
       <CustomAlert
         isOpen={alertConfig.isOpen}
-        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        onCancel={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
         title={alertConfig.title}
         message={alertConfig.message}
         confirmText={alertConfig.confirmText}

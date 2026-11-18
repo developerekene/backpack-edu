@@ -53,11 +53,13 @@ import {
   PayrollDisbursement,
   PayrollPayslip,
   AppEvent,
+  User,
+  Role,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
 import { generateId } from "../lib/id";
-import { getLiveClassRoomName, getJitsiMeetingUrl } from "../lib/liveClass";
+import { getLiveClassRoomName, getJitsiMeetingUrl, endLiveClassSessionApi } from "../lib/liveClass";
 
 export interface AdmissionGateStatus {
   isVocational: boolean;
@@ -259,6 +261,7 @@ interface AppState {
     updates: Partial<ScheduleEvent>,
   ) => Promise<void>;
   deleteScheduleEvent: (id: string) => Promise<void>;
+  endLiveClassSession: (courseId: string, eventId?: string) => Promise<void>;
   addNotification: (
     notification: Omit<AppNotification, "id" | "createdAt" | "read">,
   ) => void;
@@ -657,7 +660,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const allPayrollDisbursements: PayrollDisbursement[] = [];
       const allPayrollPayslips: PayrollPayslip[] = [];
 
-      backpackSnap.docs.forEach((docSnap) => {
+      backpackSnap.docs.forEach((docSnap: any) => {
         const data = docSnap.data();
         const userObj = getUserData(data);
 
@@ -1034,25 +1037,68 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       );
 
       // Intelligent deduplication of schedule events to prevent duplicate live class items
+      // When a session is ended, ensure ended status permanently supersedes stale active copies!
       const dedupeScheduleEvents = (
         events: ScheduleEvent[],
       ): ScheduleEvent[] => {
-        const byId = dedupeById(events);
-        const result: ScheduleEvent[] = [];
+        const eventsById = new Map<string, ScheduleEvent[]>();
+        for (const evt of events) {
+          if (!evt || !evt.id || !evt.courseId) continue;
+          const list = eventsById.get(evt.id) || [];
+          list.push(evt);
+          eventsById.set(evt.id, list);
+        }
+
+        const resolvedEvents: ScheduleEvent[] = [];
         const activeCourseMap = new Set<string>();
         const seenEventSignature = new Set<string>();
 
-        // Sort so active events or more recently dated events take precedence
-        const sorted = [...byId].sort((a, b) => {
+        for (const [, list] of eventsById.entries()) {
+          // If any copy has been marked inactive or ended, resolve definitively
+          const hasEnded = list.some(
+            (e) => e.isActive === false || Boolean(e.endedAt),
+          );
+
+          // Sort by updatedAt descending
+          const sorted = [...list].sort((a, b) => {
+            const aTime = Number(a.updatedAt || a.endedAt || 0);
+            const bTime = Number(b.updatedAt || b.endedAt || 0);
+            return bTime - aTime;
+          });
+
+          let definitive = { ...sorted[0] };
+          if (hasEnded) {
+            const maxEndedAt = list.reduce(
+              (max, e) =>
+                Math.max(
+                  max,
+                  Number(
+                    e.endedAt || (e.isActive === false ? e.updatedAt || 1 : 0),
+                  ),
+                ),
+              0,
+            );
+            const maxUpdatedAt = Number(definitive.updatedAt || 0);
+            if (
+              maxEndedAt >= maxUpdatedAt ||
+              list.some((e) => e.isActive === false && !e.endedAt)
+            ) {
+              definitive.isActive = false;
+              if (maxEndedAt > 0) definitive.endedAt = maxEndedAt;
+            }
+          }
+          resolvedEvents.push(definitive);
+        }
+
+        // Sort so active events come first, then date descending
+        const finalSorted = resolvedEvents.sort((a, b) => {
           if (a.isActive && !b.isActive) return -1;
           if (!a.isActive && b.isActive) return 1;
           return (b.date || "").localeCompare(a.date || "");
         });
 
-        for (const evt of sorted) {
-          if (!evt.id || !evt.courseId) continue;
-
-          // Ensure only ONE active live session per course at any given time
+        const result: ScheduleEvent[] = [];
+        for (const evt of finalSorted) {
           if (evt.isActive) {
             if (activeCourseMap.has(evt.courseId)) {
               result.push({ ...evt, isActive: false });
@@ -1061,11 +1107,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             activeCourseMap.add(evt.courseId);
           }
 
-          // Deduplicate events that share identical courseId, date, time, and title
           const sig = `${evt.courseId}_${evt.date}_${evt.time}_${(evt.title || "").trim().toLowerCase()}`;
-          if (seenEventSignature.has(sig)) {
-            continue;
-          }
+          if (seenEventSignature.has(sig)) continue;
           seenEventSignature.add(sig);
           result.push(evt);
         }
@@ -3494,6 +3537,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const effectiveCourseId = updates.courseId || existingEvt?.courseId;
     const course = courses.find((c) => c.id === effectiveCourseId);
 
+    const now = Date.now();
+    updates.updatedAt = now;
+
+    if (updates.isActive === false) {
+      updates.endedAt = now;
+    } else if (updates.isActive === true) {
+      updates.endedAt = undefined;
+    }
+
     const mergedEvt: Partial<ScheduleEvent> = {
       ...existingEvt,
       ...updates,
@@ -3504,33 +3556,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const targetUid = currentUser?.id || "";
-    if (targetUid) {
+    const targetUids = new Set<string>();
+    if (targetUid) targetUids.add(targetUid);
+    if (course?.orgId) targetUids.add(course.orgId);
+    if (course?.createdBy) targetUids.add(course.createdBy);
+
+    const assignedInstructorIds = orgMembers
+      .filter((m) => m.courseIds?.includes(effectiveCourseId || ""))
+      .map((m) => m.userId || m.id)
+      .filter(Boolean) as string[];
+    assignedInstructorIds.forEach((uid) => targetUids.add(uid));
+
+    // Update across all associated stakeholder backpack documents
+    for (const uid of targetUids) {
       await updateBackpackUserField<ScheduleEvent>(
-        targetUid,
+        uid,
         "course.scheduleEvents",
         (list) =>
           list.map((e) =>
             e.id === id
               ? { ...e, ...updates }
               : updates.isActive && e.courseId === effectiveCourseId
-                ? { ...e, isActive: false }
+                ? { ...e, isActive: false, endedAt: now, updatedAt: now }
                 : e,
           ),
-      );
-    }
-    if (course?.orgId && course.orgId !== targetUid) {
-      await updateBackpackUserField<ScheduleEvent>(
-        course.orgId,
-        "course.scheduleEvents",
-        (list) =>
-          list.map((e) =>
-            e.id === id
-              ? { ...e, ...updates }
-              : updates.isActive && e.courseId === effectiveCourseId
-                ? { ...e, isActive: false }
-                : e,
-          ),
-      );
+      ).catch(console.error);
     }
 
     setScheduleEvents((prev) =>
@@ -3538,7 +3588,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         e.id === id
           ? { ...e, ...updates }
           : updates.isActive && e.courseId === effectiveCourseId
-            ? { ...e, isActive: false }
+            ? { ...e, isActive: false, endedAt: now, updatedAt: now }
             : e,
       ),
     );
@@ -3555,11 +3605,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           (r) => r.courseId === effectiveCourseId && r.status === "approved",
         )
         .map((r) => r.userId)
-        .filter(Boolean) as string[];
-
-      const assignedInstructorIds = orgMembers
-        .filter((m) => m.courseIds?.includes(effectiveCourseId))
-        .map((m) => m.id)
         .filter(Boolean) as string[];
 
       const courseStaffIds = [course?.createdBy, course?.orgId].filter(
@@ -3586,6 +3631,77 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     }
+
+    // IF SESSION IS BEING ENDED: Resolve & Dismiss lingering live_class notifications across all enrolled users!
+    if (updates.isActive === false && effectiveCourseId) {
+      const enrolledStudentIds = enrollmentRequests
+        .filter(
+          (r) => r.courseId === effectiveCourseId && r.status === "approved",
+        )
+        .map((r) => r.userId)
+        .filter(Boolean) as string[];
+
+      const allRecipientIds = Array.from(
+        new Set([
+          ...enrolledStudentIds,
+          ...assignedInstructorIds,
+          currentUser?.id || "",
+        ]),
+      ).filter(Boolean);
+
+      for (const recipientId of allRecipientIds) {
+        updateBackpackUserField<AppNotification>(
+          recipientId,
+          "notifications",
+          (notifList) =>
+            notifList.map((n) => {
+              if (
+                n.type === "live_class" &&
+                (n.courseId === effectiveCourseId ||
+                  (n.linkUrl && n.linkUrl.includes(id)))
+              ) {
+                return {
+                  ...n,
+                  read: true,
+                  title: `Live Class Ended: ${existingEvt?.title || "Class Session"}`,
+                  message: `The live stream for "${course?.title || "Course"}" has ended.`,
+                };
+              }
+              return n;
+            }),
+        ).catch(console.error);
+      }
+
+      // Immediately resolve in current user's local notifications state
+      setNotifications((prev) =>
+        prev.map((n) => {
+          if (
+            n.type === "live_class" &&
+            (n.courseId === effectiveCourseId ||
+              (n.linkUrl && n.linkUrl.includes(id)))
+          ) {
+            return {
+              ...n,
+              read: true,
+              title: `Live Class Ended: ${existingEvt?.title || "Class Session"}`,
+              message: `The live stream for "${course?.title || "Course"}" has ended.`,
+            };
+          }
+          return n;
+        }),
+      );
+    }
+  };
+
+  const endLiveClassSession = async (courseId: string, eventId?: string) => {
+    const activeEvts = scheduleEvents.filter(
+      (e) => e.courseId === courseId && (eventId ? e.id === eventId : e.isActive),
+    );
+    for (const evt of activeEvts) {
+      const room = getLiveClassRoomName(evt, courseId);
+      await endLiveClassSessionApi(room, courseId).catch(console.error);
+      await updateScheduleEvent(evt.id, { isActive: false });
+    }
   };
 
   const deleteScheduleEvent = async (id: string) => {
@@ -3605,6 +3721,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         "course.scheduleEvents",
         (list) => list.filter((e) => e.id !== id),
       );
+    }
+    if (course?.createdBy && course.createdBy !== targetUid && course.createdBy !== course?.orgId) {
+      await updateBackpackUserField<ScheduleEvent>(
+        course.createdBy,
+        "course.scheduleEvents",
+        (list) => list.filter((e) => e.id !== id),
+      ).catch(console.error);
     }
     setScheduleEvents((prev) => prev.filter((e) => e.id !== id));
   };
@@ -3942,6 +4065,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addScheduleEvent,
         updateScheduleEvent,
         deleteScheduleEvent,
+        endLiveClassSession,
         addNotification,
         markNotificationRead,
         markAllNotificationsRead,

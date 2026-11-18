@@ -107,7 +107,7 @@ export const Notifications: React.FC = () => {
   const activeLiveCalls = useMemo(() => {
     const active = scheduleEvents.filter(
       (e) =>
-        e.isActive && e.courseId && userEnrolledCourseIds.includes(e.courseId),
+        e.isActive && !e.endedAt && e.courseId && userEnrolledCourseIds.includes(e.courseId),
     );
     const seen = new Set<string>();
     return active.filter((e) => {
@@ -163,6 +163,15 @@ export const Notifications: React.FC = () => {
         const parts = n.linkUrl.split("?")[0].split("/");
         const urlCourseId = parts[2];
         if (urlCourseId && !userEnrolledCourseIds.includes(urlCourseId)) {
+          return false;
+        }
+      }
+      // If notification is a live_class notification and the session has ended, do not display it as unread
+      if (n.type === "live_class") {
+        const isCurrentlyLive = scheduleEvents.some(
+          (e) => e.isActive && !e.endedAt && e.courseId === n.courseId,
+        );
+        if (!isCurrentlyLive && !n.read) {
           return false;
         }
       }

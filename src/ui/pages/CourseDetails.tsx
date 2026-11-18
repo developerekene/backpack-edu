@@ -376,18 +376,18 @@ const CourseDetails = () => {
   const activeCall = useMemo(() => {
     if (targetEventId) {
       const match = scheduleEvents.find(
-        (e) => e.id === targetEventId && e.courseId === courseId,
+        (e) => e.id === targetEventId && e.courseId === courseId && e.isActive && !e.endedAt,
       );
       if (match) return match;
     }
     return (
-      scheduleEvents.find((e) => e.courseId === courseId && e.isActive) || null
+      scheduleEvents.find((e) => e.courseId === courseId && e.isActive && !e.endedAt) || null
     );
   }, [scheduleEvents, courseId, targetEventId]);
 
   const liveCallActiveEvent = useMemo(() => {
     return (
-      scheduleEvents.find((e) => e.courseId === courseId && e.isActive) || null
+      scheduleEvents.find((e) => e.courseId === courseId && e.isActive && !e.endedAt) || null
     );
   }, [scheduleEvents, courseId]);
 
