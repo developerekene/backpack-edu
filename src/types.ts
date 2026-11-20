@@ -23,6 +23,7 @@ export interface PaystackSubaccount {
   percentage_charge: number; // e.g., 85 (%) goes to provider, 15% to platform
   description?: string;
   is_verified?: boolean;
+  is_active?: boolean;
   // is_live?: boolean; // Commented out per user instruction
   mode?: "test" | "live";
   updatedAt?: string;
@@ -944,6 +945,8 @@ export interface ScheduleEvent {
   type: "lecture" | "meeting" | "exam";
   meetingUrl?: string; // For the video call
   isActive?: boolean;
+  endedAt?: string | number;
+  updatedAt?: string | number;
 }
 
 export interface AppNotification {

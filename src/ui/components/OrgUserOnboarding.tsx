@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, User, X, ArrowRight } from "lucide-react";
+import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, User, X, ArrowRight, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import { OrgMember, User as AppUser, Role } from "../../types";
 import { db } from "../../lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
@@ -18,12 +18,17 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
   const [activeTab, setActiveTab] = useState<'instructors' | 'students'>('instructors');
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Registered App Users state
+  // Registered App Users state (email-based privacy-preserving search)
   const [registeredUsers, setRegisteredUsers] = useState<AppUser[]>([]);
   const [loadingRegisteredUsers, setLoadingRegisteredUsers] = useState(false);
-  const [showAppUsersModal, setShowAppUsersModal] = useState(false);
-  const [appUsersSearch, setAppUsersSearch] = useState("");
+  const [emailSearchQuery, setEmailSearchQuery] = useState("");
   const [selectedAppUserId, setSelectedAppUserId] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<{
+    status: boolean;
+    user?: AppUser;
+    email: string;
+  } | null>(null);
 
   // Form State
   const ONBOARDING_DRAFT_KEY = "bp_draft_org_onboarding";
@@ -123,6 +128,62 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     ? courses.filter(c => c.orgId === currentUser.id || c.orgId === currentOrgId)
     : courses.filter(c => orgMembers.some(m => m.email?.toLowerCase() === currentUser.email?.toLowerCase() && m.courseIds?.includes(c.id)));
 
+  // Search Platform Users by Email: Returns TRUE (if account found) or FALSE (if not found)
+  // Only executed when the user explicitly clicks the Search button or presses Enter
+  const handleSearchEmail = (queryToUse?: string) => {
+    const raw = (queryToUse !== undefined ? queryToUse : emailSearchQuery).trim().toLowerCase();
+    if (!raw) return;
+    setInviteError("");
+    setIsSearching(true);
+
+    setTimeout(() => {
+      // Prevent searching super admin or organization accounts
+      if (raw === "ekenehq@gmail.com") {
+        setSearchResult({ status: false, email: raw });
+        setIsSearching(false);
+        return;
+      }
+
+      const matched = registeredUsers.find(
+        (u) =>
+          u.email?.toLowerCase() === raw &&
+          u.role !== "super_admin" &&
+          u.role !== "organization" &&
+          u.email?.toLowerCase() !== "ekenehq@gmail.com"
+      );
+
+      if (matched) {
+        setSearchResult({
+          status: true,
+          user: matched,
+          email: raw,
+        });
+      } else {
+        // Check partial match if not exact match
+        const partialMatched = registeredUsers.find(
+          (u) =>
+            u.email?.toLowerCase().includes(raw) &&
+            u.role !== "super_admin" &&
+            u.role !== "organization" &&
+            u.email?.toLowerCase() !== "ekenehq@gmail.com"
+        );
+        if (partialMatched) {
+          setSearchResult({
+            status: true,
+            user: partialMatched,
+            email: raw,
+          });
+        } else {
+          setSearchResult({
+            status: false,
+            email: raw,
+          });
+        }
+      }
+      setIsSearching(false);
+    }, 150);
+  };
+
   const handleOnboardUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
@@ -136,17 +197,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     const matchedUser = registeredUsers.find(u => u.email?.toLowerCase() === cleanEmail);
     if (cleanEmail === 'ekenehq@gmail.com' || (matchedUser && (matchedUser.role === 'organization' || matchedUser.role === 'super_admin'))) {
       setInviteError("This account type cannot be invited to courses.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    const expectedRole = activeTab === 'instructors' ? 'instructor' : 'student';
-    if (matchedUser && matchedUser.role !== expectedRole) {
-      setInviteError(
-        activeTab === 'instructors'
-          ? "Only instructor accounts can be added on the Instructors tab."
-          : "Only student accounts can be added on the Students tab."
-      );
       setIsSubmitting(false);
       return;
     }
@@ -209,18 +259,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleSelectUserAndRedirect = (userToSelect: AppUser) => {
-    setName(userToSelect.name || "");
-    setEmail(userToSelect.email || "");
-    setSelectedAppUserId(userToSelect.id);
-    if (userToSelect.role === 'instructor') setActiveTab('instructors');
-    else if (userToSelect.role === 'student') setActiveTab('students');
-    setShowAppUsersModal(false);
-    setTimeout(() => {
-      document.getElementById('org-onboarding-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
   };
 
   const handleBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -311,14 +349,14 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             onClick={() => {
               setActiveTab('instructors');
               setSelectedAppUserId("");
-              setAppUsersSearch("");
+              setEmailSearchQuery("");
               setInviteError("");
               setSuccessMsg("");
             }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'instructors'
-                ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Briefcase className="w-3.5 h-3.5" />
@@ -328,14 +366,14 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             onClick={() => {
               setActiveTab('students');
               setSelectedAppUserId("");
-              setAppUsersSearch("");
+              setEmailSearchQuery("");
               setInviteError("");
               setSuccessMsg("");
             }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'students'
-                ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
@@ -361,10 +399,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       )}
 
       {/* Quick Onboarding Form */}
-      {(() => {
-        const expectedRole = activeTab === 'instructors' ? 'instructor' : 'student';
-        const roleFilteredRegisteredUsers = registeredUsers.filter((u) => u.role === expectedRole);
-        return (
       <form id="org-onboarding-form" onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
@@ -372,13 +406,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             {activeTab === 'instructors' ? 'Invite New Instructor Staff' : 'Invite New Student User'}
           </h3>
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => setShowAppUsersModal(true)}
-              className="flex items-center px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-semibold transition cursor-pointer"
-            >
-              <Users className="w-3.5 h-3.5 mr-1.5" /> Search Registered {activeTab === 'instructors' ? 'Instructors' : 'Students'} ({roleFilteredRegisteredUsers.length})
-            </button>
             <label className={`cursor-pointer flex items-center px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
               <Upload className="w-3.5 h-3.5 mr-1.5" /> {isSubmitting ? 'Importing...' : 'Bulk Import (CSV)'}
               <input type="file" accept=".csv" onChange={handleBulkImport} className="hidden" disabled={isSubmitting} />
@@ -386,34 +413,163 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </div>
         </div>
 
-        {/* Pick Existing Registered User Dropdown (strictly filtered to current tab role) */}
-        {roleFilteredRegisteredUsers.length > 0 && (
-          <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-2">
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 flex items-center">
-              <User className="w-3.5 h-3.5 mr-1 text-indigo-500" /> Pick Existing Registered {activeTab === 'instructors' ? 'Instructor' : 'Student'}
+        {/* Email-Based Search for Registered Platform Users (Returns TRUE if found, FALSE if not) */}
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 mb-2 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center">
+              <Search className="w-3.5 h-3.5 mr-1.5 text-indigo-500" />
+              Verify & Search Platform User by Email
             </label>
-            <select
-              value={selectedAppUserId}
-              onChange={(e) => {
-                const uid = e.target.value;
-                setSelectedAppUserId(uid);
-                const found = roleFilteredRegisteredUsers.find(u => u.id === uid);
-                if (found) {
-                  setName(found.name || "");
-                  setEmail(found.email || "");
-                }
-              }}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">-- Choose from Registered {activeTab === 'instructors' ? 'Instructors' : 'Students'} ({roleFilteredRegisteredUsers.length}) --</option>
-              {roleFilteredRegisteredUsers.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.email})
-                </option>
-              ))}
-            </select>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              Check if an account exists on Backpack before inviting (Returns TRUE or FALSE)
+            </span>
           </div>
-        )}
+
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="email"
+                value={emailSearchQuery}
+                onChange={(e) => {
+                  setEmailSearchQuery(e.target.value);
+                  if (searchResult) {
+                    setSearchResult(null);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSearchEmail();
+                  }
+                }}
+                placeholder="Enter user email to check platform status (e.g. user@gmail.com)..."
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-9 pr-8 py-2.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+              {emailSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmailSearchQuery("");
+                    setSearchResult(null);
+                  }}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleSearchEmail()}
+              disabled={!emailSearchQuery.trim() || isSearching}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center shrink-0 cursor-pointer shadow-sm"
+            >
+              {isSearching ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Search</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Search Result (Explicit TRUE / FALSE Indicator) */}
+          {searchResult && (
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+              {searchResult.status && searchResult.user ? (
+                <div className="p-3.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 space-y-2.5 animate-in fade-in">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Result: TRUE
+                      </span>
+                      <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                        Account Registered on Platform
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-0.5 text-[10px] uppercase font-extrabold rounded-full bg-emerald-200/80 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100">
+                      Platform Role: {searchResult.user.role}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/60">
+                    <div className="text-xs">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm">{searchResult.user.name}</p>
+                      <p className="text-slate-600 dark:text-slate-400 font-mono text-[11px]">{searchResult.user.email}</p>
+                      {searchResult.user.role !== (activeTab === 'instructors' ? 'instructor' : 'student') && (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 font-medium">
+                          ℹ️ Registered as a {searchResult.user.role}. You can appoint them as {activeTab === 'instructors' ? 'Staff Instructor' : 'Student'} in your organization.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {searchResult.user.role !== (activeTab === 'instructors' ? 'instructor' : 'student') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab(searchResult.user!.role === 'instructor' ? 'instructors' : 'students');
+                            setName(searchResult.user!.name || "");
+                            setEmail(searchResult.user!.email || "");
+                            setSelectedAppUserId(searchResult.user!.id);
+                          }}
+                          className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-lg text-xs font-semibold transition cursor-pointer"
+                        >
+                          Switch to {searchResult.user.role === 'instructor' ? 'Staff' : 'Students'} Tab
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setName(searchResult.user!.name || "");
+                          setEmail(searchResult.user!.email || "");
+                          setSelectedAppUserId(searchResult.user!.id);
+                        }}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm cursor-pointer"
+                      >
+                        Select & Auto-fill Form <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 space-y-2 animate-in fade-in">
+                  <div className="flex items-center space-x-2">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-wider bg-amber-600 text-white shadow-xs">
+                      <XCircle className="w-3.5 h-3.5 mr-1" /> Result: FALSE
+                    </span>
+                    <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                      Account Not Found on Backpack
+                    </span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
+                    <p className="text-xs text-amber-950 dark:text-amber-300">
+                      No platform account found with email <strong className="font-mono">{searchResult.email}</strong>. You can enter their details below to send a registration invitation.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail(searchResult.email);
+                        setSelectedAppUserId("");
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition shrink-0 cursor-pointer"
+                    >
+                      Use Email in Form Below
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
@@ -430,14 +586,46 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. user@organization.edu"
-              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <div className="relative">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (selectedAppUserId) {
+                    setSelectedAppUserId("");
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setEmailSearchQuery(email);
+                    handleSearchEmail(email);
+                  }
+                }}
+                placeholder="e.g. user@organization.edu"
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setEmailSearchQuery(email);
+                  handleSearchEmail(email);
+                }}
+                title="Search this email across Backpack (Returns TRUE / FALSE)"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            </div>
+
+            {selectedAppUserId && (
+              <div className="mt-1.5 flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>Verified Platform User Selected: <strong>{name}</strong></span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -525,8 +713,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </button>
         </div>
       </form>
-        );
-      })()}
 
       {/* Directory Search & List */}
       <div className="space-y-4">
@@ -663,107 +849,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </div>
         )}
       </div>
-
-      {/* Search Registered Users Modal */}
-      {showAppUsersModal && (() => {
-        const targetRole = activeTab === 'instructors' ? 'instructor' : 'student';
-        const filteredAppUsers = registeredUsers.filter(u => {
-          if (u.role === 'organization' || u.role === 'super_admin' || u.email?.toLowerCase() === 'ekenehq@gmail.com') return false;
-          if (u.role !== targetRole) return false;
-          if (appUsersSearch.trim()) {
-            const q = appUsersSearch.toLowerCase().trim();
-            return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
-          }
-          return true;
-        });
-
-        return (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in">
-              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
-                    <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered {activeTab === 'instructors' ? 'Instructors' : 'Students'}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Directly search and invite registered {activeTab === 'instructors' ? 'instructors' : 'students'} on the platform
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAppUsersModal(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder={`Search registered ${activeTab === 'instructors' ? 'instructors' : 'students'} by name or email...`}
-                    value={appUsersSearch}
-                    onChange={(e) => setAppUsersSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 overflow-y-auto space-y-3 flex-1">
-                {loadingRegisteredUsers ? (
-                  <div className="text-center py-8 text-xs text-slate-500">Loading registered users...</div>
-                ) : filteredAppUsers.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-500">No registered {activeTab === 'instructors' ? 'instructors' : 'students'} found matching query</div>
-                ) : (
-                  filteredAppUsers.map(u => {
-                    const isAlreadyMember = orgMembers.some(m => m.email?.toLowerCase() === u.email?.toLowerCase() && (m.orgId === currentOrgId || m.orgId === currentUser.id));
-
-                    return (
-                      <div
-                        key={u.id}
-                        onClick={() => !isAlreadyMember && handleSelectUserAndRedirect(u)}
-                        className={`flex items-center justify-between p-3.5 rounded-xl border transition ${
-                          isAlreadyMember
-                            ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/60 opacity-60 cursor-not-allowed'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-md cursor-pointer'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-9 h-9 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm">
-                            {u.name?.charAt(0) || 'U'}
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <span className="font-bold text-slate-900 dark:text-white text-xs">{u.name}</span>
-                              <span className="px-2 py-0.5 text-[10px] uppercase font-bold rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                                {u.role}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</p>
-                          </div>
-                        </div>
-
-                        {isAlreadyMember ? (
-                          <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-lg flex items-center">
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Member
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition flex items-center shadow-sm">
-                            <span>Select & Invite</span>
-                            <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 };

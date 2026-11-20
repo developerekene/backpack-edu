@@ -44,6 +44,7 @@ interface CourseModulesTabProps {
   isStudent: boolean;
   isPreview?: boolean;
   onTogglePreview?: (preview: boolean) => void;
+  onModulesChange?: (modules: CourseModule[]) => void;
 }
 
 export const CourseModulesTab = ({
@@ -51,6 +52,7 @@ export const CourseModulesTab = ({
   isStudent,
   isPreview,
   onTogglePreview,
+  onModulesChange,
 }: CourseModulesTabProps) => {
   const { currentUser } = useAuth();
   const { userProgress, updateProgress, updateCourse, addMaterial } = useAppContext();
@@ -114,8 +116,15 @@ export const CourseModulesTab = ({
     }
   };
 
+  const updateDraftModules = (newModules: CourseModule[]) => {
+    setDraftModules(newModules);
+    if (onModulesChange) {
+      onModulesChange(newModules);
+    }
+  };
+
   const addModule = () => {
-    setDraftModules([
+    updateDraftModules([
       ...localModules,
       {
         id: generateId("mod"),
@@ -133,7 +142,7 @@ export const CourseModulesTab = ({
   ) => {
     const newModules = [...localModules];
     newModules[index] = { ...newModules[index], [field]: value };
-    setDraftModules(newModules);
+    updateDraftModules(newModules);
   };
 
   const removeModule = (index: number) => {
@@ -148,7 +157,7 @@ export const CourseModulesTab = ({
         await new Promise((r) => setTimeout(r, 400));
         const newModules = [...localModules];
         newModules.splice(index, 1);
-        setDraftModules(newModules);
+        updateDraftModules(newModules);
       },
     });
   };
@@ -167,7 +176,7 @@ export const CourseModulesTab = ({
       url: "",
     });
     newModules[moduleIndex] = { ...newModules[moduleIndex], items: newItems };
-    setDraftModules(newModules);
+    updateDraftModules(newModules);
   };
 
   const updateModuleItem = (
@@ -181,7 +190,7 @@ export const CourseModulesTab = ({
     const item = newItems[itemIndex];
     newItems[itemIndex] = { ...item, [field]: value };
     newModules[moduleIndex] = { ...newModules[moduleIndex], items: newItems };
-    setDraftModules(newModules);
+    updateDraftModules(newModules);
   };
 
   const removeModuleItem = (moduleIndex: number, itemIndex: number) => {
@@ -198,7 +207,7 @@ export const CourseModulesTab = ({
         const newItems = [...(newModules[moduleIndex].items || [])];
         newItems.splice(itemIndex, 1);
         newModules[moduleIndex] = { ...newModules[moduleIndex], items: newItems };
-        setDraftModules(newModules);
+        updateDraftModules(newModules);
       },
     });
   };
@@ -248,6 +257,7 @@ export const CourseModulesTab = ({
           </div>
           {(!isStudent || isPreviewMode) && (
             <button
+              type="button"
               onClick={() => setPreviewMode(false)}
               className="px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold transition-colors flex items-center shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer font-heading shadow-xs"
             >
@@ -295,6 +305,7 @@ export const CourseModulesTab = ({
                       </span>
                     ) : (
                       <button
+                        type="button"
                         onClick={() => handleCompleteModule(mod.id)}
                         className="px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap shadow-sm cursor-pointer font-heading"
                       >
@@ -320,6 +331,7 @@ export const CourseModulesTab = ({
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex items-start gap-3 font-bold text-sm text-slate-900 dark:text-white cursor-pointer group">
                                 <button 
+                                  type="button"
                                   onClick={(e) => { e.stopPropagation(); handleCompleteItem(item.id); }}
                                   className={`flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-colors mt-0.5 ${isItemCompleted ? 'bg-[#0078d4] border-[#0078d4] text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:border-[#0078d4]'}`}
                                 >
@@ -451,13 +463,15 @@ export const CourseModulesTab = ({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
+            type="button"
             onClick={() => setPreviewMode(true)}
             className="px-4 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer font-heading shadow-xs"
           >
             <Eye className="w-4 h-4 mr-2" /> Preview as Student
           </button>
-          {isDirty && (
+          {isDirty && !onModulesChange && (
             <button
+              type="button"
               onClick={handleSaveChanges}
               disabled={isSaving}
               className="px-5 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white rounded-xl text-xs font-bold transition-colors shadow-sm hover:shadow-md flex items-center shrink-0 font-heading cursor-pointer disabled:opacity-50"
@@ -544,7 +558,7 @@ export const CourseModulesTab = ({
                              const [draggedItem] = items.splice(data.itemIndex, 1);
                              items.splice(itemIndex, 0, draggedItem);
                              newModules[index] = { ...newModules[index], items };
-                             setDraftModules(newModules);
+                             updateDraftModules(newModules);
                           }
                         } catch (err) {
                           console.error("Failed to parse drop data:", err);

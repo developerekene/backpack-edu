@@ -180,7 +180,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Online class attendance & engagement duration tracking
-  const { recordLiveOnlineEngagement } = useAppContext();
+  const { recordLiveOnlineEngagement, endLiveClassSession, scheduleEvents, updateScheduleEvent } = useAppContext();
   const { currentUser } = useAuth();
   const sessionStartTimeRef = useRef<number>(0);
   const [elapsedEngagementSeconds, setElapsedEngagementSeconds] = useState<number>(0);
@@ -523,7 +523,17 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
-    await endLiveClassSessionApi(cleanRoomName, courseId);
+    await endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
+    if (courseId && endLiveClassSession) {
+      await endLiveClassSession(courseId).catch(console.error);
+    } else {
+      const activeEvts = scheduleEvents.filter(
+        (e) => (!courseId || e.courseId === courseId) && e.isActive,
+      );
+      for (const evt of activeEvts) {
+        await updateScheduleEvent(evt.id, { isActive: false }).catch(console.error);
+      }
+    }
     if (onClose) {
       onClose();
     }

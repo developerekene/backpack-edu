@@ -88,7 +88,7 @@ export const Navbar = () => {
   // Strictly only show live class alerts for classrooms the user is actually enrolled in or instructing
   const activeLiveCalls = useMemo(() => {
     const active = scheduleEvents.filter(
-      (e) => e.isActive && e.courseId && userEnrolledCourseIds.includes(e.courseId),
+      (e) => e.isActive && !e.endedAt && e.courseId && userEnrolledCourseIds.includes(e.courseId),
     );
     const seen = new Set<string>();
     return active.filter((e) => {
@@ -138,13 +138,23 @@ export const Navbar = () => {
     }
     // If course-specific notification, only show if user is enrolled or instructor
     if (n.courseId) {
-      return userEnrolledCourseIds.includes(n.courseId);
+      if (!userEnrolledCourseIds.includes(n.courseId)) return false;
     }
     // If linkUrl points to a specific course /course/:courseId
     if (n.linkUrl && n.linkUrl.startsWith("/course/")) {
       const parts = n.linkUrl.split("?")[0].split("/");
       const urlCourseId = parts[2];
       if (urlCourseId && !userEnrolledCourseIds.includes(urlCourseId)) {
+        return false;
+      }
+    }
+    // CRITICAL: If this is a live_class notification, verify that the session is still active!
+    // If the organization or instructor has ended the session, do not continue showing it as an active notification
+    if (n.type === "live_class") {
+      const isCourseCurrentlyActive = scheduleEvents.some(
+        (e) => e.isActive && !e.endedAt && e.courseId === n.courseId,
+      );
+      if (!isCourseCurrentlyActive && !n.read) {
         return false;
       }
     }
@@ -158,7 +168,13 @@ export const Navbar = () => {
   ];
 
   const unreadCount =
-    userNotifications.filter((n) => !n.read).length + activeLiveCalls.length;
+    userNotifications.filter((n) => !n.read).length +
+    activeLiveCalls.filter(
+      (c) =>
+        !userNotifications.some(
+          (n) => n.type === "live_class" && n.courseId === c.courseId && !n.read,
+        ),
+    ).length;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
