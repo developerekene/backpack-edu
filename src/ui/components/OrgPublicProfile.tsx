@@ -9,6 +9,11 @@ import { EnrollmentModal } from "./EnrollmentModal";
 import { CourseJoinModal } from "./CourseJoinModal";
 import { CourseDonationModal } from "./CourseDonationModal";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
+import {
+  getCourseApprovalStatus,
+  isCourseApproved,
+  isSuperAdminUser,
+} from "../../lib/approval";
 import { 
   Building, MapPin, Phone, Award, ShieldCheck, 
   BookOpen, Send, GraduationCap, ArrowLeft, Palette, 
@@ -188,9 +193,17 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
     return selected || PRESET_THEMES[0];
   }, [orgData?.themeColor]);
 
+  const isSuperAdmin = isSuperAdminUser(currentUser);
+
+  const visibleCatalogCourses = useMemo(
+    () =>
+      isOwner || isSuperAdmin ? courses : courses.filter(isCourseApproved),
+    [courses, isOwner, isSuperAdmin],
+  );
+
   // Filtered Courses
   const filteredCourses = useMemo(() => {
-    return courses.filter(course => {
+    return visibleCatalogCourses.filter(course => {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q || (
         course.title.toLowerCase().includes(q) ||
@@ -202,7 +215,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
       const matchesQual = selectedQualType === "all" || course.qualificationType === selectedQualType;
       return matchesSearch && matchesQual;
     });
-  }, [courses, searchQuery, selectedQualType]);
+  }, [visibleCatalogCourses, searchQuery, selectedQualType]);
 
   // Handle Enrollment
   const handleEnroll = async (
@@ -574,7 +587,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
             <h2 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white flex items-center">
               Program Catalog
               <span className="ml-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                {courses.length} Available
+                {visibleCatalogCourses.length} Available
               </span>
             </h2>
           </div>
@@ -612,10 +625,10 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           <div className="py-16 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
             <BookOpen className="w-10 h-10 text-slate-400 mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 font-heading">
-              {courses.length === 0 ? "No Programs Available" : "No Matching Programs Found"}
+              {visibleCatalogCourses.length === 0 ? "No Programs Available" : "No Matching Programs Found"}
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-body">
-              {courses.length === 0 
+              {visibleCatalogCourses.length === 0 
                 ? "This institution has not yet listed active programs in its public catalog."
                 : "Try adjusting your search terms or qualification filter."}
             </p>
@@ -671,6 +684,22 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                           )}
                         </span>
                       </div>
+
+                      {!isCourseApproved(course) && (
+                        <div className="mb-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                              getCourseApprovalStatus(course) === "rejected"
+                                ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800"
+                                : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+                            }`}
+                          >
+                            {getCourseApprovalStatus(course) === "rejected"
+                              ? "Rejected by Super Admin"
+                              : "Pending Super Admin Approval"}
+                          </span>
+                        </div>
+                      )}
 
                       <h3
                         onClick={() => navigate(`/course/${course.id}`)}

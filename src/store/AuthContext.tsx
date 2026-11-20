@@ -180,10 +180,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const userObj = Array.isArray(data.user) ? data.user[0] : data.user;
         const personalInfo = userObj?.personalInformation;
 
-        if (personalInfo?.isSuspended) {
+        if (personalInfo?.isDeleted) {
           await signOut(auth);
           throw new Error(
-            `Account Suspended: ${personalInfo.suspendedReason || "Your account has been suspended by an administrator."}`,
+            "Account Deleted: This account has been permanently removed by an administrator.",
           );
         }
 
@@ -200,7 +200,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // If not found, default to student.
       }
     } catch (e: any) {
-      if (e.message?.includes("Account Suspended")) {
+      if (e.message?.includes("Account Deleted")) {
         throw e;
       }
       console.warn("Could not pre-fetch role on login", e);
@@ -353,6 +353,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 const personalInfo = userObj?.personalInformation;
 
                 if (personalInfo) {
+                  if (personalInfo.isDeleted) {
+                    signOut(auth).catch(() => {});
+                    setCurrentUser(null);
+                    setLoading(false);
+                    return;
+                  }
+
                   const userEmail = personalInfo.email || user.email || "";
                   const isSuperAdminEmail = userEmail.toLowerCase() === "ekenehq@gmail.com";
 
@@ -391,6 +398,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     website: personalInfo.website,
                     themeColor: personalInfo.themeColor,
                     academicHighlights: personalInfo.academicHighlights,
+                    plan: personalInfo.plan,
                     isDeleted: personalInfo.isDeleted,
                     isSuspended: personalInfo.isSuspended,
                     suspendedAt: personalInfo.suspendedAt,

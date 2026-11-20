@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, User, X, ArrowRight, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, X, ArrowRight, XCircle, Loader2 } from "lucide-react";
 import { OrgMember, User as AppUser, Role } from "../../types";
 import { db } from "../../lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
@@ -20,7 +20,6 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
   // Registered App Users state (email-based privacy-preserving search)
   const [registeredUsers, setRegisteredUsers] = useState<AppUser[]>([]);
-  const [loadingRegisteredUsers, setLoadingRegisteredUsers] = useState(false);
   const [emailSearchQuery, setEmailSearchQuery] = useState("");
   const [selectedAppUserId, setSelectedAppUserId] = useState("");
   const [isSearching, setIsSearching] = useState(false);

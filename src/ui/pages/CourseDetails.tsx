@@ -37,6 +37,9 @@ import {
   BookOpen,
   Edit3,
   Timer,
+  ShieldAlert,
+  ShieldCheck,
+  XCircle,
 } from "lucide-react";
 import { PublicCourseDetails } from "../components/PublicCourseDetails";
 import { EditCourseDetailsModal } from "../components/EditCourseDetailsModal";
@@ -58,6 +61,11 @@ import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
 import { CourseDiscussions } from "../components/discussion/CourseDiscussions ";
 import { SpecialNeedsAccommodations, ScheduleEvent } from "../../types";
+import {
+  getCourseApprovalStatus,
+  isCourseApproved,
+  isSuperAdminUser,
+} from "../../lib/approval";
 import {
   getLiveClassRoomName,
   createLiveKitMeetingUrl,
@@ -87,6 +95,8 @@ const CourseDetails = () => {
     courseDonations,
     getCourseAdmissionGate,
     deleteCourse,
+    approveCourse,
+    rejectCourse,
   } = useAppContext();
   const { currentUser } = useAuth();
   
@@ -299,6 +309,7 @@ const CourseDetails = () => {
     Boolean(myEnrollment?.isSponsored);
   const hasStudentAccess = isStudentApproved && isStudentPaidOrFree;
 
+  const isSuperAdmin = isSuperAdminUser(currentUser);
   const hasOrgAccess =
     isOrganization &&
     (course?.orgId === currentUser?.id ||
@@ -307,6 +318,7 @@ const CourseDetails = () => {
         (course?.orgId === myOrg.id || course?.orgId === myOrg.ownerId)));
 
   const hasAccess =
+    isSuperAdmin ||
     hasStudentAccess ||
     hasInstructorAccess ||
     hasOrgAccess ||
@@ -318,22 +330,24 @@ const CourseDetails = () => {
       (m) => m.role === "student" && m.courseIds?.includes(courseId as string),
     ) ||
     myEnrollment?.status === "approved" ||
-    (currentUser?.role === "student" && !hasInstructorAccess && !hasOrgAccess);
+    (currentUser?.role === "student" && !hasInstructorAccess && !hasOrgAccess && !isSuperAdmin);
 
   const isStudent =
     isPreviewAsStudent ||
-    (!hasOrgAccess && !hasInstructorAccess && isEnrolledStudent);
+    (!hasOrgAccess && !hasInstructorAccess && !isSuperAdmin && isEnrolledStudent);
 
   const canStartVideoCall =
     !isStudent &&
-    (hasOrgAccess ||
+    (isSuperAdmin ||
+      hasOrgAccess ||
       hasInstructorAccess ||
       currentUser?.role === "organization" ||
       currentUser?.role === "instructor");
   const canManageSessions = Boolean(
-    !isStudent && (isOrganization || hasOrgAccess || hasInstructorAccess),
+    !isStudent && (isSuperAdmin || isOrganization || hasOrgAccess || hasInstructorAccess),
   );
   const canEditCourse = Boolean(
+    isSuperAdmin ||
     hasOrgAccess ||
     hasInstructorAccess ||
     currentUser?.id === course?.instructorId ||
@@ -345,16 +359,17 @@ const CourseDetails = () => {
   );
 
   const canDeleteCourse = Boolean(
-    currentUser?.role === "organization" &&
-    course &&
-    (course.orgId === currentUser.id ||
-      course.orgId === `org_${currentUser.id}` ||
-      course.createdBy === currentUser.id ||
-      (currentUser.id && course.orgId?.includes(currentUser.id)) ||
-      (myOrg &&
-        (course.orgId === myOrg.id ||
-          course.orgId === myOrg.ownerId ||
-          course.orgId === `org_${myOrg.id}`))),
+    isSuperAdmin ||
+    (currentUser?.role === "organization" &&
+      course &&
+      (course.orgId === currentUser.id ||
+        course.orgId === `org_${currentUser.id}` ||
+        course.createdBy === currentUser.id ||
+        (currentUser.id && course.orgId?.includes(currentUser.id)) ||
+        (myOrg &&
+          (course.orgId === myOrg.id ||
+            course.orgId === myOrg.ownerId ||
+            course.orgId === `org_${myOrg.id}`)))),
   );
 
   const isAdmissionOpen = course?.admissionStatus !== "closed";
@@ -538,6 +553,92 @@ const CourseDetails = () => {
         Course not found.
       </div>
     );
+
+  const courseApproved = isCourseApproved(course);
+  const approvalStatus = getCourseApprovalStatus(course);
+  const canPreviewUnapproved = Boolean(
+    isSuperAdmin ||
+      hasOrgAccess ||
+      hasInstructorAccess ||
+      currentUser?.id === course.instructorId ||
+      currentUser?.id === course.createdBy,
+  );
+
+  if (!courseApproved && !canPreviewUnapproved) {
+    return (
+      <div className="max-w-xl mx-auto py-20 px-4 text-center space-y-5 animate-in fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-heading">
+          {approvalStatus === "rejected"
+            ? "Course Unavailable"
+            : "Course Pending Super Admin Approval"}
+        </h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+          {approvalStatus === "rejected"
+            ? "This course is currently unavailable on the platform."
+            : "This course has been submitted and is awaiting Super Admin approval before students and public visitors can view or enroll in it."}
+        </p>
+        <Link
+          to="/explore"
+          className="inline-flex items-center px-5 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-sm font-bold transition shadow-xs"
+        >
+          Browse Approved Courses
+        </Link>
+      </div>
+    );
+  }
+
+  const renderApprovalBanner = () =>
+    !courseApproved ? (
+      <div
+        className={`rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+          approvalStatus === "rejected"
+            ? "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-200"
+            : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold">
+              {approvalStatus === "rejected"
+                ? "Not Approved by Super Admin"
+                : "Pending Super Admin Approval"}
+            </p>
+            <p className="text-xs opacity-90 mt-0.5">
+              {approvalStatus === "rejected"
+                ? course.rejectionReason ||
+                  "This course was declined and is hidden from students and public listings."
+                : "Only the creating organization, assigned instructor, and Super Admins can preview this course until it is approved."}
+            </p>
+          </div>
+        </div>
+        {isSuperAdmin && (
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => approveCourse(course.id)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Approve Course
+            </button>
+            {approvalStatus !== "rejected" && (
+              <button
+                type="button"
+                onClick={() => rejectCourse(course.id)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Reject
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    ) : null;
 
   const renderAccessBlocker = () => (
     <div className="max-w-2xl mx-auto py-20 text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
@@ -856,6 +957,7 @@ const CourseDetails = () => {
   if (effectiveViewMode === "public") {
     return (
       <div className="space-y-6 animate-in fade-in pb-16">
+        {renderApprovalBanner()}
         <PublicCourseDetails
           course={course}
           courseOrg={courseOrg}
@@ -988,6 +1090,7 @@ const CourseDetails = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in pb-16">
+      {renderApprovalBanner()}
       {/* ======================================================== */}
       {/* 1. HERO HEADER (Enterprise Dashboard Style)              */}
       {/* ======================================================== */}

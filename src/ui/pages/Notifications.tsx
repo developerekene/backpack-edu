@@ -192,7 +192,7 @@ export const Notifications: React.FC = () => {
       seen.add(n.id);
       return true;
     });
-  }, [notifications, currentUser?.id, userEnrolledCourseIds, inviteNotifications]);
+  }, [notifications, currentUser?.id, userEnrolledCourseIds, inviteNotifications, scheduleEvents]);
 
   // Filtered list based on active tab, category, and search query
   const filteredNotifications = useMemo(() => {

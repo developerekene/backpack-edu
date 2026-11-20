@@ -29,6 +29,7 @@ import { KnowledgeCityBanner } from "../components/instructor/KnowledgeCityBanne
 import { Course, Organization, OrgMember } from "../../types";
 import { generateId } from "../../lib/id";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
+import { isCourseApproved } from "../../lib/approval";
 
 const COURSES_PER_PAGE = 10;
 
@@ -68,6 +69,10 @@ const ExploreOrgs = () => {
     deleteOrganization,
   } = useAppContext();
   const { currentUser } = useAuth();
+  const approvedCourses = useMemo(
+    () => courses.filter(isCourseApproved),
+    [courses],
+  );
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const filterParam = searchParams.get("filter") || searchParams.get("type");
@@ -265,8 +270,8 @@ const ExploreOrgs = () => {
       }
     });
 
-    // 3. Enrich with course-assigned instructors
-    courses.forEach((c) => {
+    // 3. Enrich with approved course-assigned instructors
+    approvedCourses.forEach((c) => {
       if (c.instructorId && blockedUserIds.has(c.instructorId)) return;
       if (!c.instructorId && !c.instructorName) return;
 
@@ -306,7 +311,7 @@ const ExploreOrgs = () => {
     return Array.from(instructorMap.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
-  }, [allUsers, orgMembers, organizations, courses]);
+  }, [allUsers, orgMembers, organizations, approvedCourses]);
 
   // Filtered Instructors (for Instructors tab search)
   const filteredInstructors = useMemo(() => {
@@ -317,7 +322,7 @@ const ExploreOrgs = () => {
       const instOrgs = activeOrganizations.filter((o) =>
         inst.orgIds.some((cid) => orgMatchesId(o, cid)),
       );
-      const instCourses = courses.filter((c) =>
+      const instCourses = approvedCourses.filter((c) =>
         courseBelongsToInstructor(c, inst),
       );
 
@@ -331,7 +336,7 @@ const ExploreOrgs = () => {
         instCourses.some((c) => c.title.toLowerCase().includes(q))
       );
     });
-  }, [activeInstructors, activeOrganizations, courses, searchQuery]);
+  }, [activeInstructors, activeOrganizations, approvedCourses, searchQuery]);
 
   // Filtered Courses
   const filteredCourses = useMemo(() => {
@@ -344,7 +349,7 @@ const ExploreOrgs = () => {
           )
         : undefined;
 
-    return courses.filter((course) => {
+    return approvedCourses.filter((course) => {
       // Match org if present
       const org = activeOrganizations.find((o) =>
         orgMatchesId(o, course.orgId),
@@ -409,7 +414,7 @@ const ExploreOrgs = () => {
       return true;
     });
   }, [
-    courses,
+    approvedCourses,
     activeOrganizations,
     activeInstructors,
     searchQuery,
@@ -548,7 +553,7 @@ const ExploreOrgs = () => {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 shrink-0" />
-            <span>Courses ({courses.length})</span>
+            <span>Courses ({approvedCourses.length})</span>
           </button>
           <button
             type="button"
@@ -941,7 +946,7 @@ const ExploreOrgs = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               {filteredOrganizations.map((org) => {
-                const orgCourseCount = courses.filter((c) =>
+                const orgCourseCount = approvedCourses.filter((c) =>
                   orgMatchesId(org, c.orgId),
                 ).length;
                 const isOwner = currentUser?.id === org.ownerId;

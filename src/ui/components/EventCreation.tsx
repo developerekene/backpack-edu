@@ -37,6 +37,7 @@ import {
   type EventMode,
 } from "../../lib/eventMeta";
 import { matchesOrgIdentifier } from "../../lib/eventEligibility";
+import { isSuperAdminUser } from "../../lib/approval";
 
 /* ============================================================= */
 /* Props                                                         */
@@ -915,8 +916,13 @@ export const EventCreation: React.FC<EventCreationProps> = ({
             <Info className="w-5 h-5 shrink-0 mt-0.5" />
             <p className="text-[11px] sm:text-xs leading-relaxed">
               {effectiveEventType === "go_live"
-                ? "This Go Live event will be saved to the backend and visible on both the Home and Events pages. Anyone can request to join, and they will wait in the Waiting Room until you accept them or accept everyone."
+                ? "This Go Live event will be saved to the backend and visible on both the Home and Events pages once approved. Anyone can request to join, and they will wait in the Waiting Room until you accept them or accept everyone."
                 : "This Private event is saved securely to the backend and exclusive to accepted students and instructors of your organization."}
+              {!isEditMode && !isSuperAdminUser(currentUser) && (
+                <span className="block mt-1 font-semibold text-amber-700 dark:text-amber-300">
+                  Note: New events require Super Admin approval before they become visible to students and the public on the platform.
+                </span>
+              )}
             </p>
           </div>
         </form>

@@ -45,6 +45,7 @@ import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
 import { AssessmentsOverview } from "../components/courseAssesment/AssessmentOverview";
 import { generateId } from "../../lib/id";
+import { getCourseApprovalStatus, isCourseApproved } from "../../lib/approval";
 import { DomainVerificationCard } from "../components/DomainVerificationCard";
 import { StaffManagement } from "../components/StaffManagement";
 
@@ -130,8 +131,8 @@ const Dashboard = () => {
     )
     .map((r) => r.courseId);
 
-  const enrolledCourses = courses.filter((c) =>
-    approvedCoursesIds.includes(c.id),
+  const enrolledCourses = courses.filter(
+    (c) => approvedCoursesIds.includes(c.id) && isCourseApproved(c),
   );
   const studentProgressList = userProgress.filter(
     (p) => p.userId === currentUser.id,
@@ -1264,23 +1265,38 @@ const Dashboard = () => {
                     <h3 className="font-bold text-slate-900 dark:text-white text-base truncate">
                       {course.title}
                     </h3>
-                    <span
-                      className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                        isOpen
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                          : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
-                      }`}
-                    >
-                      {isOpen ? (
-                        <>
-                          <DoorOpen className="w-3 h-3 mr-1" /> Open
-                        </>
-                      ) : (
-                        <>
-                          <DoorClosed className="w-3 h-3 mr-1" /> Closed
-                        </>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {!isCourseApproved(course) && (
+                        <span
+                          className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                            getCourseApprovalStatus(course) === "rejected"
+                              ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                              : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                          }`}
+                        >
+                          {getCourseApprovalStatus(course) === "rejected"
+                            ? "Declined"
+                            : "Pending Approval"}
+                        </span>
                       )}
-                    </span>
+                      <span
+                        className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                          isOpen
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                        }`}
+                      >
+                        {isOpen ? (
+                          <>
+                            <DoorOpen className="w-3 h-3 mr-1" /> Open
+                          </>
+                        ) : (
+                          <>
+                            <DoorClosed className="w-3 h-3 mr-1" /> Closed
+                          </>
+                        )}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
                     {course.modules.length} Modules • {course.currency}{" "}

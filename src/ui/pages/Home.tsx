@@ -58,6 +58,11 @@ import {
   normaliseEventType,
 } from "../../lib/eventMeta";
 import { isEventOrganizer } from "../../lib/eventEligibility";
+import {
+  isCourseApproved,
+  isEventApproved,
+  isSuperAdminUser,
+} from "../../lib/approval";
 import { getEffectivePrice, formatPriceWithDecimals } from "../../lib/price";
 import Footer from "../components/Footer";
 
@@ -201,21 +206,30 @@ const Home: React.FC = () => {
     [organizations],
   );
 
-  // Divide courses into Popular Courses and Non-Profit (Donation-Funded Vocational) Courses
+  const approvedCourses = useMemo(
+    () => courses.filter(isCourseApproved),
+    [courses],
+  );
+  const approvedEvents = useMemo(
+    () => events.filter(isEventApproved),
+    [events],
+  );
+
+  // Divide approved courses into Popular Courses and Non-Profit (Donation-Funded Vocational) Courses
   const nonProfitCourses = useMemo(
-    () => courses.filter(isDonationFundedVocational),
-    [courses, isDonationFundedVocational],
+    () => approvedCourses.filter(isDonationFundedVocational),
+    [approvedCourses, isDonationFundedVocational],
   );
   const popularCourses = useMemo(
-    () => courses.filter((c) => !isDonationFundedVocational(c)),
-    [courses, isDonationFundedVocational],
+    () => approvedCourses.filter((c) => !isDonationFundedVocational(c)),
+    [approvedCourses, isDonationFundedVocational],
   );
 
   const filteredHomeCourses = useMemo(() => {
     if (homeCourseFilter === "popular") return popularCourses;
     if (homeCourseFilter === "non-profit") return nonProfitCourses;
-    return courses;
-  }, [homeCourseFilter, courses, popularCourses, nonProfitCourses]);
+    return approvedCourses;
+  }, [homeCourseFilter, approvedCourses, popularCourses, nonProfitCourses]);
 
   const totalHomeCoursePages = Math.max(
     1,
@@ -233,10 +247,10 @@ const Home: React.FC = () => {
 
   const sortedHomeEvents = useMemo(
     () =>
-      [...events].sort((a, b) =>
+      [...approvedEvents].sort((a, b) =>
         `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
       ),
-    [events],
+    [approvedEvents],
   );
 
   const totalHomeEventPages = Math.max(
@@ -1517,12 +1531,12 @@ const Home: React.FC = () => {
       {/* ======================================================== */}
       {/* 7. COURSES CATALOG (10-per-page paginated)               */}
       {/* ======================================================== */}
-      {courses.length > 0 && (
+      {approvedCourses.length > 0 && (
         <section className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
             <div>
               <span className="text-xs font-bold text-[#0078d4] uppercase tracking-wider block mb-1 font-heading">
-                Course Directory ({courses.length})
+                Course Directory ({approvedCourses.length})
               </span>
               <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-words">
                 Explore All Courses
@@ -1552,7 +1566,7 @@ const Home: React.FC = () => {
                     : "text-slate-600 dark:text-slate-300 hover:text-[#0078d4]"
                 }`}
               >
-                All Courses ({courses.length})
+                All Courses ({approvedCourses.length})
               </button>
               <button
                 type="button"
@@ -1705,7 +1719,7 @@ const Home: React.FC = () => {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-[#0078d4]/10 dark:bg-[#0078d4]/20 border border-[#0078d4]/20 text-[#0078d4] dark:text-[#04a4ec] text-xs font-bold font-heading uppercase tracking-wider mb-2">
               <CalendarDays className="w-3.5 h-3.5" />
-              <span>Webinars, Summits &amp; Workshops ({events.length})</span>
+              <span>Webinars, Summits &amp; Workshops ({approvedEvents.length})</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
               All Events &amp; Live Sessions
@@ -2638,7 +2652,11 @@ const Home: React.FC = () => {
                 });
 
                 setShowGoLiveModal(false);
-                navigate(`/live/${roomClean}?name=${encodeURIComponent(currentUser.name || "Instructor")}${selectedLiveCourseId ? `&courseId=${selectedLiveCourseId}` : ""}`);
+                if (isSuperAdminUser(currentUser)) {
+                  navigate(`/live/${roomClean}?name=${encodeURIComponent(currentUser.name || "Instructor")}${selectedLiveCourseId ? `&courseId=${selectedLiveCourseId}` : ""}`);
+                } else {
+                  navigate("/events");
+                }
               }}
               className="space-y-4 font-body"
             >
@@ -2666,7 +2684,7 @@ const Home: React.FC = () => {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#d6e9f8] dark:border-[#1e3a52] bg-[#f8fafd] dark:bg-[#132838] text-xs outline-none focus:ring-2 focus:ring-[#0078d4]/30 text-slate-900 dark:text-white font-body"
                 >
                   <option value="">Open Go Live Event (Anyone can request to join)</option>
-                  {courses.map((c) => (
+                  {approvedCourses.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.title}
                     </option>

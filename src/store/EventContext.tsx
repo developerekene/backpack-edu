@@ -21,6 +21,7 @@ import { generateId } from "../lib/id";
 import { normaliseEventType, type EventMode } from "../lib/eventMeta";
 import { useAppContext } from "./AppContext";
 import { useAuth } from "./AuthContext";
+import { isSuperAdminUser } from "../lib/approval";
 import {
   getUserData,
   sanitizeForFirestore,
@@ -86,6 +87,8 @@ interface EventContextType {
     updates: Partial<Omit<AppEvent, "id" | "createdAt">>,
   ) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
+  approveEvent: (id: string) => Promise<void>;
+  rejectEvent: (id: string, reason?: string) => Promise<void>;
   clearEvents: () => void;
   getEventById: (id: string) => AppEvent | undefined;
 
@@ -201,7 +204,12 @@ export const getEventSummary = (event: AppEvent): EventSummary => {
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
 export const EventProvider = ({ children }: { children: React.ReactNode }) => {
-  const { appEvents, setAppEvents } = useAppContext();
+  const {
+    appEvents,
+    setAppEvents,
+    notifySuperAdmins,
+    sendDirectNotification,
+  } = useAppContext();
   const { currentUser } = useAuth();
 
   const events = appEvents;
@@ -283,6 +291,12 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
       const roomName =
         input.roomName || makeRoomSlug(input.title, id);
 
+      const isSuperAdmin = isSuperAdminUser(currentUser);
+      const approvalStatus = isSuperAdmin
+        ? "approved"
+        : input.approvalStatus || "pending";
+      const nowIso = new Date().toISOString();
+
       const newEvent: AppEvent = sanitizeForFirestore({
         id,
         title: input.title,
@@ -320,7 +334,11 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
         createdBy: input.createdBy,
         attendees: input.attendees ?? [],
         waitingRoom: input.waitingRoom ?? [],
-        createdAt: new Date().toISOString(),
+        approvalStatus,
+        submittedAt: nowIso,
+        approvedAt: approvalStatus === "approved" ? nowIso : undefined,
+        approvedBy: approvalStatus === "approved" ? currentUser?.id : undefined,
+        createdAt: nowIso,
       });
 
       setAppEvents((prev) => [newEvent, ...prev.filter((e) => e.id !== id)]);
@@ -338,9 +356,22 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
 
+      if (approvalStatus === "pending") {
+        notifySuperAdmins({
+          title: "Event Awaiting Super Admin Approval",
+          message: `"${newEvent.title}" submitted by ${newEvent.orgName || newEvent.createdBy?.name || "an organization"} needs approval before appearing publicly.`,
+          type: "info",
+          notificationCategory: "approval_request",
+          senderId: currentUser?.id || newEvent.createdBy?.id,
+          senderName: currentUser?.name || newEvent.createdBy?.name,
+          senderEmail: currentUser?.email || newEvent.createdBy?.email,
+          linkUrl: "/admin?tab=events",
+        }).catch(console.error);
+      }
+
       return newEvent;
     },
-    [currentUser?.id, setAppEvents],
+    [currentUser, notifySuperAdmins, setAppEvents],
   );
 
   const updateEvent = useCallback(
@@ -355,6 +386,70 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
       }));
     },
     [mutateEventInBackend],
+  );
+
+  const approveEvent = useCallback(
+    async (id: string) => {
+      const target = events.find((e) => e.id === id);
+      const approvedAt = new Date().toISOString();
+      await updateEvent(id, {
+        approvalStatus: "approved",
+        approvedAt,
+        approvedBy: currentUser?.id || "super_admin",
+        rejectedAt: undefined,
+        rejectionReason: undefined,
+      });
+      if (target) {
+        const recipientId =
+          target.createdBy?.id ||
+          target.storageUid ||
+          target.orgId?.replace(/^org_/, "") ||
+          "";
+        if (recipientId) {
+          sendDirectNotification(
+            recipientId,
+            "Event Approved",
+            `Your event "${target.title}" has been approved by Super Admin and is now visible to users across the platform.`,
+            "info",
+            "/events",
+            { notificationCategory: "approval_decision" },
+          ).catch(console.error);
+        }
+      }
+    },
+    [events, updateEvent, currentUser?.id, sendDirectNotification],
+  );
+
+  const rejectEvent = useCallback(
+    async (id: string, reason?: string) => {
+      const target = events.find((e) => e.id === id);
+      const rejectedAt = new Date().toISOString();
+      const cleanReason =
+        reason?.trim() || "Event did not meet platform publishing requirements.";
+      await updateEvent(id, {
+        approvalStatus: "rejected",
+        rejectedAt,
+        rejectionReason: cleanReason,
+      });
+      if (target) {
+        const recipientId =
+          target.createdBy?.id ||
+          target.storageUid ||
+          target.orgId?.replace(/^org_/, "") ||
+          "";
+        if (recipientId) {
+          sendDirectNotification(
+            recipientId,
+            "Event Not Approved",
+            `Your event "${target.title}" was declined by Super Admin: ${cleanReason}`,
+            "info",
+            "/events",
+            { notificationCategory: "approval_decision" },
+          ).catch(console.error);
+        }
+      }
+    },
+    [events, updateEvent, sendDirectNotification],
   );
 
   const deleteEvent = useCallback(
@@ -673,6 +768,8 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
       addEvent,
       updateEvent,
       deleteEvent,
+      approveEvent,
+      rejectEvent,
       clearEvents,
       getEventById,
       eventsByCourse,
@@ -695,6 +792,8 @@ export const EventProvider = ({ children }: { children: React.ReactNode }) => {
       addEvent,
       updateEvent,
       deleteEvent,
+      approveEvent,
+      rejectEvent,
       clearEvents,
       getEventById,
       eventsByCourse,

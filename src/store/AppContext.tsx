@@ -14,11 +14,13 @@ import {
   collection,
   getDocs,
   updateDoc,
+  deleteDoc,
   doc,
   getDoc,
   query,
   onSnapshot,
 } from "firebase/firestore";
+import { isSuperAdminUser } from "../lib/approval";
 import {
   Assessment,
   Submission,
@@ -107,6 +109,8 @@ interface AppState {
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
   deleteCourse: (courseId: string) => Promise<void>;
+  approveCourse: (courseId: string) => Promise<void>;
+  rejectCourse: (courseId: string, reason?: string) => Promise<void>;
   addCourseDonation: (donation: CourseDonation) => Promise<void>;
   getCourseAdmissionGate: (courseId: string) => AdmissionGateStatus;
   addEnrollmentRequest: (req: EnrollmentRequest) => Promise<void>;
@@ -271,15 +275,28 @@ interface AppState {
   deleteNotification: (id: string) => Promise<void>;
 
   allUsers: User[];
+  allPlatformUsers: User[];
+  fetchAllUsersFromBackend: () => Promise<User[]>;
   suspendUser: (userId: string, reason?: string) => Promise<void>;
   reactivateUser: (userId: string) => Promise<void>;
   deleteUserAccount: (userId: string) => Promise<void>;
+  notifySuperAdmins: (
+    notif: Omit<AppNotification, "id" | "createdAt" | "read">,
+  ) => Promise<void>;
+  submitSuspensionQuery: (message: string) => Promise<void>;
+  requestAccountUnsuspension: (note?: string) => Promise<void>;
+  replyToSuspensionQuery: (
+    targetUserId: string,
+    replyMessage: string,
+    originalNotifId?: string,
+  ) => Promise<void>;
   sendDirectNotification: (
     targetUserId: string | "all",
     title: string,
     message: string,
     type?: "live_class" | "enrollment" | "grade" | "material" | "info",
     linkUrl?: string,
+    extraMeta?: Partial<AppNotification>,
   ) => Promise<void>;
 
   payrollRecipients: InstructorPayrollRecipient[];
@@ -420,6 +437,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
   const [allUsers, setAllUsers] = useState<User[]>(() =>
     loadCache("allUsers", []),
+  );
+  const [allPlatformUsers, setAllPlatformUsers] = useState<User[]>(() =>
+    loadCache("allPlatformUsers", []),
   );
   const [payrollRecipients, setPayrollRecipients] = useState<
     InstructorPayrollRecipient[]
@@ -637,6 +657,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         providedSnap || (await getDocs(collection(db, "backpack")));
 
       const allUsersList: User[] = [];
+      const allPlatformUsersList: User[] = [];
       const allOrganizations: Organization[] = [];
       const allCourses: Course[] = [];
       const allEnrollmentRequests: EnrollmentRequest[] = [];
@@ -678,19 +699,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const isSuperAdminAccount =
           isSuperAdminEmail || rawRole === "super_admin";
 
-        // Never expose Super Admin in application user lists/searches
-        if (
-          !isSuperAdminAccount &&
-          (personalInfo.email || personalInfo.fullname || personalInfo.name)
-        ) {
-          allUsersList.push({
+        const hasAccountIdentity = Boolean(
+          personalInfo.email ||
+            personalInfo.fullname ||
+            personalInfo.name ||
+            personalInfo.role ||
+            userObj.role ||
+            personalInfo.orgType,
+        );
+
+        const isRecordDeleted = personalInfo.isDeleted === true;
+
+        if (!isRecordDeleted && hasAccountIdentity) {
+          const mappedUser: User = {
             id: (personalInfo.id as string) || docSnap.id,
             name:
               (personalInfo.fullname as string) ||
               (personalInfo.name as string) ||
-              "Unnamed User",
+              (uEmail ? uEmail.split("@")[0] : "") ||
+              `Account (${docSnap.id.slice(0, 6)})`,
             email: uEmail,
-            role: rawRole || "student",
+            role: isSuperAdminAccount ? "super_admin" : rawRole || "student",
             orgId: personalInfo.orgId as string | undefined,
             createdAt:
               (personalInfo.createdAt as string) || new Date().toISOString(),
@@ -726,15 +755,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             academicHighlights: personalInfo.academicHighlights as
               | string[]
               | undefined,
+            plan: personalInfo.plan as OrgPlanTier | undefined,
             isDeleted: (personalInfo.isDeleted as boolean) ?? false,
-          });
+          };
+
+          allPlatformUsersList.push(mappedUser);
+          // Never expose Super Admin in application directories/pickers
+          if (!isSuperAdminAccount) {
+            allUsersList.push(mappedUser);
+          }
         }
         if (
-          personalInfo.role === "organization" ||
-          personalInfo.orgType ||
-          personalInfo.registrationId ||
-          personalInfo.accreditationStatus ||
-          personalInfo.isAccredited
+          !isRecordDeleted &&
+          (personalInfo.role === "organization" ||
+            personalInfo.orgType ||
+            personalInfo.registrationId ||
+            personalInfo.accreditationStatus ||
+            personalInfo.isAccredited)
         ) {
           allOrganizations.push({
             id: (personalInfo.id as string) || docSnap.id,
@@ -1066,7 +1103,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             return bTime - aTime;
           });
 
-          let definitive = { ...sorted[0] };
+          const definitive = { ...sorted[0] };
           if (hasEnded) {
             const maxEndedAt = list.reduce(
               (max, e) =>
@@ -1128,12 +1165,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       );
       updateAndCache("course.messages", dedupeById(allMessages), setMessages);
       updateAndCache("allUsers", dedupeById(allUsersList), setAllUsers);
+      const dedupedPlatformUsers = dedupeById(allPlatformUsersList);
+      updateAndCache(
+        "allPlatformUsers",
+        dedupedPlatformUsers,
+        setAllPlatformUsers,
+      );
+      return dedupedPlatformUsers;
     } catch (err: any) {
       console.warn("Backpack data load notice:", err?.message || err);
+      return [];
     } finally {
       setIsLoadingApp(false);
     }
   }, []);
+
+  const fetchAllUsersFromBackend = useCallback(async (): Promise<User[]> => {
+    const snap = await getDocs(collection(db, "backpack"));
+    const users = await loadAllBackpackData(snap);
+    return Array.isArray(users) ? users : [];
+  }, [loadAllBackpackData]);
 
   // Super Admin Management Functions
   const suspendUser = async (userId: string, reason?: string) => {
@@ -1144,13 +1195,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       suspendedAt,
       suspendedReason,
     });
-    setAllUsers((prev) =>
-      prev.map((u) =>
+    const applySuspension = (list: User[]) =>
+      list.map((u) =>
         u.id === userId
           ? { ...u, isSuspended: true, suspendedAt, suspendedReason }
           : u,
-      ),
-    );
+      );
+    setAllUsers(applySuspension);
+    setAllPlatformUsers(applySuspension);
   };
 
   const reactivateUser = async (userId: string) => {
@@ -1159,8 +1211,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       suspendedAt: null,
       suspendedReason: null,
     });
-    setAllUsers((prev) =>
-      prev.map((u) =>
+    const applyReactivate = (list: User[]) =>
+      list.map((u) =>
         u.id === userId
           ? {
               ...u,
@@ -1169,17 +1221,439 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               suspendedReason: undefined,
             }
           : u,
-      ),
-    );
+      );
+    setAllUsers(applyReactivate);
+    setAllPlatformUsers(applyReactivate);
   };
 
   const deleteUserAccount = async (userId: string) => {
-    await updateBackpackPersonalInfo(userId, {
-      isDeleted: true,
-      isSuspended: true,
-      suspendedReason: "Account deleted by Super Admin.",
+    if (!userId) return;
+    const snap = await getDocs(collection(db, "backpack"));
+
+    // Determine target user's owned organization IDs, Paystack subaccount, courses, and events
+    const ownedOrgIds = new Set<string>([`org_${userId}`]);
+    const deletedCourseIds = new Set<string>();
+    const deletedEventIds = new Set<string>();
+    let targetSubaccountCode = "";
+
+    snap.docs.forEach((docSnap) => {
+      const userObj = getUserData(docSnap.data() as Record<string, unknown>);
+      const pi = (userObj.personalInformation as Record<string, unknown>) || {};
+      const piRole = String(pi.role || userObj.role || "").toLowerCase();
+      const isTargetDoc = docSnap.id === userId || docSnap.id === `org_${userId}`;
+
+      if (isTargetDoc) {
+        const sub = pi.paystackSubaccount as { subaccount_code?: string } | undefined;
+        if (sub?.subaccount_code) {
+          targetSubaccountCode = sub.subaccount_code;
+        }
+        if (
+          piRole === "organization" ||
+          Boolean(pi.orgType || pi.registrationId || pi.accreditationStatus)
+        ) {
+          ownedOrgIds.add(docSnap.id);
+          if (typeof pi.id === "string" && pi.id) ownedOrgIds.add(pi.id);
+        }
+      }
+
+      if (
+        pi.ownerId === userId &&
+        (piRole === "organization" || pi.orgType || docSnap.id.startsWith("org_"))
+      ) {
+        ownedOrgIds.add(docSnap.id);
+        if (typeof pi.id === "string" && pi.id) ownedOrgIds.add(pi.id);
+      }
     });
-    setAllUsers((prev) => prev.filter((u) => u.id !== userId));
+
+    // Collect all courses and events belonging to the account
+    snap.docs.forEach((docSnap) => {
+      const userObj = getUserData(docSnap.data() as Record<string, unknown>);
+      const courseObj = (userObj.course as Record<string, unknown>) || {};
+
+      if (Array.isArray(courseObj.courses)) {
+        (courseObj.courses as Course[]).forEach((c) => {
+          if (
+            ownedOrgIds.has(c.orgId) ||
+            c.createdBy === userId ||
+            c.instructorId === userId
+          ) {
+            deletedCourseIds.add(c.id);
+          }
+        });
+      }
+
+      if (Array.isArray(courseObj.events)) {
+        (courseObj.events as AppEvent[]).forEach((e) => {
+          if (
+            e.storageUid === userId ||
+            e.createdBy?.id === userId ||
+            e.facilitatorId === userId ||
+            (e.orgId && ownedOrgIds.has(e.orgId)) ||
+            (e.courseId && deletedCourseIds.has(e.courseId))
+          ) {
+            deletedEventIds.add(e.id);
+          }
+        });
+      }
+    });
+
+    // Best-effort deactivate Paystack subaccount if one was registered
+    if (targetSubaccountCode) {
+      try {
+        await deactivateAndDeleteSubaccount(targetSubaccountCode);
+      } catch (err) {
+        console.warn("Paystack subaccount deactivation notice during user deletion:", err);
+      }
+    }
+
+    // Purge all references across all other backpack documents
+    for (const docSnap of snap.docs) {
+      if (docSnap.id === userId || docSnap.id === `org_${userId}`) continue;
+
+      const data = docSnap.data() as Record<string, unknown>;
+      const userObj = { ...getUserData(data) };
+      let changed = false;
+
+      if (Array.isArray(userObj.enrollmentRequests)) {
+        const next = (userObj.enrollmentRequests as EnrollmentRequest[]).filter(
+          (r) =>
+            r.studentId !== userId &&
+            r.userId !== userId &&
+            !ownedOrgIds.has(r.orgId) &&
+            !deletedCourseIds.has(r.courseId),
+        );
+        if (next.length !== userObj.enrollmentRequests.length) {
+          userObj.enrollmentRequests = next;
+          changed = true;
+        }
+      }
+
+      if (Array.isArray(userObj.orgJoinRequests)) {
+        const next = (userObj.orgJoinRequests as OrgJoinRequest[]).filter(
+          (r) => r.userId !== userId && !ownedOrgIds.has(r.orgId),
+        );
+        if (next.length !== userObj.orgJoinRequests.length) {
+          userObj.orgJoinRequests = next;
+          changed = true;
+        }
+      }
+
+      if (Array.isArray(userObj.courseDonations)) {
+        const next = (userObj.courseDonations as CourseDonation[]).filter(
+          (d) =>
+            d.donorId !== userId &&
+            !ownedOrgIds.has(d.orgId) &&
+            !deletedCourseIds.has(d.courseId),
+        );
+        if (next.length !== userObj.courseDonations.length) {
+          userObj.courseDonations = next;
+          changed = true;
+        }
+      }
+
+      if (userObj.course && typeof userObj.course === "object") {
+        const courseObj = { ...(userObj.course as Record<string, unknown>) };
+        let courseChanged = false;
+
+        if (Array.isArray(courseObj.courses)) {
+          const orig = courseObj.courses as Course[];
+          const next = orig
+            .filter((c) => !deletedCourseIds.has(c.id))
+            .map((c) => {
+              let itemChanged = false;
+              let updatedCourse = c;
+              if (Array.isArray(c.instructors) && c.instructors.includes(userId)) {
+                updatedCourse = {
+                  ...updatedCourse,
+                  instructors: c.instructors.filter((id) => id !== userId),
+                };
+                itemChanged = true;
+              }
+              if (c.instructorId === userId) {
+                updatedCourse = {
+                  ...updatedCourse,
+                  instructorId: undefined,
+                };
+                itemChanged = true;
+              }
+              if (itemChanged) courseChanged = true;
+              return itemChanged ? sanitizeForFirestore(updatedCourse) : c;
+            });
+          if (next.length !== orig.length) courseChanged = true;
+          if (courseChanged) courseObj.courses = next;
+        }
+
+        if (Array.isArray(courseObj.orgMembers)) {
+          const next = (courseObj.orgMembers as OrgMember[]).filter(
+            (m) =>
+              m.userId !== userId &&
+              m.orgId !== userId &&
+              !ownedOrgIds.has(m.orgId),
+          );
+          if (next.length !== courseObj.orgMembers.length) {
+            courseObj.orgMembers = next;
+            courseChanged = true;
+          }
+        }
+
+        if (Array.isArray(courseObj.userProgress)) {
+          const next = (courseObj.userProgress as UserProgress[]).filter(
+            (p) => p.userId !== userId && !deletedCourseIds.has(p.courseId),
+          );
+          if (next.length !== courseObj.userProgress.length) {
+            courseObj.userProgress = next;
+            courseChanged = true;
+          }
+        }
+
+        if (Array.isArray(courseObj.materials)) {
+          const next = (courseObj.materials as Material[]).filter(
+            (m) => m.uploadedBy !== userId && !deletedCourseIds.has(m.courseId),
+          );
+          if (next.length !== courseObj.materials.length) {
+            courseObj.materials = next;
+            courseChanged = true;
+          }
+        }
+
+        if (Array.isArray(courseObj.attendance)) {
+          const orig = courseObj.attendance as AttendanceRecord[];
+          const next = orig
+            .filter(
+              (a) =>
+                !deletedCourseIds.has(a.courseId) &&
+                (!a.orgId || !ownedOrgIds.has(a.orgId)),
+            )
+            .map((a) => {
+              const hasEntry = (a.entries || []).some((e) => e.userId === userId);
+              const hasRec = Boolean(a.records && a.records[userId]);
+              if (!hasEntry && !hasRec) return a;
+              courseChanged = true;
+              const nextEntries = (a.entries || []).filter((e) => e.userId !== userId);
+              const nextRecords = { ...(a.records || {}) };
+              delete nextRecords[userId];
+              return {
+                ...a,
+                entries: nextEntries,
+                records: nextRecords,
+                totalAttendees: nextEntries.filter(
+                  (e) => e.status === "present" || e.status === "late",
+                ).length,
+              };
+            });
+          if (next.length !== orig.length) courseChanged = true;
+          if (courseChanged) courseObj.attendance = next;
+        }
+
+        if (Array.isArray(courseObj.offlineRosterStudents)) {
+          const next = (
+            courseObj.offlineRosterStudents as OfflineRosterStudent[]
+          ).filter(
+            (s) =>
+              !deletedCourseIds.has(s.courseId) &&
+              !ownedOrgIds.has(s.orgId) &&
+              s.addedBy !== userId,
+          );
+          if (next.length !== courseObj.offlineRosterStudents.length) {
+            courseObj.offlineRosterStudents = next;
+            courseChanged = true;
+          }
+        }
+
+        if (Array.isArray(courseObj.assessments)) {
+          const next = (courseObj.assessments as Assessment[]).filter(
+            (a) => !deletedCourseIds.has(a.courseId),
+          );
+          if (next.length !== courseObj.assessments.length) {
+            courseObj.assessments = next;
+            courseChanged = true;
+          }
+        }
+
+        if (Array.isArray(courseObj.submissions)) {
+          const next = (courseObj.submissions as Submission[]).filter(
+            (s) => s.studentId !== userId && !deletedCourseIds.has(s.courseId),
+          );
+          if (next.length !== courseObj.submissions.length) {
+            courseObj.submissions = next;
+            courseChanged = true;
+          }
+        }
+
+        if (Array.isArray(courseObj.scheduleEvents)) {
+          const next = (courseObj.scheduleEvents as ScheduleEvent[]).filter(
+            (e) => !deletedCourseIds.has(e.courseId),
+          );
+          if (next.length !== courseObj.scheduleEvents.length) {
+            courseObj.scheduleEvents = next;
+            courseChanged = true;
+          }
+        }
+
+        if (Array.isArray(courseObj.events)) {
+          const orig = courseObj.events as AppEvent[];
+          const next = orig
+            .filter(
+              (e) =>
+                !deletedEventIds.has(e.id) &&
+                e.storageUid !== userId &&
+                e.createdBy?.id !== userId &&
+                e.facilitatorId !== userId &&
+                (!e.orgId || !ownedOrgIds.has(e.orgId)) &&
+                (!e.courseId || !deletedCourseIds.has(e.courseId)),
+            )
+            .map((e) => {
+              const hasAtt = (e.attendees || []).some((a) => a.userId === userId);
+              const hasWait = (e.waitingRoom || []).some((w) => w.userId === userId);
+              const hasFac = (e.facilitators || []).some((f) => f.id === userId);
+              if (!hasAtt && !hasWait && !hasFac) return e;
+              courseChanged = true;
+              return {
+                ...e,
+                attendees: (e.attendees || []).filter((a) => a.userId !== userId),
+                waitingRoom: (e.waitingRoom || []).filter((w) => w.userId !== userId),
+                facilitators: (e.facilitators || []).filter((f) => f.id !== userId),
+              };
+            });
+          if (next.length !== orig.length) courseChanged = true;
+          if (courseChanged) courseObj.events = next;
+        }
+
+        if (Array.isArray(courseObj.messages)) {
+          const next = (courseObj.messages as ChatMessage[]).filter(
+            (m) => m.senderId !== userId && !deletedCourseIds.has(m.courseId),
+          );
+          if (next.length !== courseObj.messages.length) {
+            courseObj.messages = next;
+            courseChanged = true;
+          }
+        }
+
+        if (courseChanged) {
+          userObj.course = courseObj;
+          changed = true;
+        }
+      }
+
+      if (userObj.school && typeof userObj.school === "object") {
+        const schoolObj = { ...(userObj.school as Record<string, unknown>) };
+        let schoolChanged = false;
+
+        if (Array.isArray(schoolObj.gateLogs)) {
+          const next = (schoolObj.gateLogs as GateLogRecord[]).filter(
+            (g) => g.personId !== userId && !ownedOrgIds.has(g.orgId),
+          );
+          if (next.length !== schoolObj.gateLogs.length) {
+            schoolObj.gateLogs = next;
+            schoolChanged = true;
+          }
+        }
+
+        if (Array.isArray(schoolObj.offlineMembers)) {
+          const next = (schoolObj.offlineMembers as SchoolOfflineMember[]).filter(
+            (m) => !ownedOrgIds.has(m.orgId) && m.addedBy !== userId,
+          );
+          if (next.length !== schoolObj.offlineMembers.length) {
+            schoolObj.offlineMembers = next;
+            schoolChanged = true;
+          }
+        }
+
+        if (Array.isArray(schoolObj.instructorPayrollRecipients)) {
+          const next = (
+            schoolObj.instructorPayrollRecipients as InstructorPayrollRecipient[]
+          ).filter((r) => r.instructorId !== userId && !ownedOrgIds.has(r.orgId));
+          if (next.length !== schoolObj.instructorPayrollRecipients.length) {
+            schoolObj.instructorPayrollRecipients = next;
+            schoolChanged = true;
+          }
+        }
+
+        if (Array.isArray(schoolObj.payrollSplitGroups)) {
+          const next = (schoolObj.payrollSplitGroups as PayrollSplitGroup[]).filter(
+            (g) => !ownedOrgIds.has(g.orgId),
+          );
+          if (next.length !== schoolObj.payrollSplitGroups.length) {
+            schoolObj.payrollSplitGroups = next;
+            schoolChanged = true;
+          }
+        }
+
+        if (Array.isArray(schoolObj.payrollDisbursements)) {
+          const next = (
+            schoolObj.payrollDisbursements as PayrollDisbursement[]
+          ).filter((d) => !ownedOrgIds.has(d.orgId));
+          if (next.length !== schoolObj.payrollDisbursements.length) {
+            schoolObj.payrollDisbursements = next;
+            schoolChanged = true;
+          }
+        }
+
+        if (Array.isArray(schoolObj.payrollPayslips)) {
+          const next = (schoolObj.payrollPayslips as PayrollPayslip[]).filter(
+            (p) => p.instructorId !== userId && !ownedOrgIds.has(p.orgId),
+          );
+          if (next.length !== schoolObj.payrollPayslips.length) {
+            schoolObj.payrollPayslips = next;
+            schoolChanged = true;
+          }
+        }
+
+        if (schoolChanged) {
+          userObj.school = schoolObj;
+          changed = true;
+        }
+      }
+
+      if (userObj.teacher && typeof userObj.teacher === "object") {
+        const teacherObj = { ...(userObj.teacher as Record<string, unknown>) };
+        if (Array.isArray(teacherObj.duty)) {
+          const next = (teacherObj.duty as TeacherDutyRecord[]).filter(
+            (d) => d.teacherId !== userId && !ownedOrgIds.has(d.orgId),
+          );
+          if (next.length !== teacherObj.duty.length) {
+            teacherObj.duty = next;
+            userObj.teacher = teacherObj;
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
+        try {
+          await updateDoc(doc(db, "backpack", docSnap.id), {
+            user: sanitizeForFirestore(userObj),
+          });
+        } catch (err) {
+          console.warn(`Cascade cleanup notice on backpack/${docSnap.id}:`, err);
+        }
+      }
+    }
+
+    // Delete the user's primary backpack document (and companion org_ doc if any)
+    try {
+      await deleteDoc(doc(db, "backpack", userId));
+    } catch (err) {
+      console.error(`Failed deleting backpack/${userId}:`, err);
+      // Fallback: mark deleted if deleteDoc fails
+      await updateBackpackPersonalInfo(userId, {
+        isDeleted: true,
+        isSuspended: true,
+        suspendedReason: "Account deleted by Super Admin.",
+      });
+    }
+
+    const companionOrgDoc = snap.docs.find((d) => d.id === `org_${userId}`);
+    if (companionOrgDoc) {
+      try {
+        await deleteDoc(doc(db, "backpack", `org_${userId}`));
+      } catch (err) {
+        console.warn(`Could not delete companion org_${userId}:`, err);
+      }
+    }
+
+    // Reload fresh backend snapshot so all state & caches mirror the purged DB
+    await fetchAllUsersFromBackend();
   };
 
   const sendDirectNotification = async (
@@ -1188,8 +1662,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     message: string,
     type: "live_class" | "enrollment" | "grade" | "material" | "info" = "info",
     linkUrl?: string,
+    extraMeta?: Partial<AppNotification>,
   ) => {
-    const newNotif: AppNotification = {
+    const newNotif: AppNotification = sanitizeForFirestore({
       id: `notif_admin_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       title,
       message,
@@ -1200,7 +1675,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         minute: "2-digit",
       }),
       linkUrl,
-    };
+      ...extraMeta,
+    });
 
     if (targetUserId === "all") {
       const targets = allUsers.filter((u) => !u.isDeleted);
@@ -1215,11 +1691,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setNotifications((prev) => [{ ...newNotif, userId: currentUser.id }, ...prev]);
       }
     } else {
-      updateBackpackUserField<AppNotification>(
+      await updateBackpackUserField<AppNotification>(
         targetUserId,
         "notifications",
         (list) => [{ ...newNotif, userId: targetUserId }, ...list],
-      ).catch(console.error);
+      );
 
       if (targetUserId === currentUser?.id) {
         setNotifications((prev) => [{ ...newNotif, userId: currentUser.id }, ...prev]);
@@ -1227,23 +1703,146 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Sync current user's notifications when auth resolves without restarting the global collection stream
+  const notifySuperAdmins = useCallback(
+    async (notif: Omit<AppNotification, "id" | "createdAt" | "read">) => {
+      try {
+        const snap = await getDocs(collection(db, "backpack"));
+        const adminIds = new Set<string>();
+        snap.docs.forEach((docSnap) => {
+          const userObj = getUserData(docSnap.data() as Record<string, unknown>);
+          const pi = (userObj.personalInformation as Record<string, unknown>) || {};
+          const email = String(pi.email || "").toLowerCase();
+          const role = String(pi.role || userObj.role || "").toLowerCase();
+          if (email === "ekenehq@gmail.com" || role === "super_admin") {
+            adminIds.add(docSnap.id);
+          }
+        });
+
+        const baseNotif: AppNotification = sanitizeForFirestore({
+          ...notif,
+          id: `notif_sa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          read: false,
+          createdAt: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        });
+
+        for (const adminId of adminIds) {
+          const adminNotif = { ...baseNotif, userId: adminId };
+          await updateBackpackUserField<AppNotification>(
+            adminId,
+            "notifications",
+            (list) => [adminNotif, ...list],
+          );
+          if (adminId === currentUserIdRef.current) {
+            setNotifications((prev) => [adminNotif, ...prev]);
+          }
+        }
+      } catch (err) {
+        console.error("Failed notifying super admins:", err);
+      }
+    },
+    [],
+  );
+
+  const submitSuspensionQuery = async (message: string) => {
+    if (!currentUser) return;
+    const trimmed = message.trim();
+    if (!trimmed) throw new Error("Please enter your message before sending.");
+
+    await notifySuperAdmins({
+      title: `Suspension Query from ${currentUser.name}`,
+      message: trimmed,
+      type: "info",
+      notificationCategory: "suspension_query",
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderEmail: currentUser.email,
+      linkUrl: "/admin?tab=appeals",
+    });
+  };
+
+  const requestAccountUnsuspension = async (note?: string) => {
+    if (!currentUser) return;
+    const trimmed = note?.trim();
+    await notifySuperAdmins({
+      title: `Unsuspension Request from ${currentUser.name}`,
+      message: trimmed
+        ? `${currentUser.name} (${currentUser.email}) requested to unsuspend their account: "${trimmed}"`
+        : `${currentUser.name} (${currentUser.email}) submitted a request to unsuspend their account.`,
+      type: "info",
+      notificationCategory: "unsuspend_request",
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderEmail: currentUser.email,
+      linkUrl: "/admin?tab=appeals",
+    });
+  };
+
+  const replyToSuspensionQuery = async (
+    targetUserId: string,
+    replyMessage: string,
+    originalNotifId?: string,
+  ) => {
+    const trimmed = replyMessage.trim();
+    if (!trimmed) throw new Error("Reply message cannot be empty.");
+
+    await sendDirectNotification(
+      targetUserId,
+      "Response from Super Admin",
+      trimmed,
+      "info",
+      "/notifications",
+      {
+        notificationCategory: "suspension_reply",
+        senderId: currentUser?.id,
+        senderName: "Super Admin",
+        senderEmail: currentUser?.email,
+        replyToNotificationId: originalNotifId,
+      },
+    );
+
+    if (originalNotifId && currentUser?.id) {
+      const repliedAt = new Date().toISOString();
+      await updateBackpackUserField<AppNotification>(
+        currentUser.id,
+        "notifications",
+        (list) =>
+          list.map((n) =>
+            n.id === originalNotifId
+              ? { ...n, read: true, replied: true, repliedAt }
+              : n,
+          ),
+      );
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === originalNotifId
+            ? { ...n, read: true, replied: true, repliedAt }
+            : n,
+        ),
+      );
+    }
+  };
+
+  // Real-time stream for the signed-in user's own notifications (replies, appeals, approvals)
   useEffect(() => {
     if (!currentUser?.id) return;
-    let active = true;
-    getDoc(doc(db, "backpack", currentUser.id))
-      .then((snap) => {
-        if (!active || !snap.exists()) return;
-        const userObj = getUserData(snap.data());
+    const unsubscribeNotifs = onSnapshot(
+      doc(db, "backpack", currentUser.id),
+      (snap) => {
+        if (!snap.exists()) return;
+        const userObj = getUserData(snap.data() as Record<string, unknown>);
         if (Array.isArray(userObj.notifications)) {
           setNotifications(userObj.notifications as AppNotification[]);
         }
-      })
-      .catch((err) => {
-        console.warn("Notification sync notice:", err?.message || err);
-      });
+      },
+      (err) => {
+        console.warn("Notification stream notice:", err?.message || err);
+      },
+    );
     return () => {
-      active = false;
+      unsubscribeNotifs();
     };
   }, [currentUser?.id]);
 
@@ -1458,6 +2057,62 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const approveCourse = async (courseId: string) => {
+    const existingCourse = courses.find((c) => c.id === courseId);
+    if (!existingCourse) return;
+    const approvedAt = new Date().toISOString();
+    await updateCourse(courseId, {
+      approvalStatus: "approved",
+      approvedAt,
+      approvedBy: currentUser?.id || "super_admin",
+      rejectedAt: undefined,
+      rejectionReason: undefined,
+    });
+
+    const recipientId =
+      existingCourse.createdBy ||
+      existingCourse.orgId?.replace(/^org_/, "") ||
+      "";
+    if (recipientId) {
+      await sendDirectNotification(
+        recipientId,
+        "Course Approved",
+        `Your course "${existingCourse.title}" has been approved by Super Admin and is now live across the platform.`,
+        "info",
+        `/course/${existingCourse.id}`,
+        { notificationCategory: "approval_decision" },
+      ).catch(console.error);
+    }
+  };
+
+  const rejectCourse = async (courseId: string, reason?: string) => {
+    const existingCourse = courses.find((c) => c.id === courseId);
+    if (!existingCourse) return;
+    const rejectedAt = new Date().toISOString();
+    const cleanReason =
+      reason?.trim() || "Course did not meet platform publishing requirements.";
+    await updateCourse(courseId, {
+      approvalStatus: "rejected",
+      rejectedAt,
+      rejectionReason: cleanReason,
+    });
+
+    const recipientId =
+      existingCourse.createdBy ||
+      existingCourse.orgId?.replace(/^org_/, "") ||
+      "";
+    if (recipientId) {
+      await sendDirectNotification(
+        recipientId,
+        "Course Not Approved",
+        `Your course "${existingCourse.title}" was declined by Super Admin: ${cleanReason}`,
+        "info",
+        `/course/${existingCourse.id}`,
+        { notificationCategory: "approval_decision" },
+      ).catch(console.error);
+    }
+  };
+
   const deleteCourse = async (courseId: string) => {
     const existingCourse = courses.find((c) => c.id === courseId);
     if (!existingCourse) {
@@ -1465,81 +2120,106 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Strict ownership validation: user must be an organization that owns this course
+    const isSuperAdmin = isSuperAdminUser(currentUser);
+
+    // Ownership validation: Super Admin OR organization that owns this course
     const isOwner =
-      currentUser?.role === "organization" &&
-      (
-        existingCourse.orgId === currentUser.id ||
-        existingCourse.orgId === `org_${currentUser.id}` ||
-        existingCourse.createdBy === currentUser.id ||
-        (currentUser.id && existingCourse.orgId?.includes(currentUser.id)) ||
-        organizations.some(
-          (o) =>
-            (o.id === currentUser.id || o.ownerId === currentUser.id) &&
-            (existingCourse.orgId === o.id ||
-              existingCourse.orgId === o.ownerId ||
-              existingCourse.orgId === `org_${o.id}` ||
-              existingCourse.orgId === `org_${o.ownerId}`),
-        )
-      );
+      isSuperAdmin ||
+      (currentUser?.role === "organization" &&
+        (existingCourse.orgId === currentUser.id ||
+          existingCourse.orgId === `org_${currentUser.id}` ||
+          existingCourse.createdBy === currentUser.id ||
+          (currentUser.id && existingCourse.orgId?.includes(currentUser.id)) ||
+          organizations.some(
+            (o) =>
+              (o.id === currentUser.id || o.ownerId === currentUser.id) &&
+              (existingCourse.orgId === o.id ||
+                existingCourse.orgId === o.ownerId ||
+                existingCourse.orgId === `org_${o.id}` ||
+                existingCourse.orgId === `org_${o.ownerId}`),
+          )));
 
     if (!isOwner) {
       console.error("Unauthorized course deletion attempt:", courseId);
-      throw new Error("Unauthorized: Only the organization that owns this course can delete it.");
+      throw new Error(
+        "Unauthorized: Only the owning organization or a Super Admin can delete this course.",
+      );
     }
 
-    // 1. Remove from all possible target UIDs in backpack
-    const targetUids = new Set<string>();
-    if (existingCourse.orgId) {
-      targetUids.add(existingCourse.orgId);
-      if (existingCourse.orgId.startsWith("org_")) {
-        targetUids.add(existingCourse.orgId.replace("org_", ""));
-      }
-    }
-    if (existingCourse.createdBy) {
-      targetUids.add(existingCourse.createdBy);
-    }
-    if (currentUser?.id) {
-      targetUids.add(currentUser.id);
-    }
-
-    for (const uid of targetUids) {
-      try {
-        await updateBackpackUserField<Course>(
-          uid,
-          "course.courses",
-          (list) => list.filter((c) => c.id !== courseId),
-        );
-      } catch (err) {
-        console.warn(`Could not update backpack for uid ${uid}:`, err);
-      }
-    }
-
-    // 2. Also check all backpack docs to ensure complete removal from backend
+    // Remove the course AND course-linked records across all backpack documents
     try {
       const snap = await getDocs(collection(db, "backpack"));
       for (const docSnap of snap.docs) {
-        if (!targetUids.has(docSnap.id)) {
-          const data = docSnap.data();
-          const userObj = getUserData(data);
-          const courseObj = (userObj.course as Record<string, unknown>) || {};
-          if (
-            Array.isArray(courseObj.courses) &&
-            courseObj.courses.some((c: Course) => c.id === courseId)
-          ) {
-            await updateBackpackUserField<Course>(
-              docSnap.id,
-              "course.courses",
-              (list) => list.filter((c) => c.id !== courseId),
-            );
+        const userObj = {
+          ...getUserData(docSnap.data() as Record<string, unknown>),
+        };
+        let changed = false;
+
+        if (Array.isArray(userObj.enrollmentRequests)) {
+          const next = (userObj.enrollmentRequests as EnrollmentRequest[]).filter(
+            (r) => r.courseId !== courseId,
+          );
+          if (next.length !== userObj.enrollmentRequests.length) {
+            userObj.enrollmentRequests = next;
+            changed = true;
           }
+        }
+
+        if (Array.isArray(userObj.courseDonations)) {
+          const next = (userObj.courseDonations as CourseDonation[]).filter(
+            (d) => d.courseId !== courseId,
+          );
+          if (next.length !== userObj.courseDonations.length) {
+            userObj.courseDonations = next;
+            changed = true;
+          }
+        }
+
+        if (userObj.course && typeof userObj.course === "object") {
+          const courseObj = { ...(userObj.course as Record<string, unknown>) };
+          let courseChanged = false;
+
+          const stripByCourseId = (key: string) => {
+            if (Array.isArray(courseObj[key])) {
+              const orig = courseObj[key] as Array<{ courseId?: string; id?: string }>;
+              const next = orig.filter((item) =>
+                key === "courses" ? item.id !== courseId : item.courseId !== courseId,
+              );
+              if (next.length !== orig.length) {
+                courseObj[key] = next;
+                courseChanged = true;
+              }
+            }
+          };
+
+          stripByCourseId("courses");
+          stripByCourseId("userProgress");
+          stripByCourseId("materials");
+          stripByCourseId("attendance");
+          stripByCourseId("offlineRosterStudents");
+          stripByCourseId("assessments");
+          stripByCourseId("submissions");
+          stripByCourseId("scheduleEvents");
+          stripByCourseId("events");
+          stripByCourseId("messages");
+
+          if (courseChanged) {
+            userObj.course = courseObj;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          await updateDoc(doc(db, "backpack", docSnap.id), {
+            user: sanitizeForFirestore(userObj),
+          });
         }
       }
     } catch (scanErr) {
       console.warn("Backpack doc scan notice during course deletion:", scanErr);
     }
 
-    // 3. Update local state and local cache immediately
+    // Update local state and caches immediately
     setCourses((prev) => {
       const updated = prev.filter((c) => c.id !== courseId);
       try {
@@ -1549,6 +2229,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       return updated;
     });
+    setAppEvents((prev) => prev.filter((e) => e.courseId !== courseId));
+    setScheduleEvents((prev) => prev.filter((s) => s.courseId !== courseId));
+    setMaterials((prev) => prev.filter((m) => m.courseId !== courseId));
+    setAssessments((prev) => prev.filter((a) => a.courseId !== courseId));
+    setSubmissions((prev) => prev.filter((s) => s.courseId !== courseId));
+    setEnrollmentRequests((prev) => prev.filter((r) => r.courseId !== courseId));
+    setAttendanceRecords((prev) => prev.filter((a) => a.courseId !== courseId));
+    setUserProgress((prev) => prev.filter((p) => p.courseId !== courseId));
+    setMessages((prev) => prev.filter((m) => m.courseId !== courseId));
 
     if (currentUser?.id) {
       addNotification({
@@ -4008,6 +4697,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addCourse,
         updateCourse,
         deleteCourse,
+        approveCourse,
+        rejectCourse,
         addCourseDonation,
         getCourseAdmissionGate,
         addEnrollmentRequest,
@@ -4072,9 +4763,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         clearNotifications,
         deleteNotification,
         allUsers,
+        allPlatformUsers,
+        fetchAllUsersFromBackend,
         suspendUser,
         reactivateUser,
         deleteUserAccount,
+        notifySuperAdmins,
+        submitSuspensionQuery,
+        requestAccountUnsuspension,
+        replyToSuspensionQuery,
         sendDirectNotification,
         payrollRecipients,
         payrollSplitGroups,

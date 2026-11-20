@@ -46,6 +46,11 @@ import {
   saveGuestIdentity,
   useMyCourses,
 } from "../../lib/eventEligibility";
+import {
+  getEventApprovalStatus,
+  isEventApproved,
+  isSuperAdminUser,
+} from "../../lib/approval";
 
 /* ============================================================= */
 /* Props                                                         */
@@ -140,6 +145,9 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
     rejectWaitingRoomUser,
     getWaitingRoomStatus,
     getWaitingParticipants,
+    approveEvent,
+    rejectEvent,
+    deleteEvent,
   } = useEventContext();
 
   // Read live snapshot of this event from context so waiting-room approvals update in real time
@@ -149,7 +157,10 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
   const eventType = normaliseEventType(event);
   const formatLabel = EVENT_FORMAT_LABELS[normaliseEventFormat(event.category)];
   const isAuthenticated = Boolean(currentUser);
+  const isSuperAdmin = isSuperAdminUser(currentUser);
   const isOrganizer = isEventOrganizer(event, currentUser, organizations);
+  const eventApproved = isEventApproved(event);
+  const approvalStatus = getEventApprovalStatus(event);
 
   const [guestIdentity, setGuestIdentity] = useState(() =>
     getStoredGuestIdentity(),
@@ -356,6 +367,31 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
 
         {/* ---------------- Body ---------------- */}
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
+          {!eventApproved && (
+            <div
+              className={`rounded-2xl border p-4 flex items-start gap-3 ${
+                approvalStatus === "rejected"
+                  ? "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-200"
+                  : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200"
+              }`}
+            >
+              <Hourglass className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-bold">
+                  {approvalStatus === "rejected"
+                    ? "Declined by Super Admin"
+                    : "Pending Super Admin Approval"}
+                </p>
+                <p className="mt-0.5 opacity-90">
+                  {approvalStatus === "rejected"
+                    ? event.rejectionReason ||
+                      "This event has been declined and is hidden from platform users."
+                    : "This event must be approved by a Super Admin before platform users can view or join it."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Primary facts */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <DetailRow
@@ -580,9 +616,67 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
             </p>
           )}
 
+          {isSuperAdmin && (
+            <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+              {!eventApproved && (
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={async () => {
+                    setIsBusy(true);
+                    await approveEvent(event.id);
+                    setIsBusy(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Approve Event
+                </button>
+              )}
+              {approvalStatus !== "rejected" && (
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={async () => {
+                    setIsBusy(true);
+                    await rejectEvent(event.id);
+                    setIsBusy(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Decline Event
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={async () => {
+                  setIsBusy(true);
+                  await deleteEvent(event.id);
+                  setIsBusy(false);
+                  onClose();
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer ml-auto"
+              >
+                Delete Event
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
-            {/* Organizer CTA */}
-            {isOrganizer ? (
+            {!eventApproved && !isSuperAdmin ? (
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center justify-center gap-2 flex-1 px-5 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm font-semibold cursor-not-allowed"
+              >
+                <Hourglass className="w-4 h-4" />
+                {approvalStatus === "rejected"
+                  ? "Event Declined by Super Admin"
+                  : "Waiting for Super Admin Approval"}
+              </button>
+            ) : isOrganizer ? (
               <>
                 {event.link ? (
                   <a

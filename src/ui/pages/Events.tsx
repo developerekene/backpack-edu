@@ -52,6 +52,11 @@ import {
   resolveEnrolledCourse,
   useMyCourses,
 } from "../../lib/eventEligibility";
+import {
+  getEventApprovalStatus,
+  isEventApproved,
+  isSuperAdminUser,
+} from "../../lib/approval";
 import Footer from "../components/Footer";
 
 /* ============================================================= */
@@ -170,12 +175,25 @@ const Events: React.FC = () => {
       courses,
     });
 
+  const isSuperAdmin = isSuperAdminUser(currentUser);
+
+  const visiblePlatformEvents = useMemo(
+    () =>
+      events.filter(
+        (evt) =>
+          isEventApproved(evt) ||
+          isSuperAdmin ||
+          isEventOrganizer(evt, currentUser, organizations),
+      ),
+    [events, isSuperAdmin, currentUser, organizations],
+  );
+
   const sortedEvents = useMemo(
     () =>
-      [...events].sort((a, b) =>
+      [...visiblePlatformEvents].sort((a, b) =>
         `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
       ),
-    [events],
+    [visiblePlatformEvents],
   );
 
   /* Statistics calculation */
@@ -186,7 +204,7 @@ const Events: React.FC = () => {
     let onsiteCount = 0;
     let myAttendingCount = 0;
 
-    for (const evt of events) {
+    for (const evt of visiblePlatformEvents) {
       const eventType = normaliseEventType(evt);
       if (eventType === "go_live") goLiveCount++;
       else privateCount++;
@@ -201,14 +219,14 @@ const Events: React.FC = () => {
     }
 
     return {
-      total: events.length,
+      total: visiblePlatformEvents.length,
       goLive: goLiveCount,
       privateEvents: privateCount,
       online: onlineCount,
       onsite: onsiteCount,
       attending: myAttendingCount,
     };
-  }, [events, activeParticipantId, isAttending]);
+  }, [visiblePlatformEvents, activeParticipantId, isAttending]);
 
   /* Filter and search pipeline */
   const visibleEvents = useMemo(() => {
@@ -625,6 +643,20 @@ const Events: React.FC = () => {
                               Tomorrow
                             </span>
                           ) : null}
+
+                          {!isEventApproved(evt) && (
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider ${
+                                getEventApprovalStatus(evt) === "rejected"
+                                  ? "bg-rose-50 dark:bg-rose-950/50 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300"
+                                  : "bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300"
+                              }`}
+                            >
+                              {getEventApprovalStatus(evt) === "rejected"
+                                ? "Rejected"
+                                : "Pending Approval"}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1.5">
@@ -746,7 +778,20 @@ const Events: React.FC = () => {
                       )}
 
                       <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2.5">
-                        {organizer ? (
+                        {!isEventApproved(evt) && !isSuperAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => setDetailsEvent(evt)}
+                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs sm:text-sm font-semibold font-heading transition cursor-pointer"
+                          >
+                            <Hourglass className="w-4 h-4" />
+                            <span>
+                              {getEventApprovalStatus(evt) === "rejected"
+                                ? "Declined by Super Admin"
+                                : "Awaiting Super Admin Approval"}
+                            </span>
+                          </button>
+                        ) : organizer ? (
                           <button
                             onClick={() => handlePrimaryAction(evt)}
                             className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#006cbd] text-white text-xs sm:text-sm font-semibold font-heading transition-all shadow-xs cursor-pointer"

@@ -10,6 +10,7 @@ import { SpeechToTextButton } from "../components/SpeechToTextButton";
 import { FileUpload } from "../components/FileUpload";
 import { CustomAlert } from "../components/CustomAlert";
 import { generateId } from "../../lib/id";
+import { isSuperAdminUser } from "../../lib/approval";
 import {
   Plus,
   X,
@@ -52,7 +53,7 @@ const getCourseUploadDraft = () => {
 
 const CourseUpload = () => {
   const navigate = useNavigate();
-  const { addCourse, orgMembers, organizations, courses, updateOrgMember } = useAppContext();
+  const { addCourse, orgMembers, organizations, courses, updateOrgMember, notifySuperAdmins } = useAppContext();
   const { currentUser } = useAuth();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -632,10 +633,19 @@ const CourseUpload = () => {
 
     const newCourseId = generateId("c");
 
+    const isSuperAdmin = isSuperAdminUser(currentUser);
+    const nowIso = new Date().toISOString();
+    const initialApprovalStatus = isSuperAdmin ? "approved" : "pending";
+
     try {
       await addCourse({
         id: newCourseId,
         orgId: orgIdToUse,
+        createdBy: currentUser.id,
+        approvalStatus: initialApprovalStatus,
+        submittedAt: nowIso,
+        approvedAt: isSuperAdmin ? nowIso : undefined,
+        approvedBy: isSuperAdmin ? currentUser.id : undefined,
         title,
         description,
         price: effectiveTuitionCost,
@@ -726,6 +736,19 @@ const CourseUpload = () => {
               (mod.items && mod.items.length > 0),
           ),
       });
+
+      if (!isSuperAdmin) {
+        notifySuperAdmins({
+          title: "Course Awaiting Super Admin Approval",
+          message: `"${title.trim()}" submitted by ${currentUser.name} requires Super Admin approval before appearing on the platform.`,
+          type: "info",
+          notificationCategory: "approval_request",
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderEmail: currentUser.email,
+          linkUrl: "/admin?tab=courses",
+        }).catch(console.error);
+      }
 
       if (selectedInstructor && updateOrgMember) {
         const prevCourseIds = selectedInstructor.courseIds || [];

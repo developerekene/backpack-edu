@@ -400,6 +400,12 @@ export interface Course {
     textColor?: string;
     layout?: "classic" | "modern" | "minimal" | "elegant" | "creative";
   };
+  approvalStatus?: "pending" | "approved" | "rejected";
+  submittedAt?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface CourseModuleMedia {
@@ -959,6 +965,18 @@ export interface AppNotification {
   read: boolean;
   createdAt: string;
   linkUrl?: string;
+  senderId?: string;
+  senderName?: string;
+  senderEmail?: string;
+  notificationCategory?:
+    | "suspension_query"
+    | "unsuspend_request"
+    | "suspension_reply"
+    | "approval_request"
+    | "approval_decision";
+  replyToNotificationId?: string;
+  replied?: boolean;
+  repliedAt?: string;
 }
 
 export type EventVisibilityType = "go_live" | "private";
@@ -1031,6 +1049,12 @@ export interface AppEvent {
   createdBy: EventCreator;
   attendees: EventAttendee[];
   waitingRoom?: EventWaitingParticipant[];
+  approvalStatus?: "pending" | "approved" | "rejected";
+  submittedAt?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt?: string;
 }

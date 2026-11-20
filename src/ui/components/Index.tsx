@@ -33,6 +33,9 @@ import { Notifications } from "../pages/Notifications";
 import { AttendancePage } from "../pages/AttendancePage";
 import { PayrollPage } from "../pages/PayrollPage";
 
+import { SuspendedAccountScreen } from "./SuspendedAccountScreen";
+import { isSuperAdminUser } from "../../lib/approval";
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, firebaseUser, loading } = useAuth();
 
@@ -56,6 +59,135 @@ const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </div>
 );
 
+const AppShell: React.FC = () => {
+  const { currentUser } = useAuth();
+  const isSuspendedLockout = Boolean(
+    currentUser?.isSuspended && !isSuperAdminUser(currentUser),
+  );
+
+  if (isSuspendedLockout) {
+    return <SuspendedAccountScreen />;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f8fafd] dark:bg-[#0a1824] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+      <Navbar />
+      <UniversalAccessibilityModal />
+      <main className="flex-1 w-full flex flex-col">
+        <Routes>
+          {/* Home & AboutUs have full-width layout capabilities with edge-to-edge Hero */}
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<PageWrapper><Login /></PageWrapper>} />
+          <Route path="/signup" element={<PageWrapper><Signup /></PageWrapper>} />
+          <Route path="/about-us" element={<AboutUs />} />
+          <Route path="/donate" element={<Navigate to="/explore" replace />} />
+          <Route path="/donate/:courseId" element={<Navigate to="/explore" replace />} />
+
+          <Route path="/privacy" element={<PageWrapper><Policy /></PageWrapper>} />
+          <Route path="/live" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
+          <Route path="/live/:roomName" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
+          <Route path="/explore" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />
+          <Route path="/courses" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />
+          <Route path="/org/:orgId" element={<PageWrapper><OrgProfile /></PageWrapper>} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><Dashboard /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><Notifications /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/attendance"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><AttendancePage /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/payroll"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><PayrollPage /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/onboard"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><Onboarding /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/upload-course"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><CourseUpload /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/course/:courseId"
+            element={<PageWrapper><CourseDetails /></PageWrapper>}
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><Settings /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><Profile /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lunch"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><Lunch /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><SuperAdmin /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/super-admin"
+            element={
+              <ProtectedRoute>
+                <PageWrapper><SuperAdmin /></PageWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/events" element={<PageWrapper><Events /></PageWrapper>} />
+        </Routes>
+      </main>
+    </div>
+  );
+};
+
 const Index: React.FC = () => {
   return (
     <ThemeProvider>
@@ -69,121 +201,7 @@ const Index: React.FC = () => {
                 <ColorFilterOverlay />
                 <ReadingFocusRuler />
                 <TTSFloatingController />
-                <div className="min-h-screen bg-[#f8fafd] dark:bg-[#0a1824] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
-                  <Navbar />
-                  <UniversalAccessibilityModal />
-                  <main className="flex-1 w-full flex flex-col">
-                    <Routes>
-                      {/* Home & AboutUs have full-width layout capabilities with edge-to-edge Hero */}
-                      <Route path="/" element={<Home />} />
-                      <Route path="/login" element={<PageWrapper><Login /></PageWrapper>} />
-                      <Route path="/signup" element={<PageWrapper><Signup /></PageWrapper>} />
-                      <Route path="/about-us" element={<AboutUs />} />
-                      <Route path="/donate" element={<Navigate to="/explore" replace />} />
-                      <Route path="/donate/:courseId" element={<Navigate to="/explore" replace />} />
-
-                      <Route path="/privacy" element={<PageWrapper><Policy /></PageWrapper>} />
-                      <Route path="/live" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
-                      <Route path="/live/:roomName" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
-                      <Route path="/explore" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />
-                      <Route path="/courses" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />
-                      <Route path="/org/:orgId" element={<PageWrapper><OrgProfile /></PageWrapper>} />
-                      <Route
-                        path="/dashboard"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><Dashboard /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/notifications"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><Notifications /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/attendance"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><AttendancePage /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/payroll"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><PayrollPage /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/onboard"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><Onboarding /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/upload-course"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><CourseUpload /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/course/:courseId"
-                        element={<PageWrapper><CourseDetails /></PageWrapper>}
-                      />
-                      <Route
-                        path="/settings"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><Settings /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/profile"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><Profile /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/lunch"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><Lunch /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/admin"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><SuperAdmin /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/super-admin"
-                        element={
-                          <ProtectedRoute>
-                            <PageWrapper><SuperAdmin /></PageWrapper>
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route path="/events" element={<PageWrapper><Events /></PageWrapper>} />
-                    </Routes>
-                  </main>
-                </div>
+                <AppShell />
               </BrowserRouter>
             </AccessibilityProvider>
           </EventProvider>
