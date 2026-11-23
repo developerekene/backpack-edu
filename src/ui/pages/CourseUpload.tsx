@@ -305,9 +305,7 @@ const CourseUpload = () => {
     setIsDraftRestored(false);
   };
 
-  const isSuperAdmin =
-    currentUser?.role === "super_admin" ||
-    currentUser?.email?.toLowerCase() === "ekenehq@gmail.com";
+  const isSuperAdmin = isSuperAdminUser(currentUser);
 
   if (
     !currentUser ||
@@ -633,7 +631,6 @@ const CourseUpload = () => {
 
     const newCourseId = generateId("c");
 
-    const isSuperAdmin = isSuperAdminUser(currentUser);
     const nowIso = new Date().toISOString();
     const initialApprovalStatus = isSuperAdmin ? "approved" : "pending";
 

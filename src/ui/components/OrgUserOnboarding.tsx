@@ -20,6 +20,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
   // Registered App Users state (email-based privacy-preserving search)
   const [registeredUsers, setRegisteredUsers] = useState<AppUser[]>([]);
+  const [loadingRegisteredUsers, setLoadingRegisteredUsers] = useState(false);
   const [emailSearchQuery, setEmailSearchQuery] = useState("");
   const [selectedAppUserId, setSelectedAppUserId] = useState("");
   const [isSearching, setIsSearching] = useState(false);
