@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { LiveKitCall } from "./LiveKitCall";
 import {
   X,
   CalendarDays,
@@ -189,14 +190,16 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
   const waitingStatus = getWaitingRoomStatus(event.id, activeParticipantId);
   const waitingParticipants = getWaitingParticipants(event.id);
   const roomSlug = event.roomName || `evt-${event.id}`;
+  const [isLiveStageOpen, setIsLiveStageOpen] = useState(false);
 
   const audienceLabel = eventAudienceLabel(event);
   const enrolledCourse = resolveEnrolledCourse(event, myCourses);
 
+  const displayName =
+    currentUser?.name || guestIdentity?.name || guestName.trim() || "Participant";
+
   /* ---- Actions ---- */
   const handleEnterLiveRoom = () => {
-    const displayName =
-      currentUser?.name || guestIdentity?.name || guestName.trim() || "Participant";
     onClose();
     navigate(
       `/live/${roomSlug}?name=${encodeURIComponent(displayName)}${
@@ -837,6 +840,21 @@ export const EventDetailsModel: React.FC<EventDetailsModelProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Embedded Reusable Live Stage for Events */}
+      {isLiveStageOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col animate-in fade-in">
+          <LiveKitCall
+            roomName={roomSlug}
+            participantName={displayName}
+            userRole={currentUser?.role || "student"}
+            courseId={event.courseId}
+            eventId={event.id}
+            eventTitle={event.title}
+            onClose={() => setIsLiveStageOpen(false)}
+          />
+        </div>
+      )}
     </div>
   );
 };

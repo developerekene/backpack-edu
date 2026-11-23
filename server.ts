@@ -2353,7 +2353,13 @@ app.get("/api/paystack/verify/:reference", async (req, res) => {
 // --- LiveKit Token generation endpoint ---
 app.post("/api/livekit/token", async (req, res) => {
   try {
-    const { roomName, participantName, identity } = req.body;
+    const effectiveRoom = req.body.roomName || req.body.room || "backpack-live-class";
+    const effectiveName = (req.body.participantName || req.body.name || "Guest Participant").trim();
+    const role = req.body.role || (req.body.isGuestSpeaker ? "guest_speaker" : "student");
+    const isGuestSpeaker = Boolean(req.body.isGuestSpeaker || role === "guest_speaker" || role === "speaker");
+    const isGuest = Boolean(req.body.isGuest || !req.body.identity || req.body.identity.startsWith("guest_"));
+    const identity = req.body.identity;
+
     const apiKey =
       process.env.LIVEKIT_API_KEY ||
       process.env.VITE_LIVEKIT_API_KEY ||
@@ -2366,19 +2372,27 @@ app.post("/api/livekit/token", async (req, res) => {
 
     const participantIdentity =
       identity ||
-      `${(participantName || "user").replace(/\s+/g, "_")}_${Math.random().toString(36).substring(2, 7)}`;
+      `${isGuest ? "guest_" : ""}${(effectiveName || "user").replace(/[^a-zA-Z0-9_-]/g, "_")}_${Math.random().toString(36).substring(2, 7)}`;
     const at = new AccessToken(apiKey, apiSecret, {
       identity: participantIdentity,
-      name: participantName || "Participant",
+      name: effectiveName || "Participant",
+      metadata: JSON.stringify({
+        displayName: effectiveName,
+        role: isGuestSpeaker ? "guest_speaker" : role,
+        isGuestSpeaker,
+        isGuest,
+      }),
     });
     at.addGrant({
       roomJoin: true,
-      room: roomName || "backpack-live-class",
+      room: effectiveRoom,
       canPublish: true,
       canSubscribe: true,
+      canPublishData: true,
+      canPublishSources: ["camera", "microphone", "screen_share", "screen_share_audio"],
     });
     const token = await at.toJwt();
-    return res.json({ token, wsUrl: wsUrl || null, roomName });
+    return res.json({ token, wsUrl: wsUrl || null, roomName: effectiveRoom });
   } catch (err) {
     return res.status(500).json({ error: String(err) });
   }

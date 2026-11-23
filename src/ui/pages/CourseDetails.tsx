@@ -38,6 +38,7 @@ import {
   Edit3,
   Timer,
   ShieldAlert,
+  Sparkles,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
@@ -181,6 +182,7 @@ const CourseDetails = () => {
   });
   const [linkCopied, setLinkCopied] = useState(false);
   const [copiedClassLink, setCopiedClassLink] = useState(false);
+  const [copiedSpeakerClassLink, setCopiedSpeakerClassLink] = useState(false);
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -192,6 +194,19 @@ const CourseDetails = () => {
       await navigator.clipboard.writeText(url);
       setCopiedClassLink(true);
       setTimeout(() => setCopiedClassLink(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleCopySpeakerClassUrl = async (targetRoom: string) => {
+    try {
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const url = `${origin}/live/${targetRoom}?role=speaker`;
+      await navigator.clipboard.writeText(url);
+      setCopiedSpeakerClassLink(true);
+      setTimeout(() => setCopiedSpeakerClassLink(false), 2500);
     } catch {
       // Fallback
     }
@@ -1338,6 +1353,22 @@ const CourseDetails = () => {
               )}
               <span>
                 {copiedClassLink ? "Copied Link!" : "Copy Class Link"}
+              </span>
+            </button>
+            <button
+              onClick={() =>
+                handleCopySpeakerClassUrl(getEffectiveRoomName(liveCallActiveEvent))
+              }
+              className="flex-1 sm:flex-none px-3.5 py-2.5 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-bold text-xs rounded-xl transition flex items-center justify-center border border-purple-200 dark:border-purple-800 shadow-2xs cursor-pointer font-heading"
+              title="Copy guest speaker link for external presenters"
+            >
+              {copiedSpeakerClassLink ? (
+                <Check className="w-4 h-4 mr-1.5 text-emerald-500" />
+              ) : (
+                <Sparkles className="w-4 h-4 mr-1.5 text-purple-500" />
+              )}
+              <span>
+                {copiedSpeakerClassLink ? "Copied Speaker Link!" : "Invite Guest Speaker 🎙️"}
               </span>
             </button>
             <button

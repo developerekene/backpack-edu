@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   LiveKitRoom,
   VideoConference,
+  RoomAudioRenderer,
   useAudioPlayback,
   useRoomContext,
+  useParticipants,
+  useLocalParticipant,
 } from '@livekit/components-react';
 import { RoomEvent } from 'livekit-client';
 import '@livekit/components-styles';
@@ -28,6 +31,9 @@ import {
   Maximize2,
   Minimize2,
   Timer,
+  UserPlus,
+  X,
+  Share2,
 } from 'lucide-react';
 import { LiveClassRecorder } from './LiveClassRecorder';
 import { endLiveClassSessionApi } from '../../lib/liveClass';
@@ -40,8 +46,374 @@ interface LiveKitCallProps {
   participantName?: string;
   userRole?: string;
   courseId?: string;
+  eventId?: string;
+  eventTitle?: string;
   onClose?: () => void;
+  initialVideoEnabled?: boolean;
+  initialAudioEnabled?: boolean;
+  isGuestSpeaker?: boolean;
 }
+
+/**
+ * Visualizer that gives users immediate feedback on their own microphone:
+ * Shows whether their mic is live and pulsing sound wave bars when they talk.
+ */
+const LocalMicSpeakingVisualizer: React.FC = () => {
+  const { localParticipant } = useLocalParticipant();
+  const isMicEnabled = localParticipant.isMicrophoneEnabled;
+  const isSpeaking = localParticipant.isSpeaking;
+
+  return (
+    <div
+      className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+        !isMicEnabled
+          ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+          : isSpeaking
+          ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-sm animate-pulse'
+          : 'bg-slate-800/80 text-slate-300 border border-slate-700/80'
+      }`}
+      title={
+        !isMicEnabled
+          ? 'Your microphone is currently muted.'
+          : isSpeaking
+          ? 'Your microphone is detecting voice audio right now.'
+          : 'Your microphone is connected and ready.'
+      }
+    >
+      {!isMicEnabled ? (
+        <>
+          <MicOff className="w-3.5 h-3.5 text-red-400" />
+          <span className="hidden sm:inline">Muted</span>
+        </>
+      ) : isSpeaking ? (
+        <>
+          <div className="flex items-center space-x-0.5">
+            <span className="w-1 h-3 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1 h-4 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <span className="font-bold text-emerald-200">Speaking 🎙️</span>
+        </>
+      ) : (
+        <>
+          <Mic className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="hidden sm:inline">Mic Ready</span>
+        </>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Real-time reactive participants drawer for the LiveKit Cloud room.
+ * Displays all active participants, dynamically updating as people join and leave,
+ * showing speaking state, mic/cam statuses, and role tags (Lead Instructor, Guest Speaker 🎙️, Guest, Learner).
+ */
+const LiveKitParticipantsPanel: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onOpenInvite: () => void;
+  effectiveRole: string;
+}> = ({ isOpen, onClose, onOpenInvite, effectiveRole }) => {
+  const participants = useParticipants();
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="absolute right-0 top-0 bottom-0 w-80 max-w-[85vw] bg-slate-900/98 backdrop-blur-md border-l border-slate-800 z-30 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+      <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Users className="w-4 h-4 text-indigo-400" />
+          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+            In Classroom ({participants.length})
+          </h4>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {participants.map((p) => {
+          let metadata: any = {};
+          try {
+            if (p.metadata) metadata = JSON.parse(p.metadata);
+          } catch {}
+
+          const isSpeaker =
+            metadata.isGuestSpeaker ||
+            metadata.role === 'guest_speaker' ||
+            metadata.role === 'speaker';
+          const isLead =
+            metadata.role === 'instructor' ||
+            metadata.role === 'teacher' ||
+            (!metadata.role && p.isLocal && effectiveRole === 'instructor');
+          const isGuest =
+            metadata.isGuest ||
+            metadata.role === 'guest' ||
+            p.identity.startsWith('guest_');
+
+          const nameToDisplay =
+            metadata.displayName || p.name || p.identity || 'Participant';
+
+          return (
+            <div
+              key={p.sid || p.identity}
+              className={`p-2.5 rounded-xl border flex items-center justify-between transition ${
+                p.isSpeaking
+                  ? 'bg-indigo-950/50 border-indigo-500 shadow-xs ring-1 ring-indigo-500/50'
+                  : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 relative ${
+                    isSpeaker
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : isLead
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : isGuest
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {nameToDisplay.charAt(0).toUpperCase()}
+                  {p.isSpeaking && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-xs font-bold text-white truncate max-w-[130px]">
+                      {nameToDisplay}
+                    </span>
+                    {p.isLocal && (
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        (You)
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-1 mt-0.5">
+                    {isSpeaker ? (
+                      <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-[9px] font-extrabold uppercase tracking-wider">
+                        Guest Speaker 🎙️
+                      </span>
+                    ) : isLead ? (
+                      <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded text-[9px] font-bold">
+                        Lead Instructor
+                      </span>
+                    ) : isGuest ? (
+                      <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[9px] font-bold">
+                        Guest
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.2 bg-slate-800 text-slate-400 rounded text-[9px]">
+                        Learner
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-1.5 shrink-0">
+                {p.isMicrophoneEnabled ? (
+                  <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <MicOff className="w-3.5 h-3.5 text-red-400" />
+                )}
+                {p.isCameraEnabled ? (
+                  <Video className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <VideoOff className="w-3.5 h-3.5 text-slate-500" />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="p-3 border-t border-slate-800 bg-slate-950/80">
+        <button
+          type="button"
+          onClick={onOpenInvite}
+          className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          <span>Invite People / Guest Speaker</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Trigger component rendered inside LiveKitRoom to access useParticipants()
+ */
+const LiveKitParticipantsTrigger: React.FC<{
+  onToggleDrawer: () => void;
+  onOpenInvite: () => void;
+}> = ({ onToggleDrawer, onOpenInvite }) => {
+  const participants = useParticipants();
+  return (
+    <div className="flex items-center space-x-1.5">
+      <button
+        type="button"
+        onClick={onToggleDrawer}
+        className="px-2.5 py-1.5 bg-slate-800/95 hover:bg-slate-700 text-slate-200 border border-slate-700/80 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition shrink-0 cursor-pointer shadow-sm"
+        title="View Classroom Participants"
+      >
+        <Users className="w-3.5 h-3.5 text-indigo-400" />
+        <span>Participants ({participants.length})</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenInvite}
+        className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition shrink-0 cursor-pointer shadow-sm"
+        title="Invite People / External Guest Speaker"
+      >
+        <UserPlus className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Invite</span>
+      </button>
+    </div>
+  );
+};
+
+/**
+ * Universal Invite Modal supporting Attendee & Guest Speaker Links
+ */
+const InvitePeopleModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  attendeeJoinUrl: string;
+  speakerJoinUrl: string;
+  copiedAttendeeUrl: boolean;
+  copiedSpeakerUrl: boolean;
+  onCopyAttendee: () => void;
+  onCopySpeaker: () => void;
+  roomName: string;
+}> = ({
+  isOpen,
+  onClose,
+  attendeeJoinUrl,
+  speakerJoinUrl,
+  copiedAttendeeUrl,
+  copiedSpeakerUrl,
+  onCopyAttendee,
+  onCopySpeaker,
+  roomName,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 text-left">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+              <UserPlus className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-base">
+                Invite to &ldquo;{roomName}&rdquo;
+              </h3>
+              <p className="text-xs text-slate-400">
+                Share direct links. External participants join without creating an account.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 1. Attendee Link */}
+        <div className="space-y-2 p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-white flex items-center">
+              <Users className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
+              Attendee Join Link
+            </span>
+            <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-semibold">
+              Students &amp; Guests
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Anyone opening this link can enter their name and join the session directly.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={attendeeJoinUrl}
+              className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 outline-none"
+            />
+            <button
+              type="button"
+              onClick={onCopyAttendee}
+              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer"
+            >
+              {copiedAttendeeUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedAttendeeUrl ? "Copied" : "Copy"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2. Guest Speaker Link */}
+        <div className="space-y-2 p-3.5 bg-purple-950/30 rounded-2xl border border-purple-900/60">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-purple-200 flex items-center">
+              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-400" />
+              External Guest Speaker Link 🎙️
+            </span>
+            <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-extrabold uppercase">
+              Speaker Stage Access
+            </span>
+          </div>
+          <p className="text-[11px] text-purple-300">
+            Automatically tags the invitee as a Guest Speaker with stage presentation &amp; speaking privileges.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={speakerJoinUrl}
+              className="flex-1 bg-slate-900 border border-purple-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 outline-none"
+            />
+            <button
+              type="button"
+              onClick={onCopySpeaker}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer"
+            >
+              {copiedSpeakerUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedSpeakerUrl ? "Copied" : "Copy"}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="pt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Unlocks remote WebRTC audio playback inside mobile & strict-autoplay browsers.
@@ -163,7 +535,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   participantName = 'Guest Learner',
   userRole = 'student',
   courseId,
+  eventId,
+  eventTitle,
   onClose,
+  initialVideoEnabled = true,
+  initialAudioEnabled = true,
+  isGuestSpeaker = false,
 }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(true);
@@ -172,8 +549,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [sessionAccessError, setSessionAccessError] = useState<string | null>(null);
   const [mediaDeviceWarning, setMediaDeviceWarning] = useState<string | null>(null);
   const [publishMediaEnabled, setPublishMediaEnabled] = useState<{ audio: boolean; video: boolean }>({
-    audio: true,
-    video: true,
+    audio: initialAudioEnabled,
+    video: initialVideoEnabled,
   });
   const [sessionInstanceId] = useState<string>(() => Math.random().toString(36).substring(2, 7));
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -184,6 +561,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const { currentUser } = useAuth();
   const sessionStartTimeRef = useRef<number>(0);
   const [elapsedEngagementSeconds, setElapsedEngagementSeconds] = useState<number>(0);
+
+  // Participants drawer and Invite modal states
+  const [isParticipantsDrawerOpen, setIsParticipantsDrawerOpen] = useState<boolean>(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
+  const [copiedAttendeeUrl, setCopiedAttendeeUrl] = useState<boolean>(false);
+  const [copiedSpeakerUrl, setCopiedSpeakerUrl] = useState<boolean>(false);
 
   useEffect(() => {
     sessionStartTimeRef.current = Date.now();
@@ -211,8 +594,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   }, []);
 
   // In-Call Controls State
-  const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [isVideoOff, setIsVideoOff] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(!initialAudioEnabled);
+  const [isVideoOff, setIsVideoOff] = useState<boolean>(!initialVideoEnabled);
   const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false);
   const [handRaised, setHandRaised] = useState<boolean>(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<'chat' | 'participants' | 'settings' | null>(null);
@@ -227,11 +610,72 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [showScreenShareNotice, setShowScreenShareNotice] = useState<boolean>(false);
   const [copiedJoinUrl, setCopiedJoinUrl] = useState<boolean>(false);
 
+  const cleanRoomName = (roomName || 'backpack-live-class')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'backpack-live-class';
+
+  const isSpeaker = Boolean(
+    isGuestSpeaker ||
+    userRole === 'guest_speaker' ||
+    userRole === 'speaker'
+  );
+
+  const effectiveRole = isSpeaker
+    ? 'guest_speaker'
+    : userRole.toLowerCase().includes('teach') ||
+      userRole.toLowerCase().includes('instructor') ||
+      userRole.toLowerCase().includes('org')
+    ? 'instructor'
+    : userRole === 'guest'
+    ? 'guest'
+    : 'student';
+
+  const roleLabel = isSpeaker
+    ? 'Guest Speaker 🎙️'
+    : effectiveRole === 'instructor'
+    ? 'Lead Instructor'
+    : effectiveRole === 'guest'
+    ? 'Guest'
+    : 'Learner';
+
+  const attendeeJoinUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/live/${cleanRoomName}`
+    : `/live/${cleanRoomName}`;
+
+  const speakerJoinUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/live/${cleanRoomName}?role=speaker`
+    : `/live/${cleanRoomName}?role=speaker`;
+
+  // Zero-config multi-user WebRTC conference bridge fallback
+  const jitsiConferenceUrl = useMemo(() => {
+    return `https://meet.jit.si/${cleanRoomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=${!initialAudioEnabled}&config.startWithVideoMuted=${!initialVideoEnabled}&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(displayName)}`;
+  }, [cleanRoomName, initialAudioEnabled, initialVideoEnabled, displayName]);
+
+  const handleCopyAttendeeLink = async () => {
+    try {
+      await navigator.clipboard.writeText(attendeeJoinUrl);
+      setCopiedAttendeeUrl(true);
+      setTimeout(() => setCopiedAttendeeUrl(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleCopySpeakerLink = async () => {
+    try {
+      await navigator.clipboard.writeText(speakerJoinUrl);
+      setCopiedSpeakerUrl(true);
+      setTimeout(() => setCopiedSpeakerUrl(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
+
   const handleCopyDirectJoinUrl = async () => {
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const url = `${origin}/live/${cleanRoomName}`;
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(attendeeJoinUrl);
       setCopiedJoinUrl(true);
       setTimeout(() => setCopiedJoinUrl(false), 2500);
     } catch {
@@ -256,18 +700,6 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
   const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
 
-  const cleanRoomName = (roomName || 'backpack-live-class')
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'backpack-live-class';
-
-  const effectiveRole = userRole.toLowerCase().includes('teach') || userRole.toLowerCase().includes('instructor') || userRole.toLowerCase().includes('org')
-    ? 'instructor'
-    : 'student';
-
-  const roleLabel = effectiveRole === 'instructor' ? 'Lead Instructor' : 'Learner';
-
   // Request LiveKit Token from server-side SDK endpoint (backed by Render URL service)
   const uniqueParticipantIdentity = `${(currentUser?.id || displayName || 'guest')
     .toLowerCase()
@@ -289,6 +721,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             roomName: cleanRoomName,
             participantName: displayName,
             role: effectiveRole,
+            isGuestSpeaker: isSpeaker,
+            isGuest: effectiveRole === 'guest' || !currentUser,
             courseId,
           }),
         });
@@ -335,7 +769,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [cleanRoomName, displayName, uniqueParticipantIdentity, effectiveRole, wsUrlFromEnv, courseId]);
+  }, [cleanRoomName, displayName, uniqueParticipantIdentity, effectiveRole, wsUrlFromEnv, courseId, isSpeaker, currentUser]);
 
   const handleRegenerateToken = async () => {
     setIsConnecting(true);
@@ -471,7 +905,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     (opts?: { isLeaving?: boolean; endClass?: boolean }) => {
       const elapsedMs = Date.now() - sessionStartTimeRef.current;
       const durationMins = Math.max(1, Math.round(elapsedMs / 60000));
-      const targetCourseId = courseId || cleanRoomName;
+      const targetCourseId = courseId || eventId || cleanRoomName;
       const targetUserId = currentUser?.id || `guest_${(displayName || 'Guest').replace(/\s+/g, '_')}`;
       const targetUserName = currentUser?.name || displayName || 'Learner';
       const targetRole: "student" | "instructor" = effectiveRole === "instructor" ? "instructor" : "student";
@@ -480,7 +914,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
       recordLiveOnlineEngagement({
         courseId: targetCourseId,
-        sessionTitle: `Live Online Class: ${cleanRoomName}`,
+        sessionTitle: eventTitle ? `Live Event: ${eventTitle}` : `Live Online Class: ${cleanRoomName}`,
         userId: targetUserId,
         userName: targetUserName,
         userEmail: currentUser?.email,
@@ -493,7 +927,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         endClass: opts?.endClass,
       }).catch(() => {});
     },
-    [courseId, cleanRoomName, currentUser, displayName, effectiveRole, recordLiveOnlineEngagement],
+    [courseId, eventId, eventTitle, cleanRoomName, currentUser, displayName, effectiveRole, recordLiveOnlineEngagement],
   );
 
   // Periodic engagement sync every 60s and check-out on component unmount
@@ -591,9 +1025,16 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               <Video className="w-4 h-4" />
             </div>
             <div className="flex items-center space-x-2 min-w-0">
-              <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={cleanRoomName}>
-                {cleanRoomName}
-              </h3>
+              <div className="flex items-center space-x-1.5 min-w-0">
+                <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={eventTitle || cleanRoomName}>
+                  {eventTitle || cleanRoomName}
+                </h3>
+                {eventId && (
+                  <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-extrabold uppercase rounded-full shrink-0">
+                    EVENT
+                  </span>
+                )}
+              </div>
               <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 shrink-0 flex items-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
                 LIVE
@@ -621,8 +1062,18 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             </button>
 
             <button
+              type="button"
+              onClick={() => setIsInviteModalOpen(true)}
+              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition shrink-0 cursor-pointer shadow-xs"
+              title="Invite People / External Guest Speaker"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Invite</span>
+            </button>
+
+            <button
               onClick={handleCopyDirectJoinUrl}
-              className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0"
+              className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold flex items-center space-x-1 transition shrink-0 cursor-pointer"
               title="Copy Direct Meeting URL"
             >
               {copiedJoinUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -660,8 +1111,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         {/* LiveKit Official Room and Video Conference */}
         <div className="flex-1 min-h-0 relative overflow-hidden bg-slate-950">
           <LiveKitRoom
-            video={publishMediaEnabled.video && !isVideoOff}
-            audio={publishMediaEnabled.audio && !isMuted}
+            video={initialVideoEnabled !== false}
+            audio={initialAudioEnabled !== false}
             token={token}
             serverUrl={resolvedWsUrl}
             connectOptions={{ autoSubscribe: true }}
@@ -678,42 +1129,58 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             style={{ height: '100%', width: '100%' }}
             onDisconnected={handleLeave}
             onMediaDeviceFailure={(failure) => {
-              console.warn('Media device unavailable, staying connected in listen-only mode:', failure);
-              setPublishMediaEnabled({ audio: false, video: false });
+              console.warn('LiveKit media device issue:', failure);
+              // Camera was blocked or not present, but KEEP MICROPHONE AUDIO LIVE!
               setMediaDeviceWarning(
-                'Camera or microphone permission is unavailable on this device — you remain connected in listen-only mode so you can still hear the class.'
+                'Camera was not detected or was blocked. Your microphone and audio remain active.'
               );
             }}
             onError={(err) => {
-              const msg = err?.message?.toLowerCase() || '';
-              const isDeviceError =
-                msg.includes('permission') ||
-                msg.includes('notallowed') ||
-                msg.includes('notfound') ||
-                msg.includes('device') ||
-                msg.includes('mediadevices') ||
-                msg.includes('getusermedia');
-              if (isDeviceError) {
-                console.warn('Media device error caught; staying in LiveKit room listen-only:', err);
-                setPublishMediaEnabled({ audio: false, video: false });
-                setMediaDeviceWarning(
-                  'Microphone/camera access was blocked or unavailable — you are connected in listen-only mode and can still hear the call.'
-                );
-                return;
-              }
               console.warn('LiveKit connection error:', err);
-              setSessionAccessError(
-                'Unable to reach the live classroom audio/video server. Please tap Check Status to reconnect.'
-              );
+              const msg = err?.message?.toLowerCase() || '';
+              if (!msg.includes('permission') && !msg.includes('device') && !msg.includes('notfound')) {
+                setSessionAccessError(
+                  'Unable to reach the live classroom audio/video server. Please tap Check Status to reconnect.'
+                );
+              }
             }}
           >
+            {/* Top Right Live Controls & Visualizers Overlay */}
+            <div className="absolute top-2.5 right-3 z-30 flex items-center space-x-2">
+              <LocalMicSpeakingVisualizer />
+              <LiveKitParticipantsTrigger
+                onToggleDrawer={() => setIsParticipantsDrawerOpen((prev) => !prev)}
+                onOpenInvite={() => setIsInviteModalOpen(true)}
+              />
+            </div>
             <MobileAudioPlaybackGuard
               mediaWarning={mediaDeviceWarning}
               onDismissMediaWarning={() => setMediaDeviceWarning(null)}
             />
+            {/* Guarantee remote audio tracks are rendered to DOM audio elements */}
+            <RoomAudioRenderer />
             <VideoConference />
+            <LiveKitParticipantsPanel
+              isOpen={isParticipantsDrawerOpen}
+              onClose={() => setIsParticipantsDrawerOpen(false)}
+              onOpenInvite={() => setIsInviteModalOpen(true)}
+              effectiveRole={effectiveRole}
+            />
           </LiveKitRoom>
         </div>
+
+        {/* Global Invite Modal */}
+        <InvitePeopleModal
+          isOpen={isInviteModalOpen}
+          onClose={() => setIsInviteModalOpen(false)}
+          attendeeJoinUrl={attendeeJoinUrl}
+          speakerJoinUrl={speakerJoinUrl}
+          copiedAttendeeUrl={copiedAttendeeUrl}
+          copiedSpeakerUrl={copiedSpeakerUrl}
+          onCopyAttendee={handleCopyAttendeeLink}
+          onCopySpeaker={handleCopySpeakerLink}
+          roomName={cleanRoomName}
+        />
       </div>
     );
   }
@@ -734,9 +1201,16 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             <Video className="w-4 h-4" />
           </div>
           <div className="flex items-center space-x-2 min-w-0">
-            <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={cleanRoomName}>
-              {cleanRoomName}
-            </h3>
+            <div className="flex items-center space-x-1.5 min-w-0">
+              <h3 className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] sm:max-w-xs" title={eventTitle || cleanRoomName}>
+                {eventTitle || cleanRoomName}
+              </h3>
+              {eventId && (
+                <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-extrabold uppercase rounded-full shrink-0">
+                  EVENT
+                </span>
+              )}
+            </div>
             <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-500/30 shrink-0 flex items-center">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
               LIVE
@@ -762,6 +1236,16 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Fullscreen"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsInviteModalOpen(true)}
+            className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition shrink-0 cursor-pointer shadow-xs"
+            title="Invite People / External Guest Speaker"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Invite</span>
           </button>
 
           <button
@@ -830,54 +1314,27 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       <div className="flex-1 flex overflow-hidden relative">
         {/* Video Canvas Stage */}
         <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-          {/* Main Presenter Video Window */}
+          {/* Main Presenter / Multi-User WebRTC Stage */}
           <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
-            {isVideoOff ? (
-              <div className="flex flex-col items-center justify-center space-y-3 p-6 text-center">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white shadow-lg">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-white">{displayName}</h4>
-                  <p className="text-xs text-slate-400">{roleLabel} (Camera Off)</p>
-                </div>
-              </div>
-            ) : (
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover rounded-2xl transform scale-x-[-1]"
-              />
-            )}
+            {/* Embedded Multi-User WebRTC Conference Bridge */}
+            <iframe
+              src={jitsiConferenceUrl}
+              allow="camera; microphone; display-capture; autoplay; clipboard-write"
+              title="Live Interactive Stage"
+              className="w-full h-full border-none rounded-2xl"
+            />
 
             {/* Hand Raised Badge */}
             {handRaised && (
-              <div className="absolute top-4 left-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce">
+              <div className="absolute top-4 left-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce pointer-events-none">
                 <Hand className="w-4 h-4" />
                 <span>Hand Raised</span>
               </div>
             )}
 
-            {/* Live Subtitles Caption Overlay */}
-            {showSubtitles && (
-              <div className="absolute bottom-6 inset-x-8 max-w-2xl mx-auto bg-slate-950/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-3 text-center pointer-events-none transition-all">
-                <div className="flex items-center justify-center space-x-1.5 text-[10px] text-indigo-400 font-bold uppercase tracking-wider mb-1">
-                  <Sparkles className="w-3 h-3" />
-                  <span>Real-Time Transcription ({captionsLanguage})</span>
-                </div>
-                <p className="text-sm text-white font-medium">
-                  {isVideoOff 
-                    ? `[Microphone Active] ${displayName} is speaking in the classroom session.`
-                    : 'Welcome to the live interactive classroom session. Voice and media channels are streaming.'}
-                </p>
-              </div>
-            )}
-
             {/* Permissions Alert */}
             {hasPermissionsError && (
-              <div className="absolute top-4 right-4 bg-red-500/90 text-white text-xs p-3 rounded-xl flex items-center space-x-2 max-w-xs shadow-xl">
+              <div className="absolute top-4 right-4 bg-red-500/90 text-white text-xs p-3 rounded-xl flex items-center space-x-2 max-w-xs shadow-xl pointer-events-none">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>Camera or microphone access was blocked by browser. Please allow permissions.</span>
               </div>
@@ -949,8 +1406,16 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
               {activeSidebarTab === 'participants' && (
                 <div className="space-y-3">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    In This Classroom (1)
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    <span>In This Classroom</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsInviteModalOpen(true)}
+                      className="text-indigo-400 hover:text-indigo-300 font-bold flex items-center space-x-1 cursor-pointer capitalize"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Invite</span>
+                    </button>
                   </div>
                   <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
                     <div className="flex items-center space-x-2.5">
@@ -967,6 +1432,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                       {isVideoOff ? <VideoOff className="w-3.5 h-3.5 text-red-400" /> : <Video className="w-3.5 h-3.5 text-emerald-400" />}
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsInviteModalOpen(true)}
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer mt-2"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Invite People / Guest Speaker</span>
+                  </button>
                 </div>
               )}
 
@@ -1089,6 +1563,19 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           </div>
         </div>
       )}
+
+      {/* Global Invite Modal for Native WebRTC fallback */}
+      <InvitePeopleModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        attendeeJoinUrl={attendeeJoinUrl}
+        speakerJoinUrl={speakerJoinUrl}
+        copiedAttendeeUrl={copiedAttendeeUrl}
+        copiedSpeakerUrl={copiedSpeakerUrl}
+        onCopyAttendee={handleCopyAttendeeLink}
+        onCopySpeaker={handleCopySpeakerLink}
+        roomName={cleanRoomName}
+      />
     </div>
   );
 };

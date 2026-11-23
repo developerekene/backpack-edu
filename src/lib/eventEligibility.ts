@@ -304,6 +304,8 @@ export interface EventGuestIdentity {
   id: string;
   name: string;
   email?: string;
+  role?: string;
+  isGuestSpeaker?: boolean;
 }
 
 export const getStoredGuestIdentity = (): EventGuestIdentity | null => {
@@ -324,6 +326,8 @@ export const getStoredGuestIdentity = (): EventGuestIdentity | null => {
 export const saveGuestIdentity = (
   name: string,
   email?: string,
+  role?: string,
+  isGuestSpeaker?: boolean,
 ): EventGuestIdentity => {
   const existing = getStoredGuestIdentity();
   const next: EventGuestIdentity = {
@@ -332,6 +336,8 @@ export const saveGuestIdentity = (
       `guest_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     name: name.trim(),
     email: email?.trim() || undefined,
+    role: role || (isGuestSpeaker ? "guest_speaker" : "guest"),
+    isGuestSpeaker: Boolean(isGuestSpeaker || role === "guest_speaker" || role === "speaker"),
   };
   if (typeof window !== "undefined") {
     try {
