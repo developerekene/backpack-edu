@@ -41,6 +41,7 @@ import {
   Sparkles,
   ShieldCheck,
   XCircle,
+  Loader2,
 } from "lucide-react";
 import { PublicCourseDetails } from "../components/PublicCourseDetails";
 import { EditCourseDetailsModal } from "../components/EditCourseDetailsModal";
@@ -426,110 +427,133 @@ const CourseDetails = () => {
     return getLiveClassRoomName(target, courseId);
   };
 
+  const [isStartingCall, setIsStartingCall] = useState(false);
+
   const handleStartCall = async () => {
-    if (!courseId || !course) return;
+    if (!courseId || !course || isStartingCall) return;
+    setIsStartingCall(true);
 
-    if (liveCallActiveEvent) {
-      setIsCallActiveInApp(true);
-      return;
-    }
+    // Immediately open in-app call viewport on first click so user never has to wait or click multiple times
+    setIsCallActiveInApp(true);
 
-    if (targetEventId) {
-      const match = scheduleEvents.find(
-        (e) => e.id === targetEventId && e.courseId === courseId,
+    try {
+      if (liveCallActiveEvent) {
+        return;
+      }
+
+      if (targetEventId) {
+        const match = scheduleEvents.find(
+          (e) => e.id === targetEventId && e.courseId === courseId,
+        );
+        if (match) {
+          const roomName = getLiveClassRoomName(match, courseId);
+          const meetingUrl = match.meetingUrl || getLiveKitDirectUrl(roomName);
+          await updateScheduleEvent(match.id, {
+            isActive: true,
+            meetingUrl,
+          });
+          createLiveKitMeetingUrl({
+            roomName,
+            participantName: currentUser?.name || "Participant",
+            courseId,
+            role: currentUser?.role || "student",
+            forceSync: true,
+          }).catch(() => {});
+          return;
+        }
+      }
+
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todayScheduled = scheduleEvents.find(
+        (e) => e.courseId === courseId && e.date === todayStr && !e.isActive,
       );
-      if (match) {
-        const roomName = getLiveClassRoomName(match, courseId);
-        const livekitRes = await createLiveKitMeetingUrl({
+      if (todayScheduled) {
+        const roomName = getLiveClassRoomName(todayScheduled, courseId);
+        const meetingUrl =
+          todayScheduled.meetingUrl || getLiveKitDirectUrl(roomName);
+        await updateScheduleEvent(todayScheduled.id, {
+          isActive: true,
+          meetingUrl,
+        });
+        createLiveKitMeetingUrl({
           roomName,
           participantName: currentUser?.name || "Participant",
           courseId,
           role: currentUser?.role || "student",
           forceSync: true,
-        });
-        const meetingUrl =
-          match.meetingUrl || livekitRes.url || getLiveKitDirectUrl(roomName);
-        await updateScheduleEvent(match.id, {
-          isActive: true,
-          meetingUrl,
-        });
-        setIsCallActiveInApp(true);
+        }).catch(() => {});
         return;
       }
-    }
 
-    const todayStr = new Date().toISOString().split("T")[0];
-    const todayScheduled = scheduleEvents.find(
-      (e) => e.courseId === courseId && e.date === todayStr && !e.isActive,
-    );
-    if (todayScheduled) {
-      const roomName = getLiveClassRoomName(todayScheduled, courseId);
-      const livekitRes = await createLiveKitMeetingUrl({
+      const newEventId = `live_${courseId}_${Date.now()}`;
+      const roomName = getLiveClassRoomName(
+        { id: newEventId, courseId },
+        courseId,
+      );
+      const meetingUrl = getLiveKitDirectUrl(roomName);
+
+      await addScheduleEvent({
+        id: newEventId,
+        courseId,
+        title: `${course.title} - Live Class`,
+        date: todayStr,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        durationMins: 60,
+        type: "lecture",
+        meetingUrl,
+        isActive: true,
+      });
+
+      createLiveKitMeetingUrl({
         roomName,
         participantName: currentUser?.name || "Participant",
         courseId,
         role: currentUser?.role || "student",
         forceSync: true,
-      });
-      const meetingUrl =
-        todayScheduled.meetingUrl ||
-        livekitRes.url ||
-        getLiveKitDirectUrl(roomName);
-      await updateScheduleEvent(todayScheduled.id, {
-        isActive: true,
-        meetingUrl,
-      });
-      setIsCallActiveInApp(true);
-      return;
+      }).catch(() => {});
+    } catch (err) {
+      console.warn("Notice starting live session event sync:", err);
+    } finally {
+      setIsStartingCall(false);
     }
-
-    const newEventId = `live_${courseId}_${Date.now()}`;
-    const roomName = getLiveClassRoomName(
-      { id: newEventId, courseId },
-      courseId,
-    );
-
-    const livekitRes = await createLiveKitMeetingUrl({
-      roomName,
-      participantName: currentUser?.name || "Participant",
-      courseId,
-      role: currentUser?.role || "student",
-      forceSync: true,
-    });
-    const meetingUrl = livekitRes.url || getLiveKitDirectUrl(roomName);
-
-    await addScheduleEvent({
-      id: newEventId,
-      courseId,
-      title: `${course.title} - Live Class`,
-      date: todayStr,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      durationMins: 60,
-      type: "lecture",
-      meetingUrl,
-      isActive: true,
-    });
-    setIsCallActiveInApp(true);
   };
 
   const handleEndCall = async () => {
-    const activeEvts = scheduleEvents.filter(
-      (e) => e.courseId === courseId && e.isActive,
-    );
-    for (const evt of activeEvts) {
-      const room = getLiveClassRoomName(evt, courseId);
-      await endLiveClassSessionApi(room, courseId);
-      await updateScheduleEvent(evt.id, { isActive: false });
-    }
-    if (activeCall?.isActive) {
-      const room = getLiveClassRoomName(activeCall, courseId);
-      await endLiveClassSessionApi(room, courseId);
-      await updateScheduleEvent(activeCall.id, { isActive: false });
-    }
+    // 1. Immediately dismiss live call UI so the view closes in <10ms
     setIsCallActiveInApp(false);
+
+    // 2. Remove live/joinLive/eventId URL query parameters so useEffect doesn't re-trigger it
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("live");
+        url.searchParams.delete("joinLive");
+        url.searchParams.delete("eventId");
+        window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+      } catch {}
+    }
+
+    // 3. Mark backend sessions and schedule events as inactive non-blockingly
+    try {
+      const activeEvts = scheduleEvents.filter(
+        (e) => e.courseId === courseId && e.isActive,
+      );
+      for (const evt of activeEvts) {
+        const room = getLiveClassRoomName(evt, courseId);
+        endLiveClassSessionApi(room, courseId).catch(() => {});
+        updateScheduleEvent(evt.id, { isActive: false }).catch(() => {});
+      }
+      if (activeCall?.isActive) {
+        const room = getLiveClassRoomName(activeCall, courseId);
+        endLiveClassSessionApi(room, courseId).catch(() => {});
+        updateScheduleEvent(activeCall.id, { isActive: false }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("Notice updating live class events on call end:", err);
+    }
   };
 
   const handleEnrollSubmit = async (
@@ -1167,9 +1191,18 @@ const CourseDetails = () => {
               : canStartVideoCall && (
                   <button
                     onClick={handleStartCall}
-                    className="w-full sm:w-auto flex items-center justify-center px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm hover:shadow-md font-heading cursor-pointer"
+                    disabled={isStartingCall}
+                    className="w-full sm:w-auto flex items-center justify-center px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-75 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm hover:shadow-md font-heading cursor-pointer"
                   >
-                    <Video className="w-4 h-4 mr-2" /> Start Live Class
+                    {isStartingCall ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Starting Live Class...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="w-4 h-4 mr-2" /> Start Live Class
+                      </>
+                    )}
                   </button>
                 )}
           </div>

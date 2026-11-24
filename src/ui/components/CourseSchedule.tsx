@@ -204,20 +204,20 @@ export const CourseSchedule = ({
                                                     {!evt.isActive ? (
                                                         !isStudent ? (
                                                             <button 
-                                                                onClick={async () => {
+                                                                onClick={() => {
                                                                     const room = getEventRoomName(evt);
-                                                                    const livekitRes = await createLiveKitMeetingUrl({
+                                                                    setActiveLiveKitRoom(room);
+                                                                    if (onStartLiveCall) onStartLiveCall(room);
+                                                                    const meetingUrl = evt.meetingUrl || getLiveKitDirectUrl(room);
+                                                                    updateScheduleEvent(evt.id, { isActive: true, meetingUrl }).catch(() => {});
+                                                                    createLiveKitMeetingUrl({
                                                                         roomName: room,
                                                                         courseId,
                                                                         role: 'instructor',
                                                                         forceSync: true,
-                                                                    });
-                                                                    const meetingUrl = evt.meetingUrl || livekitRes.url || getLiveKitDirectUrl(room);
-                                                                    await updateScheduleEvent(evt.id, { isActive: true, meetingUrl });
-                                                                    setActiveLiveKitRoom(room);
-                                                                    if (onStartLiveCall) onStartLiveCall(room);
+                                                                    }).catch(() => {});
                                                                 }}
-                                                                className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition shadow-sm"
+                                                                className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition shadow-sm cursor-pointer"
                                                             >
                                                                 <Video className="w-4 h-4 mr-2" /> Start Live Class
                                                             </button>

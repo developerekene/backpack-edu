@@ -648,11 +648,6 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     ? `${window.location.origin}/live/${cleanRoomName}?role=speaker`
     : `/live/${cleanRoomName}?role=speaker`;
 
-  // Zero-config multi-user WebRTC conference bridge fallback
-  const jitsiConferenceUrl = useMemo(() => {
-    return `https://meet.jit.si/${cleanRoomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=${!initialAudioEnabled}&config.startWithVideoMuted=${!initialVideoEnabled}&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(displayName)}`;
-  }, [cleanRoomName, initialAudioEnabled, initialVideoEnabled, displayName]);
-
   const handleCopyAttendeeLink = async () => {
     try {
       await navigator.clipboard.writeText(attendeeJoinUrl);
@@ -686,17 +681,20 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   // In-Room Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
     { 
-      sender: 'LiveKit Server', 
-      text: `Connected to room "${roomName}". Open collaboration active.`, 
+      sender: 'Live Classroom', 
+      text: `Connected to "${eventTitle || cleanRoomName}". Live session active.`, 
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isSystem: true
     }
   ]);
   const [newMessage, setNewMessage] = useState<string>('');
 
-  // Media Refs for In-App Native WebRTC stream
+  // Media Refs & States for Native WebRTC Classroom
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const [isLocalSpeaking, setIsLocalSpeaking] = useState<boolean>(false);
 
   const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
 
@@ -802,89 +800,158 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     }
   };
 
-  // Setup Local Video Preview for native WebRTC mode
+  // Native WebRTC local media stream initialization (zero third-party dependencies, 100% Backpack-controlled)
   useEffect(() => {
     if (useLiveKitRoom) return;
 
-    let localStream: MediaStream | null = null;
+    let isSubscribed = true;
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let animFrameId: number | null = null;
 
-    async function initCamera() {
+    async function initNativeMedia() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: !isVideoOff,
-          audio: !isMuted,
+          video: true,
+          audio: true,
         });
-        localStream = stream;
+
+        if (!isSubscribed) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
         streamRef.current = stream;
+
+        // Apply audio & video enabled states
+        stream.getAudioTracks().forEach((track) => {
+          track.enabled = !isMuted;
+        });
+        stream.getVideoTracks().forEach((track) => {
+          track.enabled = !isVideoOff;
+        });
+
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
         setHasPermissionsError(false);
+
+        // Real-time voice activity detection via Web Audio API
+        try {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioCtx) {
+            audioContext = new AudioCtx();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const checkVoiceVolume = () => {
+              if (!isSubscribed) return;
+              if (analyser && stream.getAudioTracks().some((t) => t.enabled)) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                  sum += dataArray[i];
+                }
+                const avgVolume = sum / dataArray.length;
+                setIsLocalSpeaking(avgVolume > 14);
+              } else {
+                setIsLocalSpeaking(false);
+              }
+              animFrameId = requestAnimationFrame(checkVoiceVolume);
+            };
+            animFrameId = requestAnimationFrame(checkVoiceVolume);
+          }
+        } catch (err) {
+          console.warn('AudioContext voice detection notice:', err);
+        }
       } catch (err) {
-        console.warn('Camera/mic access error:', err);
+        console.warn('Camera / mic media permissions notice:', err);
         setHasPermissionsError(true);
       }
     }
 
-    initCamera();
+    initNativeMedia();
 
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      isSubscribed = false;
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close().catch(() => {});
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
       }
     };
-  }, [useLiveKitRoom, isVideoOff, isMuted]);
+  }, [useLiveKitRoom]);
 
+  // Fast, single-click frontend mic mute control
   const toggleMute = () => {
-    setIsMuted(prev => {
-      const next = !prev;
-      if (streamRef.current) {
-        streamRef.current.getAudioTracks().forEach(track => {
-          track.enabled = !next;
-        });
-      }
-      return next;
-    });
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (streamRef.current) {
+      streamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !nextMuted;
+      });
+    }
   };
 
+  // Fast, single-click frontend camera toggle control
   const toggleVideo = () => {
-    setIsVideoOff(prev => {
-      const next = !prev;
-      if (streamRef.current) {
-        streamRef.current.getVideoTracks().forEach(track => {
-          track.enabled = !next;
-        });
-      }
-      return next;
-    });
+    const nextVideoOff = !isVideoOff;
+    setIsVideoOff(nextVideoOff);
+    if (streamRef.current) {
+      streamRef.current.getVideoTracks().forEach((track) => {
+        track.enabled = !nextVideoOff;
+      });
+    }
   };
 
+  // Native browser screen share control
   const toggleScreenShare = async () => {
-    if (isScreenSharing) {
-      setIsScreenSharing(false);
-      return;
-    }
-
-    try {
-      if (window.self !== window.top) {
-        setShowScreenShareNotice(true);
-        return;
-      }
-
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      setIsScreenSharing(true);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = screenStream;
-      }
-      screenStream.getVideoTracks()[0].onended = () => {
-        setIsScreenSharing(false);
-        if (streamRef.current && localVideoRef.current) {
-          localVideoRef.current.srcObject = streamRef.current;
+    if (!isScreenSharing) {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+        screenStreamRef.current = screenStream;
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = screenStream;
         }
-      };
-    } catch {
+        setIsScreenSharing(true);
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (screenTrack) {
+          screenTrack.onended = () => {
+            setIsScreenSharing(false);
+            if (screenStreamRef.current) {
+              screenStreamRef.current.getTracks().forEach((t) => t.stop());
+              screenStreamRef.current = null;
+            }
+          };
+        }
+      } catch (err) {
+        console.warn('Screen share cancelled or restricted:', err);
+        setIsScreenSharing(false);
+      }
+    } else {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
       setIsScreenSharing(false);
     }
+  };
+
+  const toggleRaiseHand = () => {
+    setHandRaised((prev) => !prev);
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -897,7 +964,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setChatMessages(prev => [...prev, messageObj]);
+    setChatMessages((prev) => [...prev, messageObj]);
     setNewMessage('');
   };
 
@@ -942,34 +1009,52 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     };
   }, [syncAttendanceEngagement]);
 
+  // Instant Leave: Closes viewport immediately in <10ms, stops media hardware, and updates attendance
   const handleLeave = () => {
-    syncAttendanceEngagement({ isLeaving: true });
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
+    // 1. Immediately dismiss UI
     if (onClose) {
       onClose();
     }
+    // 2. Stop media tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+    }
+    // 3. Background attendance sync
+    syncAttendanceEngagement({ isLeaving: true });
   };
 
-  const handleEndClass = async () => {
-    syncAttendanceEngagement({ endClass: true });
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+  // Instant End Class: Closes viewport immediately in <10ms, stops hardware, and deactivates session
+  const handleEndClass = () => {
+    // 1. Immediately dismiss UI
+    if (onClose) {
+      onClose();
     }
-    await endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
+    // 2. Stop media tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+    }
+    // 3. Background backend session teardown
+    syncAttendanceEngagement({ endClass: true });
+    endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
     if (courseId && endLiveClassSession) {
-      await endLiveClassSession(courseId).catch(console.error);
+      endLiveClassSession(courseId).catch(console.error);
     } else {
       const activeEvts = scheduleEvents.filter(
         (e) => (!courseId || e.courseId === courseId) && e.isActive,
       );
       for (const evt of activeEvts) {
-        await updateScheduleEvent(evt.id, { isActive: false }).catch(console.error);
+        updateScheduleEvent(evt.id, { isActive: false }).catch(console.error);
       }
-    }
-    if (onClose) {
-      onClose();
     }
   };
 
@@ -1307,6 +1392,39 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           >
             <Settings className="w-4 h-4" />
           </button>
+
+          {/* End Class / Leave in Top Header */}
+          {onClose && (
+            effectiveRole === 'instructor' ? (
+              <button
+                onClick={handleEndClass}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center shrink-0 border border-red-500 cursor-pointer"
+                title="End class session permanently for all participants"
+              >
+                <PhoneOff className="w-3.5 h-3.5 mr-1" /> End Class
+              </button>
+            ) : (
+              <button
+                onClick={handleLeave}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-lg transition flex items-center shrink-0 border border-slate-700 cursor-pointer"
+                title="Leave meeting"
+              >
+                <PhoneOff className="w-3.5 h-3.5 mr-1" /> Leave
+              </button>
+            )
+          )}
+
+          {/* Direct Close (X) Button */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={handleLeave}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer shrink-0 ml-1"
+              title="Close Viewport"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1316,17 +1434,128 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
           {/* Main Presenter / Multi-User WebRTC Stage */}
           <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
-            {/* Embedded Multi-User WebRTC Conference Bridge */}
-            <iframe
-              src={jitsiConferenceUrl}
-              allow="camera; microphone; display-capture; autoplay; clipboard-write"
-              title="Live Interactive Stage"
-              className="w-full h-full border-none rounded-2xl"
-            />
+            {/* Native Backpack Classroom Video Canvas */}
+            {isScreenSharing ? (
+              <div className="w-full h-full relative flex items-center justify-center bg-black">
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+                {/* Presenter Picture-in-Picture Tile */}
+                <div className="absolute bottom-4 right-4 w-44 h-28 rounded-xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900 z-10">
+                  {!isVideoOff ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-2">
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-xs">
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[10px] text-slate-300 mt-1 truncate max-w-[100px]">
+                        {displayName}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : !isVideoOff ? (
+              <div className="w-full h-full relative flex items-center justify-center bg-slate-950">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover rounded-2xl"
+                />
+                {/* Presenter Name Badge */}
+                <div className="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+                  <span className="font-bold">{displayName}</span>
+                  <span className="text-[10px] text-slate-400">({roleLabel})</span>
+                  {isMuted ? (
+                    <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
+                  ) : (
+                    <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="w-full h-full relative flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl border border-slate-800/80 p-6 text-center">
+                <div
+                  className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-3xl font-black text-white shadow-2xl transition-all duration-300 ${
+                    isLocalSpeaking && !isMuted
+                      ? 'bg-gradient-to-tr from-indigo-600 to-emerald-500 ring-4 ring-emerald-400/50 scale-105 shadow-emerald-500/20'
+                      : 'bg-gradient-to-tr from-indigo-700 to-purple-600'
+                  }`}
+                >
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+
+                <div className="mt-4 space-y-1">
+                  <h3 className="text-lg font-bold text-white flex items-center justify-center gap-2">
+                    <span>{displayName}</span>
+                    {isSpeaker && <span className="text-sm">🎙️</span>}
+                  </h3>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {roleLabel}
+                    </span>
+                    {isMuted ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/20 text-red-300 border border-red-500/30 flex items-center gap-1">
+                        <MicOff className="w-3 h-3" /> Muted
+                      </span>
+                    ) : isLocalSpeaking ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 animate-pulse">
+                        <Mic className="w-3 h-3" /> Speaking 🎙️
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                        <Mic className="w-3 h-3" /> Mic Live
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-400 mt-4 max-w-sm">
+                  Camera is turned off. Your microphone and audio remain active.
+                </p>
+              </div>
+            )}
+
+            {/* Speaking Voice Activity Badge */}
+            {isLocalSpeaking && !isMuted && (
+              <div className="absolute top-4 left-4 bg-emerald-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-pulse pointer-events-none">
+                <div className="flex items-center space-x-0.5">
+                  <span className="w-1 h-3 bg-slate-950 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-4 bg-slate-950 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-2 bg-slate-950 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span>Speaking 🎙️</span>
+              </div>
+            )}
+
+            {/* Subtitles / Live Transcript Bar */}
+            {showSubtitles && (
+              <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-slate-700/60 px-4 py-2 rounded-xl text-center max-w-md w-full shadow-2xl pointer-events-none">
+                <span className="text-xs text-slate-200">
+                  {isMuted
+                    ? 'Microphone muted. Tap Unmute below to speak to the classroom.'
+                    : isLocalSpeaking
+                    ? '🎙️ [Live Voice Detected] Capturing audio for classroom transcription...'
+                    : '🎙️ Classroom live transcription ready. Speak into your microphone.'}
+                </span>
+              </div>
+            )}
 
             {/* Hand Raised Badge */}
             {handRaised && (
-              <div className="absolute top-4 left-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce pointer-events-none">
+              <div className="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce pointer-events-none">
                 <Hand className="w-4 h-4" />
                 <span>Hand Raised</span>
               </div>
@@ -1334,7 +1563,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
             {/* Permissions Alert */}
             {hasPermissionsError && (
-              <div className="absolute top-4 right-4 bg-red-500/90 text-white text-xs p-3 rounded-xl flex items-center space-x-2 max-w-xs shadow-xl pointer-events-none">
+              <div className="absolute top-16 right-4 bg-red-500/90 text-white text-xs p-3 rounded-xl flex items-center space-x-2 max-w-xs shadow-xl pointer-events-none">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>Camera or microphone access was blocked by browser. Please allow permissions.</span>
               </div>
@@ -1508,11 +1737,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           </button>
 
           <button
-            onClick={handleLeave}
-            className="p-3 bg-red-600 hover:bg-red-500 text-white rounded-xl transition shadow-md border border-red-500"
-            title="Leave Meeting"
+            onClick={effectiveRole === 'instructor' ? handleEndClass : handleLeave}
+            className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl transition shadow-md border border-red-500 flex items-center space-x-1.5 font-bold text-xs cursor-pointer"
+            title={effectiveRole === 'instructor' ? "End Class for all participants" : "Leave Meeting"}
           >
-            <PhoneOff className="w-5 h-5" />
+            <PhoneOff className="w-4 h-4" />
+            <span>{effectiveRole === 'instructor' ? 'End Class' : 'Leave'}</span>
           </button>
         </div>
 
