@@ -530,6 +530,37 @@ interface ChatMessage {
   isSystem?: boolean;
 }
 
+/**
+ * Loads Jitsi Meet External API script into window if not present.
+ * Enables Backpack frontend controls to drive the Jitsi conference engine headlessly under the hood.
+ */
+const loadJitsiScript = (domain: string): Promise<any> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(null);
+      return;
+    }
+    if ((window as any).JitsiMeetExternalAPI) {
+      resolve((window as any).JitsiMeetExternalAPI);
+      return;
+    }
+    const scriptId = 'jitsi-external-api-script';
+    const existing = document.getElementById(scriptId);
+    if (existing) {
+      existing.addEventListener('load', () => resolve((window as any).JitsiMeetExternalAPI));
+      existing.addEventListener('error', () => resolve(null));
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = `https://${domain}/external_api.js`;
+    script.async = true;
+    script.onload = () => resolve((window as any).JitsiMeetExternalAPI);
+    script.onerror = () => resolve(null);
+    document.body.appendChild(script);
+  });
+};
+
 export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   roomName,
   participantName = 'Guest Learner',
@@ -689,12 +720,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   ]);
   const [newMessage, setNewMessage] = useState<string>('');
 
-  // Media Refs & States for Native WebRTC Classroom
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
-  const [isLocalSpeaking, setIsLocalSpeaking] = useState<boolean>(false);
+  // Media & Engine Refs: Jitsi Meet powers the multi-peer conference headlessly
+  const jitsiContainerRef = useRef<HTMLDivElement>(null);
+  const jitsiApiRef = useRef<any>(null);
+  const [isJitsiEngineReady, setIsJitsiEngineReady] = useState<boolean>(false);
+  const [jitsiLoadError, setJitsiLoadError] = useState<boolean>(false);
+  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'meet.jit.si';
 
   const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
 
@@ -800,157 +831,137 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     }
   };
 
-  // Native WebRTC local media stream initialization (zero third-party dependencies, 100% Backpack-controlled)
+  // Jitsi Meet Headless Engine: powers multi-peer video conferencing under the hood
   useEffect(() => {
-    if (useLiveKitRoom) return;
+    if (useLiveKitRoom || !cleanRoomName) return;
 
     let isSubscribed = true;
-    let audioContext: AudioContext | null = null;
-    let analyser: AnalyserNode | null = null;
-    let animFrameId: number | null = null;
+    let apiInstance: any = null;
 
-    async function initNativeMedia() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-
-        if (!isSubscribed) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-
-        // Apply audio & video enabled states
-        stream.getAudioTracks().forEach((track) => {
-          track.enabled = !isMuted;
-        });
-        stream.getVideoTracks().forEach((track) => {
-          track.enabled = !isVideoOff;
-        });
-
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-        setHasPermissionsError(false);
-
-        // Real-time voice activity detection via Web Audio API
-        try {
-          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioCtx) {
-            audioContext = new AudioCtx();
-            const source = audioContext.createMediaStreamSource(stream);
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const checkVoiceVolume = () => {
-              if (!isSubscribed) return;
-              if (analyser && stream.getAudioTracks().some((t) => t.enabled)) {
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                  sum += dataArray[i];
-                }
-                const avgVolume = sum / dataArray.length;
-                setIsLocalSpeaking(avgVolume > 14);
-              } else {
-                setIsLocalSpeaking(false);
-              }
-              animFrameId = requestAnimationFrame(checkVoiceVolume);
-            };
-            animFrameId = requestAnimationFrame(checkVoiceVolume);
-          }
-        } catch (err) {
-          console.warn('AudioContext voice detection notice:', err);
-        }
-      } catch (err) {
-        console.warn('Camera / mic media permissions notice:', err);
-        setHasPermissionsError(true);
+    loadJitsiScript(jitsiDomain).then((JitsiAPI) => {
+      if (!isSubscribed || !jitsiContainerRef.current) return;
+      if (!JitsiAPI) {
+        console.warn('Jitsi script not available, running in fallback mode.');
+        setJitsiLoadError(true);
+        return;
       }
-    }
 
-    initNativeMedia();
+      try {
+        jitsiContainerRef.current.innerHTML = '';
+        const options = {
+          roomName: cleanRoomName,
+          width: '100%',
+          height: '100%',
+          parentNode: jitsiContainerRef.current,
+          userInfo: {
+            displayName,
+          },
+          configOverwrite: {
+            prejoinPageEnabled: false,
+            prejoinConfig: { enabled: false },
+            startWithAudioMuted: !initialAudioEnabled,
+            startWithVideoMuted: !initialVideoEnabled,
+            disableDeepLinking: true,
+            enableWelcomePage: false,
+            enableClosePage: false,
+            // Hides ALL Jitsi native toolbar buttons so our Backpack controls own the UI
+            toolbarButtons: [],
+            notifications: [],
+            hideConferenceSubject: true,
+            hideConferenceTimer: true,
+            hideRecordingLabel: true,
+            disablePolls: true,
+            disableReactions: true,
+            disableProfile: true,
+          },
+          interfaceConfigOverwrite: {
+            // Hides Jitsi chrome and toolbar completely
+            TOOLBAR_BUTTONS: [],
+            SHOW_JITSI_WATERMARK: false,
+            SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false,
+            SHOW_POWERED_BY: false,
+            SHOW_CHROME_EXTENSION_BANNER: false,
+            MOBILE_APP_PROMO: false,
+            HIDE_DEEP_LINKING_LOGO: true,
+            DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+            DEFAULT_BACKGROUND: '#020617',
+          },
+        };
+
+        apiInstance = new JitsiAPI(jitsiDomain, options);
+        jitsiApiRef.current = apiInstance;
+        setIsJitsiEngineReady(true);
+
+        // Bi-directional event sync: Jitsi -> Backpack UI state
+        apiInstance.addEventListener('audioMuteStatusChanged', ({ muted }: { muted: boolean }) => {
+          setIsMuted(muted);
+        });
+
+        apiInstance.addEventListener('videoMuteStatusChanged', ({ muted }: { muted: boolean }) => {
+          setIsVideoOff(muted);
+        });
+
+        apiInstance.addEventListener('screenSharingStatusChanged', ({ on }: { on: boolean }) => {
+          setIsScreenSharing(on);
+        });
+
+        apiInstance.addEventListener('raiseHandUpdated', ({ handRaised }: { handRaised: boolean }) => {
+          setHandRaised(handRaised);
+        });
+
+        apiInstance.addEventListener('readyToClose', () => {
+          handleLeave();
+        });
+      } catch (err) {
+        console.warn('Notice initializing Jitsi Meet engine:', err);
+        setJitsiLoadError(true);
+      }
+    });
 
     return () => {
       isSubscribed = false;
-      if (animFrameId) cancelAnimationFrame(animFrameId);
-      if (audioContext && audioContext.state !== 'closed') {
-        audioContext.close().catch(() => {});
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
+      if (jitsiApiRef.current) {
+        try {
+          jitsiApiRef.current.dispose();
+        } catch {}
+        jitsiApiRef.current = null;
       }
     };
-  }, [useLiveKitRoom]);
+  }, [useLiveKitRoom, cleanRoomName, displayName, initialAudioEnabled, initialVideoEnabled, jitsiDomain]);
 
-  // Fast, single-click frontend mic mute control
+  // Fast, single-click frontend mic mute control: commands Jitsi engine directly
   const toggleMute = () => {
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    if (streamRef.current) {
-      streamRef.current.getAudioTracks().forEach((track) => {
-        track.enabled = !nextMuted;
-      });
-    }
-  };
-
-  // Fast, single-click frontend camera toggle control
-  const toggleVideo = () => {
-    const nextVideoOff = !isVideoOff;
-    setIsVideoOff(nextVideoOff);
-    if (streamRef.current) {
-      streamRef.current.getVideoTracks().forEach((track) => {
-        track.enabled = !nextVideoOff;
-      });
-    }
-  };
-
-  // Native browser screen share control
-  const toggleScreenShare = async () => {
-    if (!isScreenSharing) {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true,
-        });
-        screenStreamRef.current = screenStream;
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = screenStream;
-        }
-        setIsScreenSharing(true);
-        const screenTrack = screenStream.getVideoTracks()[0];
-        if (screenTrack) {
-          screenTrack.onended = () => {
-            setIsScreenSharing(false);
-            if (screenStreamRef.current) {
-              screenStreamRef.current.getTracks().forEach((t) => t.stop());
-              screenStreamRef.current = null;
-            }
-          };
-        }
-      } catch (err) {
-        console.warn('Screen share cancelled or restricted:', err);
-        setIsScreenSharing(false);
-      }
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.executeCommand('toggleAudio');
     } else {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
-      }
-      setIsScreenSharing(false);
+      setIsMuted((prev) => !prev);
     }
   };
 
+  // Fast, single-click frontend camera toggle control: commands Jitsi engine directly
+  const toggleVideo = () => {
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.executeCommand('toggleVideo');
+    } else {
+      setIsVideoOff((prev) => !prev);
+    }
+  };
+
+  // Screen share control: commands Jitsi engine directly
+  const toggleScreenShare = () => {
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.executeCommand('toggleShareScreen');
+    } else {
+      setIsScreenSharing((prev) => !prev);
+    }
+  };
+
+  // Hand raise control: commands Jitsi engine directly
   const toggleRaiseHand = () => {
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.executeCommand('toggleRaiseHand');
+    }
     setHandRaised((prev) => !prev);
   };
 
@@ -1009,41 +1020,33 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     };
   }, [syncAttendanceEngagement]);
 
-  // Instant Leave: Closes viewport immediately in <10ms, stops media hardware, and updates attendance
+  // Instant Leave: Commands Jitsi engine to hangup, closes viewport in <10ms, updates attendance
   const handleLeave = () => {
-    // 1. Immediately dismiss UI
+    if (jitsiApiRef.current) {
+      try {
+        jitsiApiRef.current.executeCommand('hangup');
+        jitsiApiRef.current.dispose();
+      } catch {}
+      jitsiApiRef.current = null;
+    }
     if (onClose) {
       onClose();
     }
-    // 2. Stop media tracks
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((track) => track.stop());
-      screenStreamRef.current = null;
-    }
-    // 3. Background attendance sync
     syncAttendanceEngagement({ isLeaving: true });
   };
 
-  // Instant End Class: Closes viewport immediately in <10ms, stops hardware, and deactivates session
+  // Instant End Class: Commands Jitsi engine to hangup, closes viewport in <10ms, deactivates backend session
   const handleEndClass = () => {
-    // 1. Immediately dismiss UI
+    if (jitsiApiRef.current) {
+      try {
+        jitsiApiRef.current.executeCommand('hangup');
+        jitsiApiRef.current.dispose();
+      } catch {}
+      jitsiApiRef.current = null;
+    }
     if (onClose) {
       onClose();
     }
-    // 2. Stop media tracks
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((track) => track.stop());
-      screenStreamRef.current = null;
-    }
-    // 3. Background backend session teardown
     syncAttendanceEngagement({ endClass: true });
     endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
     if (courseId && endLiveClassSession) {
@@ -1434,138 +1437,61 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
           {/* Main Presenter / Multi-User WebRTC Stage */}
           <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
-            {/* Native Backpack Classroom Video Canvas */}
-            {isScreenSharing ? (
-              <div className="w-full h-full relative flex items-center justify-center bg-black">
-                <video
-                  ref={screenVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-contain"
-                />
-                {/* Presenter Picture-in-Picture Tile */}
-                <div className="absolute bottom-4 right-4 w-44 h-28 rounded-xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900 z-10">
-                  {!isVideoOff ? (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-2">
-                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-xs">
-                        {displayName.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-[10px] text-slate-300 mt-1 truncate max-w-[100px]">
-                        {displayName}
-                      </span>
-                    </div>
-                  )}
+            {/* Headless Jitsi Engine Video Stage - Clean video tiles, Jitsi chrome 100% hidden */}
+            <div
+              ref={jitsiContainerRef}
+              className={`w-full h-full rounded-2xl overflow-hidden relative flex items-center justify-center bg-slate-950 [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-none [&>iframe]:rounded-2xl ${
+                !isJitsiEngineReady ? 'hidden' : ''
+              }`}
+            />
+
+            {/* Connecting State while Jitsi Engine initializes (Zero raw iframes, zero ads) */}
+            {!isJitsiEngineReady && !jitsiLoadError && (
+              <div className="flex flex-col items-center justify-center space-y-4 p-8 text-center animate-in fade-in duration-300">
+                <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                <div>
+                  <h4 className="text-white font-bold text-sm">Connecting Live Classroom...</h4>
+                  <p className="text-xs text-slate-400 mt-1">Starting video conference engine</p>
                 </div>
               </div>
-            ) : !isVideoOff ? (
-              <div className="w-full h-full relative flex items-center justify-center bg-slate-950">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-                {/* Presenter Name Badge */}
-                <div className="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
-                  <span className="font-bold">{displayName}</span>
-                  <span className="text-[10px] text-slate-400">({roleLabel})</span>
-                  {isMuted ? (
-                    <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
-                  ) : (
-                    <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
-                  )}
+            )}
+
+            {/* Script Load Error Fallback */}
+            {jitsiLoadError && (
+              <div className="flex flex-col items-center justify-center space-y-4 p-8 text-center max-w-md">
+                <AlertTriangle className="w-10 h-10 text-amber-400" />
+                <div>
+                  <h4 className="text-white font-bold text-sm">Conference Engine Unavailable</h4>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Unable to load meeting engine. Check your connection or browser ad-blockers.
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="w-full h-full relative flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl border border-slate-800/80 p-6 text-center">
-                <div
-                  className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-3xl font-black text-white shadow-2xl transition-all duration-300 ${
-                    isLocalSpeaking && !isMuted
-                      ? 'bg-gradient-to-tr from-indigo-600 to-emerald-500 ring-4 ring-emerald-400/50 scale-105 shadow-emerald-500/20'
-                      : 'bg-gradient-to-tr from-indigo-700 to-purple-600'
-                  }`}
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
                 >
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-
-                <div className="mt-4 space-y-1">
-                  <h3 className="text-lg font-bold text-white flex items-center justify-center gap-2">
-                    <span>{displayName}</span>
-                    {isSpeaker && <span className="text-sm">🎙️</span>}
-                  </h3>
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      {roleLabel}
-                    </span>
-                    {isMuted ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/20 text-red-300 border border-red-500/30 flex items-center gap-1">
-                        <MicOff className="w-3 h-3" /> Muted
-                      </span>
-                    ) : isLocalSpeaking ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 animate-pulse">
-                        <Mic className="w-3 h-3" /> Speaking 🎙️
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                        <Mic className="w-3 h-3" /> Mic Live
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-400 mt-4 max-w-sm">
-                  Camera is turned off. Your microphone and audio remain active.
-                </p>
-              </div>
-            )}
-
-            {/* Speaking Voice Activity Badge */}
-            {isLocalSpeaking && !isMuted && (
-              <div className="absolute top-4 left-4 bg-emerald-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-pulse pointer-events-none">
-                <div className="flex items-center space-x-0.5">
-                  <span className="w-1 h-3 bg-slate-950 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1 h-4 bg-slate-950 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1 h-2 bg-slate-950 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-                <span>Speaking 🎙️</span>
-              </div>
-            )}
-
-            {/* Subtitles / Live Transcript Bar */}
-            {showSubtitles && (
-              <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-slate-700/60 px-4 py-2 rounded-xl text-center max-w-md w-full shadow-2xl pointer-events-none">
-                <span className="text-xs text-slate-200">
-                  {isMuted
-                    ? 'Microphone muted. Tap Unmute below to speak to the classroom.'
-                    : isLocalSpeaking
-                    ? '🎙️ [Live Voice Detected] Capturing audio for classroom transcription...'
-                    : '🎙️ Classroom live transcription ready. Speak into your microphone.'}
-                </span>
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retry Connection</span>
+                </button>
               </div>
             )}
 
             {/* Hand Raised Badge */}
             {handRaised && (
-              <div className="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce pointer-events-none">
+              <div className="absolute top-4 left-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce pointer-events-none z-10">
                 <Hand className="w-4 h-4" />
                 <span>Hand Raised</span>
               </div>
             )}
 
-            {/* Permissions Alert */}
-            {hasPermissionsError && (
-              <div className="absolute top-16 right-4 bg-red-500/90 text-white text-xs p-3 rounded-xl flex items-center space-x-2 max-w-xs shadow-xl pointer-events-none">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>Camera or microphone access was blocked by browser. Please allow permissions.</span>
+            {/* Subtitles / Live Transcript Bar */}
+            {showSubtitles && isJitsiEngineReady && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-slate-700/60 px-4 py-2 rounded-xl text-center max-w-md w-full shadow-2xl pointer-events-none z-10">
+                <span className="text-xs text-slate-200">
+                  {isMuted
+                    ? 'Microphone muted. Tap Unmute below to speak to the classroom.'
+                    : '🎙️ Classroom live audio active. Speak into your microphone.'}
+                </span>
               </div>
             )}
           </div>
