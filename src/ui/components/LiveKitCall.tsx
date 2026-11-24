@@ -540,18 +540,17 @@ const loadJitsiScript = (domain: string): Promise<any> => {
       resolve(null);
       return;
     }
-    if ((window as any).JitsiMeetExternalAPI) {
+    const scriptId = 'jitsi-external-api-script';
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (script && script.src.includes(domain) && (window as any).JitsiMeetExternalAPI) {
       resolve((window as any).JitsiMeetExternalAPI);
       return;
     }
-    const scriptId = 'jitsi-external-api-script';
-    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
     if (script) {
-      if ((window as any).JitsiMeetExternalAPI) {
-        resolve((window as any).JitsiMeetExternalAPI);
-        return;
-      }
       script.remove();
+      try {
+        delete (window as any).JitsiMeetExternalAPI;
+      } catch {}
     }
 
     script = document.createElement('script');
@@ -747,14 +746,17 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const jitsiApiRef = useRef<any>(null);
   const [isJitsiEngineReady, setIsJitsiEngineReady] = useState<boolean>(false);
   const [jitsiLoadError, setJitsiLoadError] = useState<boolean>(false);
-  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'meet.jit.si';
+  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'meet.ffmuc.net';
 
-  // Media Refs & States for Native WebRTC Classroom Video Stage
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
-  const [isLocalSpeaking, setIsLocalSpeaking] = useState<boolean>(false);
+  // Remote participants state for multi-user classroom
+  const [remoteParticipants, setRemoteParticipants] = useState<
+    Array<{
+      id: string;
+      displayName: string;
+      role?: string;
+      isSpeaking?: boolean;
+    }>
+  >([]);
 
   // Request LiveKit Token from server-side SDK endpoint (backed by Render URL service)
   const uniqueParticipantIdentity = `${(currentUser?.id || displayName || 'guest')
@@ -865,107 +867,6 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     }
   };
 
-  // Native WebRTC local media stream initialization (renders clean HD video on Backpack stage)
-  useEffect(() => {
-    if (useLiveKitRoom) return;
-
-    let isSubscribed = true;
-    let audioContext: AudioContext | null = null;
-    let analyser: AnalyserNode | null = null;
-    let animFrameId: number | null = null;
-
-    async function initNativeMedia() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-
-        if (!isSubscribed) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-
-        // Apply audio & video enabled states
-        stream.getAudioTracks().forEach((track) => {
-          track.enabled = !isMuted;
-        });
-        stream.getVideoTracks().forEach((track) => {
-          track.enabled = !isVideoOff;
-        });
-
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-        setHasPermissionsError(false);
-
-        // Real-time voice activity detection via Web Audio API
-        try {
-          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioCtx) {
-            audioContext = new AudioCtx();
-            const source = audioContext.createMediaStreamSource(stream);
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const checkVoiceVolume = () => {
-              if (!isSubscribed) return;
-              if (analyser && stream.getAudioTracks().some((t) => t.enabled)) {
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                  sum += dataArray[i];
-                }
-                const avgVolume = sum / dataArray.length;
-                setIsLocalSpeaking(avgVolume > 14);
-              } else {
-                setIsLocalSpeaking(false);
-              }
-              animFrameId = requestAnimationFrame(checkVoiceVolume);
-            };
-            animFrameId = requestAnimationFrame(checkVoiceVolume);
-          }
-        } catch (err) {
-          console.warn('AudioContext voice detection notice:', err);
-        }
-      } catch (err) {
-        console.warn('Camera / mic media permissions notice:', err);
-        setHasPermissionsError(true);
-      }
-    }
-
-    initNativeMedia();
-
-    return () => {
-      isSubscribed = false;
-      if (animFrameId) cancelAnimationFrame(animFrameId);
-      if (audioContext && audioContext.state !== 'closed') {
-        audioContext.close().catch(() => {});
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
-      }
-    };
-  }, [useLiveKitRoom]);
-
-  // Ensure stream is re-attached to video element when toggling video on
-  useEffect(() => {
-    if (!isVideoOff && localVideoRef.current && streamRef.current) {
-      if (localVideoRef.current.srcObject !== streamRef.current) {
-        localVideoRef.current.srcObject = streamRef.current;
-      }
-    }
-  }, [isVideoOff]);
-
   // Jitsi Meet Headless Engine: powers multi-peer video conferencing under the hood
   useEffect(() => {
     if (useLiveKitRoom || !cleanRoomName) return;
@@ -1028,6 +929,57 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         jitsiApiRef.current = apiInstance;
         setIsJitsiEngineReady(true);
 
+        // Sync remote classroom participants and initial media states
+        apiInstance.addEventListener('videoConferenceJoined', () => {
+          try {
+            apiInstance.isAudioMuted().then((muted: boolean) => setIsMuted(muted)).catch(() => {});
+            apiInstance.isVideoMuted().then((muted: boolean) => setIsVideoOff(muted)).catch(() => {});
+            const list = apiInstance.getParticipantsInfo();
+            if (Array.isArray(list)) {
+              setRemoteParticipants(
+                list.map((p: any) => ({
+                  id: p.participantId || p.id,
+                  displayName: p.displayName || p.formattedDisplayName || 'Guest Learner',
+                  role: p.role || (isSpeaker ? 'Guest Speaker' : 'guest'),
+                })),
+              );
+            }
+          } catch {}
+        });
+
+        apiInstance.addEventListener('participantJoined', (p: any) => {
+          setRemoteParticipants((prev) => {
+            if (prev.some((x) => x.id === p.id)) return prev;
+            return [
+              ...prev,
+              {
+                id: p.id,
+                displayName: p.displayName || p.formattedDisplayName || 'Guest Learner',
+                role: p.role || (isSpeaker ? 'Guest Speaker' : 'guest'),
+              },
+            ];
+          });
+        });
+
+        apiInstance.addEventListener('participantLeft', ({ id }: { id: string }) => {
+          setRemoteParticipants((prev) => prev.filter((p) => p.id !== id));
+        });
+
+        apiInstance.addEventListener('dominantSpeakerChanged', ({ id }: { id: string }) => {
+          setRemoteParticipants((prev) =>
+            prev.map((p) => ({
+              ...p,
+              isSpeaking: p.id === id,
+            })),
+          );
+        });
+
+        apiInstance.addEventListener('displayNameChange', ({ id, displayname }: { id: string; displayname: string }) => {
+          setRemoteParticipants((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, displayName: displayname } : p)),
+          );
+        });
+
         // Bi-directional event sync: Jitsi -> Backpack UI state
         apiInstance.addEventListener('audioMuteStatusChanged', ({ muted }: { muted: boolean }) => {
           setIsMuted(muted);
@@ -1065,74 +1017,36 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     };
   }, [useLiveKitRoom, cleanRoomName, displayName, initialAudioEnabled, initialVideoEnabled, jitsiDomain]);
 
-  // Fast, single-click frontend mic mute control: updates local audio track and commands Jitsi engine
+  // Fast, single-click frontend mic mute control: commands Jitsi engine directly
   const toggleMute = () => {
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    if (streamRef.current) {
-      streamRef.current.getAudioTracks().forEach((track) => {
-        track.enabled = !nextMuted;
-      });
-    }
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.executeCommand('toggleAudio');
       } catch {}
+    } else {
+      setIsMuted((prev) => !prev);
     }
   };
 
-  // Fast, single-click frontend camera toggle control: updates local video track and commands Jitsi engine
+  // Fast, single-click frontend camera toggle control: commands Jitsi engine directly
   const toggleVideo = () => {
-    const nextVideoOff = !isVideoOff;
-    setIsVideoOff(nextVideoOff);
-    if (streamRef.current) {
-      streamRef.current.getVideoTracks().forEach((track) => {
-        track.enabled = !nextVideoOff;
-      });
-    }
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.executeCommand('toggleVideo');
       } catch {}
+    } else {
+      setIsVideoOff((prev) => !prev);
     }
   };
 
-  // Screen share control: captures local screen and commands Jitsi engine directly
-  const toggleScreenShare = async () => {
-    if (isScreenSharing) {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
-      }
-      setIsScreenSharing(false);
-      if (jitsiApiRef.current) {
-        try {
-          jitsiApiRef.current.executeCommand('toggleShareScreen');
-        } catch {}
-      }
-    } else {
+  // Screen share control: commands Jitsi engine directly
+  const toggleScreenShare = () => {
+    if (jitsiApiRef.current) {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true,
-        });
-        screenStreamRef.current = stream;
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = stream;
-        }
-        setIsScreenSharing(true);
-        stream.getVideoTracks()[0].onended = () => {
-          setIsScreenSharing(false);
-          screenStreamRef.current = null;
-        };
-        if (jitsiApiRef.current) {
-          try {
-            jitsiApiRef.current.executeCommand('toggleShareScreen');
-          } catch {}
-        }
-      } catch (err) {
-        console.warn('Notice screen share cancelled or permissions denied:', err);
-      }
+        jitsiApiRef.current.executeCommand('toggleShareScreen');
+      } catch {}
+    } else {
+      setIsScreenSharing((prev) => !prev);
     }
   };
 
@@ -1201,16 +1115,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     };
   }, [syncAttendanceEngagement]);
 
-  // Instant Leave: Stops tracks, commands Jitsi engine to hangup, closes viewport in <10ms, updates attendance
+  // Instant Leave: Commands Jitsi engine to hangup, closes viewport in <10ms, updates attendance
   const handleLeave = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((t) => t.stop());
-      screenStreamRef.current = null;
-    }
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.executeCommand('hangup');
@@ -1224,16 +1130,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     syncAttendanceEngagement({ isLeaving: true });
   };
 
-  // Instant End Class: Stops tracks, commands Jitsi engine to hangup, closes viewport in <10ms, deactivates session
+  // Instant End Class: Commands Jitsi engine to hangup, closes viewport in <10ms, deactivates session
   const handleEndClass = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((t) => t.stop());
-      screenStreamRef.current = null;
-    }
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.executeCommand('hangup');
@@ -1574,12 +1472,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           {/* Sidebar Toggle: Participants */}
           <button
             onClick={() => setActiveSidebarTab(activeSidebarTab === 'participants' ? null : 'participants')}
-            className={`p-2 rounded-lg text-xs font-semibold border transition ${
-              activeSidebarTab === 'participants' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700'
+            className={`p-2 rounded-lg text-xs font-semibold border transition flex items-center space-x-1.5 ${
+              activeSidebarTab === 'participants' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
             title="Participants List"
           >
             <Users className="w-4 h-4" />
+            <span className="text-[11px] font-bold px-1.5 py-0.5 bg-slate-900/60 rounded-full">
+              {1 + remoteParticipants.length}
+            </span>
           </button>
 
           {/* Sidebar Toggle: Settings */}
@@ -1634,92 +1535,39 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
           {/* Main Presenter / Multi-User WebRTC Stage */}
           <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
-            {/* Headless Jitsi Engine Container (Offscreen background audio & network sync engine) */}
+            {/* Embedded Conference Video Stage (Powered by headless Jitsi engine, styled & controlled by Backpack) */}
             <div
               ref={jitsiContainerRef}
-              className="absolute w-[1px] h-[1px] opacity-0 pointer-events-none -top-[9999px] -left-[9999px] overflow-hidden"
-              aria-hidden="true"
+              className="w-full h-full rounded-2xl overflow-hidden relative flex items-center justify-center bg-slate-950 [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-none [&>iframe]:rounded-2xl"
             />
 
-            {/* Native Backpack Classroom Video Canvas (100% Backpack-controlled, crystal clear HD local feed, no 8x8 ads, never black) */}
-            {isScreenSharing ? (
-              <div className="w-full h-full relative flex items-center justify-center bg-black">
-                <video
-                  ref={screenVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-contain"
-                />
-                {/* Presenter Picture-in-Picture Tile */}
-                <div className="absolute bottom-4 right-4 w-44 h-28 rounded-xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900 z-10">
-                  {!isVideoOff ? (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-2">
-                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-xs">
-                        {displayName.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-[10px] text-slate-300 mt-1 truncate max-w-[100px]">
-                        {displayName}
-                      </span>
-                    </div>
-                  )}
+            {/* Connecting State while Conference Engine initializes */}
+            {!isJitsiEngineReady && !jitsiLoadError && (
+              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-4 p-8 text-center z-10 animate-in fade-in duration-200">
+                <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                <div>
+                  <h4 className="text-white font-bold text-sm">Connecting Live Classroom...</h4>
+                  <p className="text-slate-400 text-xs mt-1">Starting video conference engine</p>
                 </div>
               </div>
-            ) : !isVideoOff ? (
-              <div className="w-full h-full relative flex items-center justify-center bg-slate-950">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-                {/* Presenter Name Badge */}
-                <div className="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
-                  <span className="font-bold">{displayName}</span>
-                  <span className="text-[10px] text-slate-400">({roleLabel})</span>
-                  {isMuted ? (
-                    <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
-                  ) : (
-                    <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-full relative flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl border border-slate-800/80 p-6 text-center">
-                <div
-                  className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full flex items-center justify-center text-4xl sm:text-5xl font-black text-white shadow-2xl relative transition-all duration-300 ${
-                    isLocalSpeaking
-                      ? 'bg-gradient-to-tr from-emerald-600 to-teal-500 ring-8 ring-emerald-500/30 scale-105'
-                      : 'bg-gradient-to-tr from-indigo-600 to-blue-600 ring-4 ring-indigo-500/20'
-                  }`}
-                >
-                  {displayName.charAt(0).toUpperCase()}
-                  {isLocalSpeaking && (
-                    <span className="absolute -bottom-1 -right-1 p-2 bg-emerald-500 text-white rounded-full shadow-lg animate-pulse">
-                      <Mic className="w-4 h-4" />
-                    </span>
-                  )}
-                </div>
+            )}
 
-                <div className="mt-5 space-y-1">
-                  <div className="flex items-center justify-center space-x-2">
-                    <h3 className="text-white font-bold text-base sm:text-lg">{displayName}</h3>
-                    <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-full border border-indigo-500/30">
-                      {roleLabel}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    {isVideoOff ? 'Camera turned off' : 'Microphone connected'}
-                  </p>
+            {/* Error State if Conference Engine fails to load */}
+            {jitsiLoadError && (
+              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-4 p-8 text-center z-10">
+                <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mb-2">
+                  <VideoOff className="w-6 h-6" />
                 </div>
+                <div>
+                  <h4 className="text-white font-bold text-sm">Unable to connect to live conference engine</h4>
+                  <p className="text-slate-400 text-xs mt-1">Please check your internet connection and reload</p>
+                </div>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                >
+                  Reload Classroom
+                </button>
               </div>
             )}
 
@@ -1809,7 +1657,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               {activeSidebarTab === 'participants' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <span>In This Classroom</span>
+                    <span>In Classroom ({1 + remoteParticipants.length})</span>
                     <button
                       type="button"
                       onClick={() => setIsInviteModalOpen(true)}
@@ -1819,13 +1667,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                       <span>Invite</span>
                     </button>
                   </div>
+
+                  {/* Local User Tile */}
                   <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
                     <div className="flex items-center space-x-2.5">
                       <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">
                         {displayName.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <span className="font-bold text-white block">{displayName} (You)</span>
+                        <span className="font-bold text-white block text-xs">{displayName} (You)</span>
                         <span className="text-[10px] text-slate-400">{roleLabel}</span>
                       </div>
                     </div>
@@ -1834,6 +1684,42 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                       {isVideoOff ? <VideoOff className="w-3.5 h-3.5 text-red-400" /> : <Video className="w-3.5 h-3.5 text-emerald-400" />}
                     </div>
                   </div>
+
+                  {/* Remote Connected Participants / Guests */}
+                  {remoteParticipants.map((p) => {
+                    const isGuestSpeaker =
+                      p.role === 'speaker' ||
+                      p.role === 'guest_speaker' ||
+                      p.displayName.toLowerCase().includes('speaker');
+                    return (
+                      <div
+                        key={p.id}
+                        className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 flex items-center justify-between animate-in fade-in"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-xs ${
+                              isGuestSpeaker ? 'bg-purple-600' : 'bg-indigo-600'
+                            }`}
+                          >
+                            {(p.displayName || 'G').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-bold text-white block text-xs">{p.displayName}</span>
+                            <span className="text-[10px] text-purple-400">
+                              {isGuestSpeaker ? 'Guest Speaker 🎙️' : p.role || 'Connected'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1.5 text-slate-400">
+                          {p.isSpeaking && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1" title="Speaking" />
+                          )}
+                          <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   <button
                     type="button"
