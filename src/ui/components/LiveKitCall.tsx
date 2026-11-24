@@ -545,18 +545,39 @@ const loadJitsiScript = (domain: string): Promise<any> => {
       return;
     }
     const scriptId = 'jitsi-external-api-script';
-    const existing = document.getElementById(scriptId);
-    if (existing) {
-      existing.addEventListener('load', () => resolve((window as any).JitsiMeetExternalAPI));
-      existing.addEventListener('error', () => resolve(null));
-      return;
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (script) {
+      if ((window as any).JitsiMeetExternalAPI) {
+        resolve((window as any).JitsiMeetExternalAPI);
+        return;
+      }
+      script.remove();
     }
-    const script = document.createElement('script');
+
+    script = document.createElement('script');
     script.id = scriptId;
     script.src = `https://${domain}/external_api.js`;
     script.async = true;
-    script.onload = () => resolve((window as any).JitsiMeetExternalAPI);
-    script.onerror = () => resolve(null);
+
+    // Safety timeout: prevent hanging if script load is blocked or delayed
+    const timer = setTimeout(() => {
+      if ((window as any).JitsiMeetExternalAPI) {
+        resolve((window as any).JitsiMeetExternalAPI);
+      } else {
+        console.warn('[Jitsi] External API script timeout, resolving fallback.');
+        resolve(null);
+      }
+    }, 4500);
+
+    script.onload = () => {
+      clearTimeout(timer);
+      resolve((window as any).JitsiMeetExternalAPI || null);
+    };
+    script.onerror = () => {
+      clearTimeout(timer);
+      console.warn('[Jitsi] Failed to load external_api.js from domain:', domain);
+      resolve(null);
+    };
     document.body.appendChild(script);
   });
 };
@@ -573,10 +594,11 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   initialAudioEnabled = true,
   isGuestSpeaker = false,
 }) => {
+  const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
   const [token, setToken] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState<boolean>(true);
-  const [resolvedWsUrl, setResolvedWsUrl] = useState<string | null>(null);
-  const [useLiveKitRoom, setUseLiveKitRoom] = useState<boolean>(true);
+  const [isConnecting, setIsConnecting] = useState<boolean>(Boolean(wsUrlFromEnv));
+  const [resolvedWsUrl, setResolvedWsUrl] = useState<string | null>(wsUrlFromEnv);
+  const [useLiveKitRoom, setUseLiveKitRoom] = useState<boolean>(Boolean(wsUrlFromEnv));
   const [sessionAccessError, setSessionAccessError] = useState<string | null>(null);
   const [mediaDeviceWarning, setMediaDeviceWarning] = useState<string | null>(null);
   const [publishMediaEnabled, setPublishMediaEnabled] = useState<{ audio: boolean; video: boolean }>({
@@ -727,8 +749,6 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [jitsiLoadError, setJitsiLoadError] = useState<boolean>(false);
   const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'meet.jit.si';
 
-  const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
-
   // Request LiveKit Token from server-side SDK endpoint (backed by Render URL service)
   const uniqueParticipantIdentity = `${(currentUser?.id || displayName || 'guest')
     .toLowerCase()
@@ -739,6 +759,13 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     let isMounted = true;
 
     async function loadToken() {
+      // If LiveKit URL is not configured in environment, immediately activate headless Jitsi engine
+      if (!wsUrlFromEnv) {
+        setUseLiveKitRoom(false);
+        setIsConnecting(false);
+        return;
+      }
+
       setSessionAccessError(null);
       try {
         const res = await centralApiClient('/api/livekit/token', {
@@ -1437,17 +1464,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
           {/* Main Presenter / Multi-User WebRTC Stage */}
           <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
-            {/* Headless Jitsi Engine Video Stage - Clean video tiles, Jitsi chrome 100% hidden */}
+            {/* Headless Jitsi Engine Video Stage (Full layout sizing so Jitsi can compute and render) */}
             <div
               ref={jitsiContainerRef}
-              className={`w-full h-full rounded-2xl overflow-hidden relative flex items-center justify-center bg-slate-950 [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-none [&>iframe]:rounded-2xl ${
-                !isJitsiEngineReady ? 'hidden' : ''
-              }`}
+              className="w-full h-full rounded-2xl overflow-hidden relative flex items-center justify-center bg-slate-950 [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-none [&>iframe]:rounded-2xl"
             />
 
-            {/* Connecting State while Jitsi Engine initializes (Zero raw iframes, zero ads) */}
+            {/* Connecting State Overlay while Jitsi Engine initializes */}
             {!isJitsiEngineReady && !jitsiLoadError && (
-              <div className="flex flex-col items-center justify-center space-y-4 p-8 text-center animate-in fade-in duration-300">
+              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-4 p-8 text-center z-10 animate-in fade-in duration-200">
                 <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
                 <div>
                   <h4 className="text-white font-bold text-sm">Connecting Live Classroom...</h4>

@@ -2370,6 +2370,16 @@ app.post("/api/livekit/token", async (req, res) => {
       "secretsecretsecretsecretsecretsecret";
     const wsUrl = process.env.LIVEKIT_URL || process.env.VITE_LIVEKIT_URL;
 
+    if (!wsUrl) {
+      return res.status(200).json({
+        token: null,
+        wsUrl: null,
+        livekitUrl: null,
+        roomName: effectiveRoom,
+        status: "FALLBACK_ENGINE_ACTIVE",
+      });
+    }
+
     const participantIdentity =
       identity ||
       `${isGuest ? "guest_" : ""}${(effectiveName || "user").replace(/[^a-zA-Z0-9_-]/g, "_")}_${Math.random().toString(36).substring(2, 7)}`;
