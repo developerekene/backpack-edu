@@ -74,6 +74,7 @@ import {
   createLiveKitMeetingUrl,
   getLiveKitDirectUrl,
   endLiveClassSessionApi,
+  isEventLiveActive,
 } from "../../lib/liveClass";
 
 const CourseDetails = () => {
@@ -410,18 +411,18 @@ const CourseDetails = () => {
   const activeCall = useMemo(() => {
     if (targetEventId) {
       const match = scheduleEvents.find(
-        (e) => e.id === targetEventId && e.courseId === courseId && e.isActive && !e.endedAt,
+        (e) => e.id === targetEventId && e.courseId === courseId && isEventLiveActive(e),
       );
       if (match) return match;
     }
     return (
-      scheduleEvents.find((e) => e.courseId === courseId && e.isActive && !e.endedAt) || null
+      scheduleEvents.find((e) => e.courseId === courseId && isEventLiveActive(e)) || null
     );
   }, [scheduleEvents, courseId, targetEventId]);
 
   const liveCallActiveEvent = useMemo(() => {
     return (
-      scheduleEvents.find((e) => e.courseId === courseId && e.isActive && !e.endedAt) || null
+      scheduleEvents.find((e) => e.courseId === courseId && isEventLiveActive(e)) || null
     );
   }, [scheduleEvents, courseId]);
 
@@ -435,6 +436,13 @@ const CourseDetails = () => {
   const handleStartCall = async () => {
     if (!courseId || !course || isStartingCall) return;
     setIsStartingCall(true);
+
+    // Clear ended flag for this course when starting a new call
+    if (typeof window !== "undefined" && courseId) {
+      try {
+        localStorage.removeItem(`bp_course_live_ended_${courseId}`);
+      } catch {}
+    }
 
     // Immediately open in-app call viewport on first click so user never has to wait or click multiple times
     setIsCallActiveInApp(true);
@@ -454,6 +462,7 @@ const CourseDetails = () => {
           await updateScheduleEvent(match.id, {
             isActive: true,
             meetingUrl,
+            updatedAt: Date.now(),
           });
           createLiveKitMeetingUrl({
             roomName,
@@ -477,6 +486,7 @@ const CourseDetails = () => {
         await updateScheduleEvent(todayScheduled.id, {
           isActive: true,
           meetingUrl,
+          updatedAt: Date.now(),
         });
         createLiveKitMeetingUrl({
           roomName,
@@ -508,6 +518,7 @@ const CourseDetails = () => {
         type: "lecture",
         meetingUrl,
         isActive: true,
+        updatedAt: Date.now(),
       });
 
       createLiveKitMeetingUrl({
@@ -528,7 +539,14 @@ const CourseDetails = () => {
     // 1. Immediately dismiss live call UI so the view closes in <10ms
     setIsCallActiveInApp(false);
 
-    // 2. Synchronously clear active scheduleEvents in local state and persistent localStorage
+    // 2. Persistently record that live session for this course has ended
+    if (typeof window !== "undefined" && courseId) {
+      try {
+        localStorage.setItem(`bp_course_live_ended_${courseId}`, String(Date.now()));
+      } catch {}
+    }
+
+    // 3. Synchronously clear active scheduleEvents in local state and persistent localStorage
     if (courseId) {
       const now = Date.now();
       setScheduleEvents((prev) => {
@@ -544,7 +562,7 @@ const CourseDetails = () => {
       });
     }
 
-    // 3. Remove live/joinLive/eventId URL query parameters so useEffect doesn't re-trigger it
+    // 4. Remove live/joinLive/eventId URL query parameters so useEffect doesn't re-trigger it
     if (typeof window !== "undefined") {
       try {
         navigate(location.pathname, { replace: true });
@@ -559,7 +577,7 @@ const CourseDetails = () => {
       }
     }
 
-    // 4. Mark backend sessions and schedule events as inactive
+    // 5. Mark backend sessions and schedule events as inactive
     try {
       if (courseId && endLiveClassSession) {
         endLiveClassSession(courseId).catch(() => {});

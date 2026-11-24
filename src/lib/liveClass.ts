@@ -48,6 +48,37 @@ export const getLiveClassRoomName = (
 };
 
 /**
+ * Determines whether a schedule event is genuinely live right now.
+ * Protects against stale Firestore documents, ghost sessions, and ended classes.
+ */
+export const isEventLiveActive = (event?: Partial<ScheduleEvent> | null): boolean => {
+  if (!event || !event.isActive || Boolean(event.endedAt)) return false;
+  if (!event.courseId) return false;
+
+  if (typeof window !== 'undefined') {
+    const courseEndedTime = Number(localStorage.getItem(`bp_course_live_ended_${event.courseId}`) || 0);
+    const eventTime = Number(
+      event.updatedAt ||
+      (event.id && event.id.startsWith('live_') ? Number(event.id.split('_').pop()) : 0) ||
+      0
+    );
+    if (courseEndedTime > 0 && (!eventTime || eventTime <= courseEndedTime)) {
+      return false;
+    }
+  }
+
+  // Ad-hoc live events older than 2 hours are never actively live
+  if (event.id && event.id.startsWith('live_')) {
+    const parsedTime = Number(event.id.split('_').pop());
+    if (parsedTime && !isNaN(parsedTime) && Date.now() - parsedTime > 2 * 60 * 60 * 1000) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+/**
  * Destroys a LiveKit room permanently on the server and kicks out lingering connections.
  */
 export const endLiveClassSessionApi = async (roomName: string, courseId?: string): Promise<{ success: boolean; message?: string; error?: string }> => {

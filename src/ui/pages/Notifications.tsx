@@ -28,6 +28,7 @@ import {
   sendPushNotification,
   playNotificationChime,
 } from "../../lib/pushNotifications";
+import { isEventLiveActive } from "../../lib/liveClass";
 
 export const Notifications: React.FC = () => {
   const {
@@ -107,7 +108,7 @@ export const Notifications: React.FC = () => {
   const activeLiveCalls = useMemo(() => {
     const active = scheduleEvents.filter(
       (e) =>
-        e.isActive && !e.endedAt && e.courseId && userEnrolledCourseIds.includes(e.courseId),
+        isEventLiveActive(e) && e.courseId && userEnrolledCourseIds.includes(e.courseId),
     );
     const seen = new Set<string>();
     return active.filter((e) => {
@@ -169,7 +170,7 @@ export const Notifications: React.FC = () => {
       // If notification is a live_class notification and the session has ended, do not display it as unread
       if (n.type === "live_class") {
         const isCurrentlyLive = scheduleEvents.some(
-          (e) => e.isActive && !e.endedAt && e.courseId === n.courseId,
+          (e) => isEventLiveActive(e) && e.courseId === n.courseId,
         );
         if (!isCurrentlyLive && !n.read) {
           return false;

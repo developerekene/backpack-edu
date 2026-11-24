@@ -61,7 +61,7 @@ import {
 import { useAuth } from "./AuthContext";
 import { sendPushNotification } from "../lib/pushNotifications";
 import { generateId } from "../lib/id";
-import { getLiveClassRoomName, getJitsiMeetingUrl, endLiveClassSessionApi } from "../lib/liveClass";
+import { getLiveClassRoomName, getJitsiMeetingUrl, endLiveClassSessionApi, isEventLiveActive } from "../lib/liveClass";
 
 export interface AdmissionGateStatus {
   isVocational: boolean;
@@ -1091,6 +1091,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const activeCourseMap = new Set<string>();
         const seenEventSignature = new Set<string>();
 
+        // 1. Gather all ended timestamps per course across all historical events and local storage
+        const courseMaxEndedAt = new Map<string, number>();
+        if (typeof window !== "undefined") {
+          try {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith("bp_course_live_ended_")) {
+                const cId = key.replace("bp_course_live_ended_", "");
+                const t = Number(localStorage.getItem(key) || 0);
+                if (t > 0) courseMaxEndedAt.set(cId, t);
+              }
+            }
+          } catch {}
+        }
+        for (const evt of events) {
+          if (evt && evt.courseId && evt.endedAt) {
+            const cur = courseMaxEndedAt.get(evt.courseId) || 0;
+            if (Number(evt.endedAt) > cur) {
+              courseMaxEndedAt.set(evt.courseId, Number(evt.endedAt));
+            }
+          }
+        }
+
         for (const [, list] of eventsById.entries()) {
           // If any copy has been marked inactive or ended, resolve definitively
           const hasEnded = list.some(
@@ -1120,15 +1143,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             definitive.endedAt = maxEndedAt || Date.now();
           }
 
-          // Ghost session protection: Auto-expire any active session older than 4 hours
-          if (
-            definitive.isActive &&
-            definitive.updatedAt &&
-            Date.now() - Number(definitive.updatedAt) > 4 * 60 * 60 * 1000
-          ) {
+          // Check if course has been ended at or after this event was created/updated
+          const courseEndedTime = courseMaxEndedAt.get(definitive.courseId) || 0;
+          const evtTimestamp = Number(
+            definitive.updatedAt ||
+            (definitive.id.startsWith("live_") ? Number(definitive.id.split("_").pop()) : 0) ||
+            0
+          );
+          if (courseEndedTime > 0 && (!evtTimestamp || evtTimestamp <= courseEndedTime)) {
+            definitive.isActive = false;
+            definitive.endedAt = courseEndedTime;
+          }
+
+          // Check validity through isEventLiveActive
+          if (definitive.isActive && !isEventLiveActive(definitive)) {
             definitive.isActive = false;
             definitive.endedAt = Date.now();
           }
+
           resolvedEvents.push(definitive);
         }
 
@@ -4394,6 +4426,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const endLiveClassSession = async (courseId: string, eventId?: string) => {
     const now = Date.now();
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`bp_course_live_ended_${courseId}`, String(now));
+      } catch {}
+    }
     // 1. Immediately & synchronously update in-memory React state and persistent cache
     setScheduleEvents((prev) => {
       const next = prev.map((e) =>

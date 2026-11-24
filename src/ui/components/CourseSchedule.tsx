@@ -5,7 +5,7 @@ import { ScheduleEvent } from '../../types';
 import { Calendar, Video, Plus, Trash2, PhoneOff } from 'lucide-react';
 import { ProctoringSession } from './ProctoringSession';
 import { LiveKitCall } from './LiveKitCall';
-import { getLiveClassRoomName, getJitsiMeetingUrl, createLiveKitMeetingUrl, getLiveKitDirectUrl, endLiveClassSessionApi } from '../../lib/liveClass';
+import { getLiveClassRoomName, getJitsiMeetingUrl, createLiveKitMeetingUrl, getLiveKitDirectUrl, endLiveClassSessionApi, isEventLiveActive } from '../../lib/liveClass';
 
 export const CourseSchedule = ({
     courseId,
@@ -195,13 +195,13 @@ export const CourseSchedule = ({
                                         {evt.meetingUrl && (
                                             <div className="mt-3 flex flex-col gap-3">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    {evt.isActive && (
+                                                    {isEventLiveActive(evt) && (
                                                         <span className="inline-flex items-center px-3.5 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold">
                                                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2" /> Live Call Active
                                                         </span>
                                                     )}
 
-                                                    {!evt.isActive ? (
+                                                    {!isEventLiveActive(evt) ? (
                                                         !isStudent ? (
                                                             <button 
                                                                 onClick={() => {
