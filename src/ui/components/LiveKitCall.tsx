@@ -534,7 +534,7 @@ interface ChatMessage {
  * Loads Jitsi Meet External API script into window if not present.
  * Enables Backpack frontend controls to drive the Jitsi conference engine headlessly under the hood.
  */
-const loadJitsiScript = (domain: string): Promise<any> => {
+const loadJitsiScript = (domain: string, fallbackDomain = 'meet.mayfirst.org'): Promise<any> => {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
       resolve(null);
@@ -542,7 +542,7 @@ const loadJitsiScript = (domain: string): Promise<any> => {
     }
     const scriptId = 'jitsi-external-api-script';
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-    if (script && script.src.includes(domain) && (window as any).JitsiMeetExternalAPI) {
+    if (script && (window as any).JitsiMeetExternalAPI) {
       resolve((window as any).JitsiMeetExternalAPI);
       return;
     }
@@ -562,6 +562,9 @@ const loadJitsiScript = (domain: string): Promise<any> => {
     const timer = setTimeout(() => {
       if ((window as any).JitsiMeetExternalAPI) {
         resolve((window as any).JitsiMeetExternalAPI);
+      } else if (fallbackDomain && fallbackDomain !== domain) {
+        console.warn(`[Jitsi] Script timeout from ${domain}, attempting fallback to ${fallbackDomain}`);
+        loadJitsiScript(fallbackDomain, '').then(resolve);
       } else {
         console.warn('[Jitsi] External API script timeout, resolving fallback.');
         resolve(null);
@@ -574,8 +577,13 @@ const loadJitsiScript = (domain: string): Promise<any> => {
     };
     script.onerror = () => {
       clearTimeout(timer);
-      console.warn('[Jitsi] Failed to load external_api.js from domain:', domain);
-      resolve(null);
+      if (fallbackDomain && fallbackDomain !== domain) {
+        console.warn(`[Jitsi] Failed to load external_api.js from ${domain}, falling back to ${fallbackDomain}`);
+        loadJitsiScript(fallbackDomain, '').then(resolve);
+      } else {
+        console.warn('[Jitsi] Failed to load external_api.js from domain:', domain);
+        resolve(null);
+      }
     };
     document.body.appendChild(script);
   });
@@ -662,11 +670,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [showScreenShareNotice, setShowScreenShareNotice] = useState<boolean>(false);
   const [copiedJoinUrl, setCopiedJoinUrl] = useState<boolean>(false);
 
-  const cleanRoomName = (roomName || 'backpack-live-class')
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'backpack-live-class';
+  const cleanRoomName = useMemo(() => {
+    return (
+      (roomName || 'backpack-live-class')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'backpack-live-class'
+    );
+  }, [roomName]);
 
   const isSpeaker = Boolean(
     isGuestSpeaker ||
@@ -746,7 +758,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const jitsiApiRef = useRef<any>(null);
   const [isJitsiEngineReady, setIsJitsiEngineReady] = useState<boolean>(false);
   const [jitsiLoadError, setJitsiLoadError] = useState<boolean>(false);
-  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'fairmeeting.net';
+  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'meet.greenhost.net';
 
   // Remote participants state for multi-user classroom
   const [remoteParticipants, setRemoteParticipants] = useState<
@@ -895,33 +907,51 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           configOverwrite: {
             prejoinPageEnabled: false,
             prejoinConfig: { enabled: false },
-            startWithAudioMuted: !initialAudioEnabled,
-            startWithVideoMuted: !initialVideoEnabled,
+            startWithAudioMuted: isMuted,
+            startWithVideoMuted: isVideoOff,
             disableDeepLinking: true,
             enableWelcomePage: false,
             enableClosePage: false,
             // Hides ALL Jitsi native toolbar buttons so our Backpack controls own the UI
             toolbarButtons: [],
+            toolbarConfig: {
+              initialTimeout: 0,
+              timeout: 0,
+              alwaysVisible: false,
+            },
             notifications: [],
             hideConferenceSubject: true,
             hideConferenceTimer: true,
             hideRecordingLabel: true,
+            hideParticipantsStats: true,
             disablePolls: true,
             disableReactions: true,
             disableProfile: true,
+            disableSelfViewSettings: true,
+            readOnlyName: true,
+            defaultRemoteDisplayName: 'Classroom Learner',
+            filmstrip: {
+              disableResizable: true,
+              disableStageFilmstrip: false,
+            },
           },
           interfaceConfigOverwrite: {
             // Hides Jitsi chrome and toolbar completely
             TOOLBAR_BUTTONS: [],
+            SETTINGS_SECTIONS: [],
             SHOW_JITSI_WATERMARK: false,
             SHOW_WATERMARK_FOR_GUESTS: false,
             SHOW_BRAND_WATERMARK: false,
             SHOW_POWERED_BY: false,
             SHOW_CHROME_EXTENSION_BANNER: false,
+            SHOW_PROMOTIONAL_CLOSE_PAGE: false,
             MOBILE_APP_PROMO: false,
             HIDE_DEEP_LINKING_LOGO: true,
             DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
             DEFAULT_BACKGROUND: '#020617',
+            APP_NAME: 'Backpack Virtual Classroom',
+            NATIVE_APP_NAME: 'Backpack',
+            PROVIDER_NAME: 'Backpack Education',
           },
         };
 
@@ -1015,38 +1045,35 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         jitsiApiRef.current = null;
       }
     };
-  }, [useLiveKitRoom, cleanRoomName, displayName, initialAudioEnabled, initialVideoEnabled, jitsiDomain]);
+  }, [useLiveKitRoom, cleanRoomName, displayName, jitsiDomain]);
 
-  // Fast, single-click frontend mic mute control: commands Jitsi engine directly
+  // Fast, single-click frontend mic mute control: commands Jitsi engine directly with zero UI lag
   const toggleMute = () => {
+    setIsMuted((prev) => !prev);
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.executeCommand('toggleAudio');
       } catch {}
-    } else {
-      setIsMuted((prev) => !prev);
     }
   };
 
-  // Fast, single-click frontend camera toggle control: commands Jitsi engine directly
+  // Fast, single-click frontend camera toggle control: commands Jitsi engine directly with zero UI lag
   const toggleVideo = () => {
+    setIsVideoOff((prev) => !prev);
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.executeCommand('toggleVideo');
       } catch {}
-    } else {
-      setIsVideoOff((prev) => !prev);
     }
   };
 
   // Screen share control: commands Jitsi engine directly
   const toggleScreenShare = () => {
+    setIsScreenSharing((prev) => !prev);
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.executeCommand('toggleShareScreen');
       } catch {}
-    } else {
-      setIsScreenSharing((prev) => !prev);
     }
   };
 
@@ -1124,6 +1151,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       } catch {}
       jitsiApiRef.current = null;
     }
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(`bp_active_room_${cleanRoomName}`);
+        if (courseId) sessionStorage.removeItem(`bp_active_room_${courseId}`);
+      } catch {}
+    }
     if (onClose) {
       onClose();
     }
@@ -1138,6 +1171,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         jitsiApiRef.current.dispose();
       } catch {}
       jitsiApiRef.current = null;
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(`bp_active_room_${cleanRoomName}`);
+        if (courseId) {
+          sessionStorage.removeItem(`bp_active_room_${courseId}`);
+          localStorage.setItem(`bp_course_live_ended_${courseId}`, String(Date.now()));
+        }
+      } catch {}
     }
     if (onClose) {
       onClose();

@@ -414,9 +414,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [submissions, setSubmissions] = useState<Submission[]>(() =>
     loadCache("course.submissions", []),
   );
-  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(() =>
-    loadCache("course.scheduleEvents", []),
-  );
+  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(() => {
+    const raw = loadCache<ScheduleEvent[]>("course.scheduleEvents", []);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((e) => {
+      if (!e) return e;
+      if (!isEventLiveActive(e)) {
+        return { ...e, isActive: false };
+      }
+      return e;
+    });
+  });
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     loadCache("course.messages", []),
   );

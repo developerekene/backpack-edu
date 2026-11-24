@@ -432,8 +432,10 @@ const CourseDetails = () => {
   };
 
   const [isStartingCall, setIsStartingCall] = useState(false);
+  const [activeCallRoomName, setActiveCallRoomName] = useState<string | null>(null);
 
-  const handleStartCall = async () => {
+  const handleStartCall = async (targetEventId?: string) => {
+    const validEventId = typeof targetEventId === "string" ? targetEventId : undefined;
     if (!courseId || !course || isStartingCall) return;
     setIsStartingCall(true);
 
@@ -444,90 +446,51 @@ const CourseDetails = () => {
       } catch {}
     }
 
-    // Immediately open in-app call viewport on first click so user never has to wait or click multiple times
-    setIsCallActiveInApp(true);
-
     try {
+      let roomName = "";
       if (liveCallActiveEvent) {
-        return;
-      }
-
-      if (targetEventId) {
+        roomName = getEffectiveRoomName(liveCallActiveEvent);
+      } else if (validEventId) {
         const match = scheduleEvents.find(
-          (e) => e.id === targetEventId && e.courseId === courseId,
+          (e) => e.id === validEventId && e.courseId === courseId,
         );
         if (match) {
-          const roomName = getLiveClassRoomName(match, courseId);
+          roomName = getLiveClassRoomName(match, courseId);
           const meetingUrl = match.meetingUrl || getLiveKitDirectUrl(roomName);
-          await updateScheduleEvent(match.id, {
+          updateScheduleEvent(match.id, {
             isActive: true,
             meetingUrl,
             updatedAt: Date.now(),
-          });
-          createLiveKitMeetingUrl({
-            roomName,
-            participantName: currentUser?.name || "Participant",
-            courseId,
-            role: currentUser?.role || "student",
-            forceSync: true,
-          }).catch(() => {});
-          return;
+          }).catch(console.error);
         }
       }
 
-      const todayStr = new Date().toISOString().split("T")[0];
-      const todayScheduled = scheduleEvents.find(
-        (e) => e.courseId === courseId && e.date === todayStr && !e.isActive,
-      );
-      if (todayScheduled) {
-        const roomName = getLiveClassRoomName(todayScheduled, courseId);
-        const meetingUrl =
-          todayScheduled.meetingUrl || getLiveKitDirectUrl(roomName);
-        await updateScheduleEvent(todayScheduled.id, {
-          isActive: true,
-          meetingUrl,
-          updatedAt: Date.now(),
-        });
-        createLiveKitMeetingUrl({
-          roomName,
-          participantName: currentUser?.name || "Participant",
+      if (!roomName) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const newEventId = `live_${courseId}_${Date.now()}`;
+        roomName = getLiveClassRoomName({ id: newEventId, courseId }, courseId);
+        const meetingUrl = getLiveKitDirectUrl(roomName);
+
+        addScheduleEvent({
+          id: newEventId,
           courseId,
-          role: currentUser?.role || "student",
-          forceSync: true,
-        }).catch(() => {});
-        return;
+          title: `${course.title} - Live Class`,
+          date: todayStr,
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          durationMins: 60,
+          type: "lecture",
+          meetingUrl,
+          isActive: true,
+          updatedAt: Date.now(),
+        }).catch(console.error);
       }
 
-      const newEventId = `live_${courseId}_${Date.now()}`;
-      const roomName = getLiveClassRoomName(
-        { id: newEventId, courseId },
-        courseId,
-      );
-      const meetingUrl = getLiveKitDirectUrl(roomName);
-
-      await addScheduleEvent({
-        id: newEventId,
-        courseId,
-        title: `${course.title} - Live Class`,
-        date: todayStr,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        durationMins: 60,
-        type: "lecture",
-        meetingUrl,
-        isActive: true,
-        updatedAt: Date.now(),
-      });
-
-      createLiveKitMeetingUrl({
-        roomName,
-        participantName: currentUser?.name || "Participant",
-        courseId,
-        role: currentUser?.role || "student",
-        forceSync: true,
-      }).catch(() => {});
+      // Synchronously lock the active call room name and open in-app call viewport on first click!
+      setActiveCallRoomName(roomName);
+      setIsCallActiveInApp(true);
     } catch (err) {
       console.warn("Notice starting live session event sync:", err);
     } finally {
@@ -538,17 +501,20 @@ const CourseDetails = () => {
   const handleEndCall = async () => {
     // 1. Immediately dismiss live call UI so the view closes in <10ms
     setIsCallActiveInApp(false);
+    const roomToEnd = activeCallRoomName || getEffectiveRoomName(liveCallActiveEvent || activeCall);
+    setActiveCallRoomName(null);
 
     // 2. Persistently record that live session for this course has ended
+    const now = Date.now();
     if (typeof window !== "undefined" && courseId) {
       try {
-        localStorage.setItem(`bp_course_live_ended_${courseId}`, String(Date.now()));
+        localStorage.setItem(`bp_course_live_ended_${courseId}`, String(now));
+        sessionStorage.removeItem(`bp_active_room_${courseId}`);
       } catch {}
     }
 
     // 3. Synchronously clear active scheduleEvents in local state and persistent localStorage
     if (courseId) {
-      const now = Date.now();
       setScheduleEvents((prev) => {
         const next = prev.map((e) =>
           e.courseId === courseId
@@ -577,10 +543,13 @@ const CourseDetails = () => {
       }
     }
 
-    // 5. Mark backend sessions and schedule events as inactive
+    // 5. Terminate room on server & global app state
+    if (roomToEnd) {
+      endLiveClassSessionApi(roomToEnd, courseId).catch(console.error);
+    }
     try {
       if (courseId && endLiveClassSession) {
-        endLiveClassSession(courseId).catch(() => {});
+        await endLiveClassSession(courseId);
       } else {
         const activeEvts = scheduleEvents.filter(
           (e) => e.courseId === courseId && e.isActive,
@@ -1230,7 +1199,7 @@ const CourseDetails = () => {
                 )
               : canStartVideoCall && (
                   <button
-                    onClick={handleStartCall}
+                    onClick={() => handleStartCall()}
                     disabled={isStartingCall}
                     className="w-full sm:w-auto flex items-center justify-center px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-75 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm hover:shadow-md font-heading cursor-pointer"
                   >
@@ -1468,7 +1437,7 @@ const CourseDetails = () => {
       {isCallActiveInApp && (
         <div className="mb-6" id="live-class-viewport">
           <LiveKitCall
-            roomName={getEffectiveRoomName(liveCallActiveEvent || activeCall)}
+            roomName={activeCallRoomName || getEffectiveRoomName(liveCallActiveEvent || activeCall)}
             participantName={participantDisplayName}
             userRole={currentUser?.role}
             courseId={course.id}
@@ -1985,7 +1954,8 @@ const CourseDetails = () => {
                         });
                     }, 200);
                   }}
-                  onStartLiveCall={() => {
+                  onStartLiveCall={(room) => {
+                    if (room) setActiveCallRoomName(room);
                     setIsCallActiveInApp(true);
                     setTimeout(() => {
                       const el = document.getElementById("live-class-viewport");
