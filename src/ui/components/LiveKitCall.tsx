@@ -746,7 +746,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const jitsiApiRef = useRef<any>(null);
   const [isJitsiEngineReady, setIsJitsiEngineReady] = useState<boolean>(false);
   const [jitsiLoadError, setJitsiLoadError] = useState<boolean>(false);
-  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'meet.ffmuc.net';
+  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'fairmeeting.net';
 
   // Remote participants state for multi-user classroom
   const [remoteParticipants, setRemoteParticipants] = useState<
