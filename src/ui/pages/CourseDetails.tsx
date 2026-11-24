@@ -42,6 +42,7 @@ import {
   ShieldCheck,
   XCircle,
   Loader2,
+  PhoneOff,
 } from "lucide-react";
 import { PublicCourseDetails } from "../components/PublicCourseDetails";
 import { EditCourseDetailsModal } from "../components/EditCourseDetailsModal";
@@ -91,8 +92,10 @@ const CourseDetails = () => {
     updateEnrollmentRequest,
     orgMembers,
     scheduleEvents,
+    setScheduleEvents,
     addScheduleEvent,
     updateScheduleEvent,
+    endLiveClassSession,
     organizations,
     courseDonations,
     getCourseAdmissionGate,
@@ -525,31 +528,50 @@ const CourseDetails = () => {
     // 1. Immediately dismiss live call UI so the view closes in <10ms
     setIsCallActiveInApp(false);
 
-    // 2. Remove live/joinLive/eventId URL query parameters so useEffect doesn't re-trigger it
-    if (typeof window !== "undefined") {
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("live");
-        url.searchParams.delete("joinLive");
-        url.searchParams.delete("eventId");
-        window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
-      } catch {}
+    // 2. Synchronously clear active scheduleEvents in local state and persistent localStorage
+    if (courseId) {
+      const now = Date.now();
+      setScheduleEvents((prev) => {
+        const next = prev.map((e) =>
+          e.courseId === courseId
+            ? { ...e, isActive: false, endedAt: now, updatedAt: now }
+            : e,
+        );
+        try {
+          localStorage.setItem("bp_cache_course.scheduleEvents", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
     }
 
-    // 3. Mark backend sessions and schedule events as inactive non-blockingly
-    try {
-      const activeEvts = scheduleEvents.filter(
-        (e) => e.courseId === courseId && e.isActive,
-      );
-      for (const evt of activeEvts) {
-        const room = getLiveClassRoomName(evt, courseId);
-        endLiveClassSessionApi(room, courseId).catch(() => {});
-        updateScheduleEvent(evt.id, { isActive: false }).catch(() => {});
+    // 3. Remove live/joinLive/eventId URL query parameters so useEffect doesn't re-trigger it
+    if (typeof window !== "undefined") {
+      try {
+        navigate(location.pathname, { replace: true });
+      } catch {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("live");
+          url.searchParams.delete("joinLive");
+          url.searchParams.delete("eventId");
+          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+        } catch {}
       }
-      if (activeCall?.isActive) {
-        const room = getLiveClassRoomName(activeCall, courseId);
-        endLiveClassSessionApi(room, courseId).catch(() => {});
-        updateScheduleEvent(activeCall.id, { isActive: false }).catch(() => {});
+    }
+
+    // 4. Mark backend sessions and schedule events as inactive
+    try {
+      if (courseId && endLiveClassSession) {
+        endLiveClassSession(courseId).catch(() => {});
+      } else {
+        const activeEvts = scheduleEvents.filter(
+          (e) => e.courseId === courseId && e.isActive,
+        );
+        for (const evt of activeEvts) {
+          const room = getLiveClassRoomName(evt, courseId);
+          endLiveClassSessionApi(room, courseId).catch(() => {});
+          updateScheduleEvent(evt.id, { isActive: false }).catch(() => {});
+        }
       }
     } catch (err) {
       console.warn("Notice updating live class events on call end:", err);
@@ -1404,6 +1426,16 @@ const CourseDetails = () => {
                 {copiedSpeakerClassLink ? "Copied Speaker Link!" : "Invite Guest Speaker 🎙️"}
               </span>
             </button>
+            {canEditCourse && (
+              <button
+                onClick={() => handleEndCall()}
+                className="flex-1 sm:flex-none px-3.5 py-2.5 bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold text-xs rounded-xl transition flex items-center justify-center border border-rose-300 dark:border-rose-800 shadow-2xs cursor-pointer font-heading"
+                title="End live session permanently and dismiss this alert"
+              >
+                <PhoneOff className="w-3.5 h-3.5 mr-1.5" />
+                <span>End Session</span>
+              </button>
+            )}
             <button
               onClick={() => setIsCallActiveInApp(true)}
               className="flex-1 sm:flex-none px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-sm hover:shadow-md flex items-center justify-center shrink-0 cursor-pointer font-heading"

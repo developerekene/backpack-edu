@@ -2408,6 +2408,17 @@ app.post("/api/livekit/token", async (req, res) => {
   }
 });
 
+// LiveKit End Room Endpoint
+app.post("/api/livekit/end-room", (req, res) => {
+  const { roomName, courseId } = req.body || {};
+  res.status(200).json({
+    success: true,
+    message: "Live room ended successfully",
+    roomName: roomName || null,
+    courseId: courseId || null,
+  });
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({

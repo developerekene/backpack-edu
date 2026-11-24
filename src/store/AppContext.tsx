@@ -89,6 +89,7 @@ interface AppState {
   assessments: Assessment[];
   submissions: Submission[];
   scheduleEvents: ScheduleEvent[];
+  setScheduleEvents: React.Dispatch<React.SetStateAction<ScheduleEvent[]>>;
   appEvents: AppEvent[];
   setAppEvents: React.Dispatch<React.SetStateAction<AppEvent[]>>;
   messages: ChatMessage[];
@@ -1115,14 +1116,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 ),
               0,
             );
-            const maxUpdatedAt = Number(definitive.updatedAt || 0);
-            if (
-              maxEndedAt >= maxUpdatedAt ||
-              list.some((e) => e.isActive === false && !e.endedAt)
-            ) {
-              definitive.isActive = false;
-              if (maxEndedAt > 0) definitive.endedAt = maxEndedAt;
-            }
+            definitive.isActive = false;
+            definitive.endedAt = maxEndedAt || Date.now();
+          }
+
+          // Ghost session protection: Auto-expire any active session older than 4 hours
+          if (
+            definitive.isActive &&
+            definitive.updatedAt &&
+            Date.now() - Number(definitive.updatedAt) > 4 * 60 * 60 * 1000
+          ) {
+            definitive.isActive = false;
+            definitive.endedAt = Date.now();
           }
           resolvedEvents.push(definitive);
         }
@@ -4244,6 +4249,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       updates.meetingUrl = getJitsiMeetingUrl(room);
     }
 
+    // Immediately and synchronously update in-memory state and persistent cache
+    setScheduleEvents((prev) => {
+      const next = prev.map((e) =>
+        e.id === id
+          ? { ...e, ...updates }
+          : updates.isActive && effectiveCourseId && e.courseId === effectiveCourseId
+            ? { ...e, isActive: false, endedAt: now, updatedAt: now }
+            : e,
+      );
+      try {
+        localStorage.setItem("bp_cache_course.scheduleEvents", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
     const targetUid = currentUser?.id || "";
     const targetUids = new Set<string>();
     if (targetUid) targetUids.add(targetUid);
@@ -4265,22 +4285,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           list.map((e) =>
             e.id === id
               ? { ...e, ...updates }
-              : updates.isActive && e.courseId === effectiveCourseId
+              : updates.isActive && effectiveCourseId && e.courseId === effectiveCourseId
                 ? { ...e, isActive: false, endedAt: now, updatedAt: now }
                 : e,
           ),
       ).catch(console.error);
     }
-
-    setScheduleEvents((prev) =>
-      prev.map((e) =>
-        e.id === id
-          ? { ...e, ...updates }
-          : updates.isActive && e.courseId === effectiveCourseId
-            ? { ...e, isActive: false, endedAt: now, updatedAt: now }
-            : e,
-      ),
-    );
 
     // Notify only if transition from inactive -> active
     const wasAlreadyActive = existingEvt?.isActive === true;
@@ -4383,13 +4393,53 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const endLiveClassSession = async (courseId: string, eventId?: string) => {
+    const now = Date.now();
+    // 1. Immediately & synchronously update in-memory React state and persistent cache
+    setScheduleEvents((prev) => {
+      const next = prev.map((e) =>
+        e.courseId === courseId || (eventId && e.id === eventId)
+          ? { ...e, isActive: false, endedAt: now, updatedAt: now }
+          : e,
+      );
+      try {
+        localStorage.setItem("bp_cache_course.scheduleEvents", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 2. Terminate server-side room
     const activeEvts = scheduleEvents.filter(
       (e) => e.courseId === courseId && (eventId ? e.id === eventId : e.isActive),
     );
     for (const evt of activeEvts) {
       const room = getLiveClassRoomName(evt, courseId);
-      await endLiveClassSessionApi(room, courseId).catch(console.error);
-      await updateScheduleEvent(evt.id, { isActive: false });
+      endLiveClassSessionApi(room, courseId).catch(console.error);
+    }
+
+    // 3. Persist across all stakeholders
+    const course = courses.find((c) => c.id === courseId);
+    const targetUids = new Set<string>();
+    if (currentUser?.id) targetUids.add(currentUser.id);
+    if (course?.orgId) targetUids.add(course.orgId);
+    if (course?.createdBy) targetUids.add(course.createdBy);
+
+    const assignedInstructorIds = orgMembers
+      .filter((m) => m.courseIds?.includes(courseId))
+      .map((m) => m.userId || m.id)
+      .filter(Boolean) as string[];
+    assignedInstructorIds.forEach((uid) => targetUids.add(uid));
+
+    for (const uid of targetUids) {
+      await updateBackpackUserField<ScheduleEvent>(
+        uid,
+        "course.scheduleEvents",
+        (list) =>
+          list.map((e) =>
+            e.courseId === courseId || (eventId && e.id === eventId)
+              ? { ...e, isActive: false, endedAt: now, updatedAt: now }
+              : e,
+          ),
+      ).catch(console.error);
     }
   };
 
@@ -4682,6 +4732,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         assessments,
         submissions,
         scheduleEvents,
+        setScheduleEvents,
         appEvents,
         setAppEvents,
         messages,
