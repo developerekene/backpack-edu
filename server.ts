@@ -2416,10 +2416,19 @@ interface PeerClient {
   res: express.Response;
 }
 
+const sanitizeWebRtcRoom = (name: string): string => {
+  return (name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+};
+
 const webrtcRooms = new Map<string, Map<string, PeerClient>>();
 
 app.get("/api/webrtc/events", (req, res) => {
-  const room = String(req.query.room || "").trim();
+  const room = sanitizeWebRtcRoom(String(req.query.room || ""));
   const userId = String(req.query.userId || "").trim();
   const userName = String(req.query.userName || "Participant").trim();
   const role = String(req.query.role || "student").trim();
@@ -2434,6 +2443,13 @@ app.get("/api/webrtc/events", (req, res) => {
   if (typeof (res as any).flushHeaders === "function") {
     (res as any).flushHeaders();
   }
+
+  // Heartbeat to prevent browser / proxy timeouts
+  const keepAliveTimer = setInterval(() => {
+    try {
+      res.write(": keep-alive\n\n");
+    } catch {}
+  }, 15000);
 
   if (!webrtcRooms.has(room)) {
     webrtcRooms.set(room, new Map());
@@ -2467,6 +2483,7 @@ app.get("/api/webrtc/events", (req, res) => {
   }
 
   req.on("close", () => {
+    clearInterval(keepAliveTimer);
     roomMap.delete(userId);
     if (roomMap.size === 0) {
       webrtcRooms.delete(room);
@@ -2486,7 +2503,8 @@ app.get("/api/webrtc/events", (req, res) => {
 });
 
 app.post("/api/webrtc/signal", (req, res) => {
-  const { room, senderId, senderName, targetId, type, data } = req.body || {};
+  const { room: rawRoom, senderId, senderName, targetId, type, data } = req.body || {};
+  const room = sanitizeWebRtcRoom(rawRoom);
   if (!room || !senderId || !type) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -2527,7 +2545,7 @@ app.post("/api/webrtc/signal", (req, res) => {
 });
 
 app.post("/api/webrtc/end-room", (req, res) => {
-  const { room } = req.body || {};
+  const room = sanitizeWebRtcRoom(req.body?.room || req.body?.roomName);
   if (room && webrtcRooms.has(room)) {
     const roomMap = webrtcRooms.get(room)!;
     for (const peer of roomMap.values()) {
@@ -2544,15 +2562,16 @@ app.post("/api/webrtc/end-room", (req, res) => {
 // LiveKit End Room Endpoint
 app.post("/api/livekit/end-room", (req, res) => {
   const { roomName, courseId } = req.body || {};
-  if (roomName && webrtcRooms.has(roomName)) {
-    const roomMap = webrtcRooms.get(roomName)!;
+  const room = sanitizeWebRtcRoom(roomName || req.body?.room);
+  if (room && webrtcRooms.has(room)) {
+    const roomMap = webrtcRooms.get(room)!;
     for (const peer of roomMap.values()) {
       try {
         peer.res.write(`data: ${JSON.stringify({ type: "room-ended" })}\n\n`);
         peer.res.end();
       } catch {}
     }
-    webrtcRooms.delete(roomName);
+    webrtcRooms.delete(room);
   }
   res.status(200).json({
     success: true,

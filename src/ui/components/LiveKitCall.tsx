@@ -541,20 +541,32 @@ const RemoteVideoTile: React.FC<{
     stream: MediaStream;
     isSpeaking?: boolean;
     isMuted?: boolean;
+    isVideoOff?: boolean;
   };
 }> = ({ participant }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (videoRef.current && participant.stream) {
       videoRef.current.srcObject = participant.stream;
     }
-  }, [participant.stream]);
+    if (audioRef.current && participant.stream) {
+      audioRef.current.srcObject = participant.stream;
+    }
+  }, [participant.stream, participant.isVideoOff]);
 
-  const hasVideoTrack = participant.stream && participant.stream.getVideoTracks().length > 0;
+  const hasVideoTrack =
+    !participant.isVideoOff &&
+    participant.stream &&
+    participant.stream.getVideoTracks().length > 0 &&
+    participant.stream.getVideoTracks().some((t) => t.enabled !== false);
 
   return (
     <div className="relative w-full h-full min-h-[220px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-center">
+      {/* Invisible autoPlay audio element guarantees remote speech is always heard even if camera is off */}
+      <audio ref={audioRef} autoPlay playsInline />
+
       {hasVideoTrack ? (
         <video
           ref={videoRef}
@@ -758,6 +770,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const [isLocalMediaReady, setIsLocalMediaReady] = useState<boolean>(false);
@@ -769,6 +782,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       stream: MediaStream;
       isSpeaking?: boolean;
       isMuted?: boolean;
+      isVideoOff?: boolean;
     }>
   >(new Map());
 
@@ -1029,17 +1043,22 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       };
 
       pc.ontrack = (event) => {
-        const stream = event.streams[0] || new MediaStream([event.track]);
         setRemotePeers((prev) => {
           const next = new Map(prev);
           const existing = next.get(targetUserId);
+          const currentStream = existing?.stream || new MediaStream();
+          if (!currentStream.getTracks().some((t) => t.id === event.track.id)) {
+            currentStream.addTrack(event.track);
+          }
+          const freshStream = new MediaStream(currentStream.getTracks());
           next.set(targetUserId, {
             id: targetUserId,
-            displayName: targetUserName,
-            role: targetRole,
-            stream,
+            displayName: existing?.displayName || targetUserName,
+            role: existing?.role || targetRole,
+            stream: freshStream,
             isSpeaking: existing?.isSpeaking || false,
             isMuted: existing?.isMuted || false,
+            isVideoOff: existing?.isVideoOff || false,
           });
           return next;
         });
@@ -1064,6 +1083,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         pc.close();
         peerConnectionsRef.current.delete(targetUserId);
       }
+      pendingIceCandidatesRef.current.delete(targetUserId);
       setRemotePeers((prev) => {
         const next = new Map(prev);
         next.delete(targetUserId);
@@ -1075,6 +1095,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     const es = new EventSource(sseUrl);
     eventSourceRef.current = es;
 
+    es.onopen = () => {
+      // Broadcast our current mute & video states to the room
+      sendSignal(null, 'mute-state', { isMuted });
+      sendSignal(null, 'video-state', { isVideoOff });
+    };
+
     es.onmessage = async (evt) => {
       if (!isSubscribed) return;
       try {
@@ -1082,21 +1108,81 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
         if (msg.type === 'init') {
           if (Array.isArray(msg.peers)) {
+            // 1. Immediately register all existing peers in remotePeers so UI updates instantly (Google Meet style)
+            setRemotePeers((prev) => {
+              const next = new Map(prev);
+              for (const p of msg.peers) {
+                if (!next.has(p.id)) {
+                  next.set(p.id, {
+                    id: p.id,
+                    displayName: p.name,
+                    role: p.role,
+                    stream: new MediaStream(),
+                    isSpeaking: false,
+                    isMuted: false,
+                    isVideoOff: false,
+                  });
+                }
+              }
+              return next;
+            });
+
+            // 2. Establish connections with existing peers
             for (const p of msg.peers) {
               const pc = createPeerConnection(p.id, p.name, p.role);
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              sendSignal(p.id, 'offer', offer);
+              // Deterministic initiator: only peer with higher ID creates offer to avoid glare collisions
+              if (myUserId > p.id) {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                sendSignal(p.id, 'offer', offer);
+              }
             }
           }
         } else if (msg.type === 'user-joined') {
+          // 1. Immediately register new participant in remotePeers so UI updates instantly
+          setRemotePeers((prev) => {
+            const next = new Map(prev);
+            next.set(msg.user.id, {
+              id: msg.user.id,
+              displayName: msg.user.name,
+              role: msg.user.role,
+              stream: new MediaStream(),
+              isSpeaking: false,
+              isMuted: false,
+              isVideoOff: false,
+            });
+            return next;
+          });
+
+          // 2. Peer with higher ID initiates offer
           const pc = createPeerConnection(msg.user.id, msg.user.name, msg.user.role);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          sendSignal(msg.user.id, 'offer', offer);
+          if (myUserId > msg.user.id) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSignal(msg.user.id, 'offer', offer);
+          }
         } else if (msg.type === 'offer') {
           const pc = createPeerConnection(msg.senderId, msg.senderName, 'participant');
+
+          // Polite peer collision resolution
+          if (pc.signalingState !== 'stable') {
+            if (myUserId > msg.senderId) {
+              return; // We have higher ID, our offer has priority
+            }
+            await pc.setLocalDescription({ type: 'rollback' });
+          }
+
           await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+
+          // Drain queued ICE candidates
+          const queued = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+          for (const cand of queued) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(cand));
+            } catch {}
+          }
+          pendingIceCandidatesRef.current.delete(msg.senderId);
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           sendSignal(msg.senderId, 'answer', answer);
@@ -1104,13 +1190,26 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           const pc = peerConnectionsRef.current.get(msg.senderId);
           if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+
+            // Drain queued ICE candidates
+            const queued = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+            for (const cand of queued) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch {}
+            }
+            pendingIceCandidatesRef.current.delete(msg.senderId);
           }
         } else if (msg.type === 'candidate') {
           const pc = peerConnectionsRef.current.get(msg.senderId);
-          if (pc) {
+          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
             try {
               await pc.addIceCandidate(new RTCIceCandidate(msg.data));
             } catch {}
+          } else {
+            const queue = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+            queue.push(msg.data);
+            pendingIceCandidatesRef.current.set(msg.senderId, queue);
           }
         } else if (msg.type === 'user-left') {
           removePeer(msg.userId);
@@ -1124,8 +1223,18 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             next.set(msg.senderId, { ...existing, isMuted: Boolean(msg.data?.isMuted) });
             return next;
           });
+        } else if (msg.type === 'video-state') {
+          setRemotePeers((prev) => {
+            const existing = prev.get(msg.senderId);
+            if (!existing) return prev;
+            const next = new Map(prev);
+            next.set(msg.senderId, { ...existing, isVideoOff: Boolean(msg.data?.isVideoOff) });
+            return next;
+          });
         }
-      } catch {}
+      } catch (err) {
+        console.warn('[WebRTC Signaling] Notice:', err);
+      }
     };
 
     return () => {
@@ -1136,6 +1245,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         pc.close();
       }
       peerConnectionsRef.current.clear();
+      pendingIceCandidatesRef.current.clear();
     };
   }, [useLiveKitRoom, cleanRoomName, isLocalMediaReady, myUserId, displayName, effectiveRole]);
 
@@ -1172,6 +1282,17 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           track.enabled = !next;
         });
       }
+      fetch('/api/webrtc/signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: cleanRoomName,
+          senderId: myUserId,
+          senderName: displayName,
+          type: 'video-state',
+          data: { isVideoOff: next },
+        }),
+      }).catch(() => {});
       return next;
     });
   };
