@@ -5,7 +5,7 @@ import { ScheduleEvent } from '../../types';
 import { Calendar, Video, Plus, Trash2, PhoneOff } from 'lucide-react';
 import { ProctoringSession } from './ProctoringSession';
 import { LiveKitCall } from './LiveKitCall';
-import { getLiveClassRoomName, getJitsiMeetingUrl, createLiveKitMeetingUrl, getLiveKitDirectUrl, endLiveClassSessionApi } from '../../lib/liveClass';
+import { getLiveClassRoomName, getJitsiMeetingUrl, createLiveKitMeetingUrl, getLiveKitDirectUrl, endLiveClassSessionApi, isEventLiveActive } from '../../lib/liveClass';
 
 export const CourseSchedule = ({
     courseId,
@@ -195,29 +195,29 @@ export const CourseSchedule = ({
                                         {evt.meetingUrl && (
                                             <div className="mt-3 flex flex-col gap-3">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    {evt.isActive && (
+                                                    {isEventLiveActive(evt) && (
                                                         <span className="inline-flex items-center px-3.5 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold">
                                                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2" /> Live Call Active
                                                         </span>
                                                     )}
 
-                                                    {!evt.isActive ? (
+                                                    {!isEventLiveActive(evt) ? (
                                                         !isStudent ? (
                                                             <button 
-                                                                onClick={async () => {
+                                                                onClick={() => {
                                                                     const room = getEventRoomName(evt);
-                                                                    const livekitRes = await createLiveKitMeetingUrl({
+                                                                    setActiveLiveKitRoom(room);
+                                                                    if (onStartLiveCall) onStartLiveCall(room);
+                                                                    const meetingUrl = evt.meetingUrl || getLiveKitDirectUrl(room);
+                                                                    updateScheduleEvent(evt.id, { isActive: true, meetingUrl }).catch(() => {});
+                                                                    createLiveKitMeetingUrl({
                                                                         roomName: room,
                                                                         courseId,
                                                                         role: 'instructor',
                                                                         forceSync: true,
-                                                                    });
-                                                                    const meetingUrl = evt.meetingUrl || livekitRes.url || getLiveKitDirectUrl(room);
-                                                                    await updateScheduleEvent(evt.id, { isActive: true, meetingUrl });
-                                                                    setActiveLiveKitRoom(room);
-                                                                    if (onStartLiveCall) onStartLiveCall(room);
+                                                                    }).catch(() => {});
                                                                 }}
-                                                                className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition shadow-sm"
+                                                                className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition shadow-sm cursor-pointer"
                                                             >
                                                                 <Video className="w-4 h-4 mr-2" /> Start Live Class
                                                             </button>

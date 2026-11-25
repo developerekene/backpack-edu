@@ -40,11 +40,61 @@ export const getLiveClassRoomName = (
   }
 
   const cleanCourseId = sanitizeRoomName(event?.courseId || courseId || 'classroom');
-  const sessionUuid = event?.id
-    ? sanitizeRoomName(event.id)
-    : generateUniqueSessionId();
+  if (event?.id) {
+    return sanitizeRoomName(`course-backpack-${cleanCourseId}-session-${sanitizeRoomName(event.id)}`);
+  }
 
-  return sanitizeRoomName(`course-backpack-${cleanCourseId}-session-${sessionUuid}`);
+  // Stable session room per course across renders to prevent rapid iframe destruction/re-creation
+  let cachedSessionId = '';
+  if (typeof window !== 'undefined') {
+    try {
+      cachedSessionId = sessionStorage.getItem(`bp_active_room_${cleanCourseId}`) || '';
+      if (!cachedSessionId) {
+        cachedSessionId = generateUniqueSessionId();
+        sessionStorage.setItem(`bp_active_room_${cleanCourseId}`, cachedSessionId);
+      }
+    } catch {
+      cachedSessionId = 'live';
+    }
+  } else {
+    cachedSessionId = 'live';
+  }
+
+  return sanitizeRoomName(`course-backpack-${cleanCourseId}-session-${cachedSessionId}`);
+};
+
+/**
+ * Determines whether a schedule event is genuinely live right now.
+ * Protects against stale Firestore documents, ghost sessions, and ended classes.
+ */
+export const isEventLiveActive = (event?: Partial<ScheduleEvent> | null): boolean => {
+  if (!event || !event.isActive || Boolean(event.endedAt)) return false;
+  if (!event.courseId) return false;
+
+  if (typeof window !== 'undefined') {
+    const courseEndedTime = Number(localStorage.getItem(`bp_course_live_ended_${event.courseId}`) || 0);
+    const eventCreatedTime = Number(
+      (event.id && event.id.startsWith('live_') ? Number(event.id.split('_').pop()) : 0) ||
+      event.createdAt ||
+      0
+    );
+    if (courseEndedTime > 0 && eventCreatedTime > 0 && eventCreatedTime <= courseEndedTime) {
+      return false;
+    }
+    if (courseEndedTime > 0 && (!event.updatedAt || Number(event.updatedAt) <= courseEndedTime)) {
+      return false;
+    }
+  }
+
+  // Ad-hoc live events older than 2 hours are never actively live
+  if (event.id && event.id.startsWith('live_')) {
+    const parsedTime = Number(event.id.split('_').pop());
+    if (parsedTime && !isNaN(parsedTime) && Date.now() - parsedTime > 2 * 60 * 60 * 1000) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
 /**

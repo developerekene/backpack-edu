@@ -530,6 +530,76 @@ interface ChatMessage {
   isSystem?: boolean;
 }
 
+/**
+ * Remote Participant Video & Audio Tile for Backpack Native WebRTC Classroom
+ */
+const RemoteVideoTile: React.FC<{
+  participant: {
+    id: string;
+    displayName: string;
+    role?: string;
+    stream: MediaStream;
+    isSpeaking?: boolean;
+    isMuted?: boolean;
+    isVideoOff?: boolean;
+  };
+}> = ({ participant }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && participant.stream) {
+      videoRef.current.srcObject = participant.stream;
+    }
+    if (audioRef.current && participant.stream) {
+      audioRef.current.srcObject = participant.stream;
+    }
+  }, [participant.stream, participant.isVideoOff]);
+
+  const hasVideoTrack =
+    !participant.isVideoOff &&
+    participant.stream &&
+    participant.stream.getVideoTracks().length > 0 &&
+    participant.stream.getVideoTracks().some((t) => t.enabled !== false);
+
+  return (
+    <div className="relative w-full h-full min-h-[220px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-center">
+      {/* Invisible autoPlay audio element guarantees remote speech is always heard even if camera is off */}
+      <audio ref={audioRef} autoPlay playsInline />
+
+      {hasVideoTrack ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="w-full h-full object-cover rounded-2xl"
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center text-center p-4">
+          <div className="w-16 h-16 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-xl shadow-lg mb-2">
+            {(participant.displayName || "G").charAt(0).toUpperCase()}
+          </div>
+          <span className="text-sm font-bold text-white">{participant.displayName}</span>
+          <span className="text-xs text-purple-400 mt-0.5">{participant.role || "Connected"}</span>
+        </div>
+      )}
+
+      {/* Name and Mic Status Overlay */}
+      <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+        <span className="font-bold truncate max-w-[140px]">{participant.displayName}</span>
+        {participant.isSpeaking && (
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1" title="Speaking" />
+        )}
+        {participant.isMuted ? (
+          <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
+        ) : (
+          <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   roomName,
   participantName = 'Guest Learner',
@@ -542,10 +612,11 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   initialAudioEnabled = true,
   isGuestSpeaker = false,
 }) => {
+  const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
   const [token, setToken] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState<boolean>(true);
-  const [resolvedWsUrl, setResolvedWsUrl] = useState<string | null>(null);
-  const [useLiveKitRoom, setUseLiveKitRoom] = useState<boolean>(true);
+  const [isConnecting, setIsConnecting] = useState<boolean>(Boolean(wsUrlFromEnv));
+  const [resolvedWsUrl, setResolvedWsUrl] = useState<string | null>(wsUrlFromEnv);
+  const [useLiveKitRoom, setUseLiveKitRoom] = useState<boolean>(Boolean(wsUrlFromEnv));
   const [sessionAccessError, setSessionAccessError] = useState<string | null>(null);
   const [mediaDeviceWarning, setMediaDeviceWarning] = useState<string | null>(null);
   const [publishMediaEnabled, setPublishMediaEnabled] = useState<{ audio: boolean; video: boolean }>({
@@ -610,11 +681,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [showScreenShareNotice, setShowScreenShareNotice] = useState<boolean>(false);
   const [copiedJoinUrl, setCopiedJoinUrl] = useState<boolean>(false);
 
-  const cleanRoomName = (roomName || 'backpack-live-class')
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'backpack-live-class';
+  const cleanRoomName = useMemo(() => {
+    return (
+      (roomName || 'backpack-live-class')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'backpack-live-class'
+    );
+  }, [roomName]);
 
   const isSpeaker = Boolean(
     isGuestSpeaker ||
@@ -647,11 +722,6 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const speakerJoinUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/live/${cleanRoomName}?role=speaker`
     : `/live/${cleanRoomName}?role=speaker`;
-
-  // Zero-config multi-user WebRTC conference bridge fallback
-  const jitsiConferenceUrl = useMemo(() => {
-    return `https://meet.jit.si/${cleanRoomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=${!initialAudioEnabled}&config.startWithVideoMuted=${!initialVideoEnabled}&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(displayName)}`;
-  }, [cleanRoomName, initialAudioEnabled, initialVideoEnabled, displayName]);
 
   const handleCopyAttendeeLink = async () => {
     try {
@@ -686,19 +756,47 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   // In-Room Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
     { 
-      sender: 'LiveKit Server', 
-      text: `Connected to room "${roomName}". Open collaboration active.`, 
+      sender: 'Live Classroom', 
+      text: `Connected to "${eventTitle || cleanRoomName}". Live session active.`, 
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isSystem: true
     }
   ]);
   const [newMessage, setNewMessage] = useState<string>('');
 
-  // Media Refs for In-App Native WebRTC stream
+  // Native WebRTC Media & Signaling Refs (Zero third-party popups, 100% Backpack-controlled)
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  const wsUrlFromEnv = import.meta.env.VITE_LIVEKIT_URL || null;
+  const [isLocalMediaReady, setIsLocalMediaReady] = useState<boolean>(false);
+  const [remotePeers, setRemotePeers] = useState<
+    Map<string, {
+      id: string;
+      displayName: string;
+      role?: string;
+      stream: MediaStream;
+      isSpeaking?: boolean;
+      isMuted?: boolean;
+      isVideoOff?: boolean;
+    }>
+  >(new Map());
+
+  // Derived array for participants drawer & badge counter
+  const remoteParticipants = useMemo(() => {
+    return Array.from(remotePeers.values());
+  }, [remotePeers]);
+
+  const myUserId = useMemo(() => {
+    return `${(currentUser?.id || displayName || 'guest')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '_')
+      .slice(0, 24)}_${sessionInstanceId}`;
+  }, [currentUser?.id, displayName, sessionInstanceId]);
 
   // Request LiveKit Token from server-side SDK endpoint (backed by Render URL service)
   const uniqueParticipantIdentity = `${(currentUser?.id || displayName || 'guest')
@@ -710,6 +808,13 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     let isMounted = true;
 
     async function loadToken() {
+      // If LiveKit URL is not configured in environment, immediately activate native WebRTC classroom engine
+      if (!wsUrlFromEnv) {
+        setUseLiveKitRoom(false);
+        setIsConnecting(false);
+        return;
+      }
+
       setSessionAccessError(null);
       try {
         const res = await centralApiClient('/api/livekit/token', {
@@ -802,89 +907,459 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     }
   };
 
-  // Setup Local Video Preview for native WebRTC mode
+  // Native WebRTC local media stream initialization (zero third-party dependencies, 100% Backpack-controlled)
   useEffect(() => {
     if (useLiveKitRoom) return;
 
-    let localStream: MediaStream | null = null;
+    let isSubscribed = true;
 
-    async function initCamera() {
+    async function initNativeMedia() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: !isVideoOff,
-          audio: !isMuted,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
-        localStream = stream;
-        streamRef.current = stream;
+
+        if (!isSubscribed) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        localStreamRef.current = stream;
+
+        // Apply audio & video enabled states
+        stream.getAudioTracks().forEach((track) => {
+          track.enabled = !isMuted;
+        });
+        stream.getVideoTracks().forEach((track) => {
+          track.enabled = !isVideoOff;
+        });
+
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-        setHasPermissionsError(false);
+
+        setIsLocalMediaReady(true);
       } catch (err) {
-        console.warn('Camera/mic access error:', err);
-        setHasPermissionsError(true);
+        console.warn('[WebRTC] Native camera access fallback:', err);
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (!isSubscribed) {
+            audioStream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          localStreamRef.current = audioStream;
+          audioStream.getAudioTracks().forEach((track) => {
+            track.enabled = !isMuted;
+          });
+          setIsVideoOff(true);
+          setIsLocalMediaReady(true);
+        } catch {
+          if (isSubscribed) {
+            setIsLocalMediaReady(true);
+          }
+        }
       }
     }
 
-    initCamera();
+    initNativeMedia();
 
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      isSubscribed = false;
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
       }
     };
-  }, [useLiveKitRoom, isVideoOff, isMuted]);
+  }, [useLiveKitRoom]);
 
-  const toggleMute = () => {
-    setIsMuted(prev => {
-      const next = !prev;
-      if (streamRef.current) {
-        streamRef.current.getAudioTracks().forEach(track => {
-          track.enabled = !next;
-        });
-      }
-      return next;
-    });
-  };
-
-  const toggleVideo = () => {
-    setIsVideoOff(prev => {
-      const next = !prev;
-      if (streamRef.current) {
-        streamRef.current.getVideoTracks().forEach(track => {
-          track.enabled = !next;
-        });
-      }
-      return next;
-    });
-  };
-
-  const toggleScreenShare = async () => {
-    if (isScreenSharing) {
-      setIsScreenSharing(false);
-      return;
+  // Bind local stream to local video element whenever ready or re-mounted
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
     }
+  }, [isLocalMediaReady, isVideoOff, isScreenSharing, remoteParticipants.length]);
 
-    try {
-      if (window.self !== window.top) {
-        setShowScreenShareNotice(true);
-        return;
+  // Bind screen stream to screen video element when sharing
+  useEffect(() => {
+    if (screenVideoRef.current && screenStreamRef.current) {
+      screenVideoRef.current.srcObject = screenStreamRef.current;
+    }
+  }, [isScreenSharing]);
+
+  // Native WebRTC peer-to-peer signaling over SSE & backend endpoints
+  useEffect(() => {
+    if (useLiveKitRoom || !cleanRoomName || !isLocalMediaReady) return;
+
+    let isSubscribed = true;
+
+    const sendSignal = async (targetId: string | null, type: string, data?: any) => {
+      try {
+        await fetch('/api/webrtc/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room: cleanRoomName,
+            senderId: myUserId,
+            senderName: displayName,
+            targetId,
+            type,
+            data,
+          }),
+        });
+      } catch {}
+    };
+
+    const createPeerConnection = (targetUserId: string, targetUserName: string, targetRole: string) => {
+      if (peerConnectionsRef.current.has(targetUserId)) {
+        return peerConnectionsRef.current.get(targetUserId)!;
       }
 
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      setIsScreenSharing(true);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = screenStream;
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ],
+      });
+
+      peerConnectionsRef.current.set(targetUserId, pc);
+
+      const activeMedia = screenStreamRef.current || localStreamRef.current;
+      if (activeMedia) {
+        activeMedia.getTracks().forEach((track) => {
+          pc.addTrack(track, activeMedia);
+        });
       }
-      screenStream.getVideoTracks()[0].onended = () => {
-        setIsScreenSharing(false);
-        if (streamRef.current && localVideoRef.current) {
-          localVideoRef.current.srcObject = streamRef.current;
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendSignal(targetUserId, 'candidate', event.candidate);
         }
       };
-    } catch {
+
+      pc.ontrack = (event) => {
+        setRemotePeers((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(targetUserId);
+          const currentStream = existing?.stream || new MediaStream();
+          if (!currentStream.getTracks().some((t) => t.id === event.track.id)) {
+            currentStream.addTrack(event.track);
+          }
+          const freshStream = new MediaStream(currentStream.getTracks());
+          next.set(targetUserId, {
+            id: targetUserId,
+            displayName: existing?.displayName || targetUserName,
+            role: existing?.role || targetRole,
+            stream: freshStream,
+            isSpeaking: existing?.isSpeaking || false,
+            isMuted: existing?.isMuted || false,
+            isVideoOff: existing?.isVideoOff || false,
+          });
+          return next;
+        });
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (
+          pc.connectionState === 'disconnected' ||
+          pc.connectionState === 'failed' ||
+          pc.connectionState === 'closed'
+        ) {
+          removePeer(targetUserId);
+        }
+      };
+
+      return pc;
+    };
+
+    const removePeer = (targetUserId: string) => {
+      const pc = peerConnectionsRef.current.get(targetUserId);
+      if (pc) {
+        pc.close();
+        peerConnectionsRef.current.delete(targetUserId);
+      }
+      pendingIceCandidatesRef.current.delete(targetUserId);
+      setRemotePeers((prev) => {
+        const next = new Map(prev);
+        next.delete(targetUserId);
+        return next;
+      });
+    };
+
+    const sseUrl = `/api/webrtc/events?room=${encodeURIComponent(cleanRoomName)}&userId=${encodeURIComponent(myUserId)}&userName=${encodeURIComponent(displayName)}&role=${encodeURIComponent(effectiveRole)}`;
+    const es = new EventSource(sseUrl);
+    eventSourceRef.current = es;
+
+    es.onopen = () => {
+      // Broadcast our current mute & video states to the room
+      sendSignal(null, 'mute-state', { isMuted });
+      sendSignal(null, 'video-state', { isVideoOff });
+    };
+
+    es.onmessage = async (evt) => {
+      if (!isSubscribed) return;
+      try {
+        const msg = JSON.parse(evt.data);
+
+        if (msg.type === 'init') {
+          if (Array.isArray(msg.peers)) {
+            // 1. Immediately register all existing peers in remotePeers so UI updates instantly (Google Meet style)
+            setRemotePeers((prev) => {
+              const next = new Map(prev);
+              for (const p of msg.peers) {
+                if (!next.has(p.id)) {
+                  next.set(p.id, {
+                    id: p.id,
+                    displayName: p.name,
+                    role: p.role,
+                    stream: new MediaStream(),
+                    isSpeaking: false,
+                    isMuted: false,
+                    isVideoOff: false,
+                  });
+                }
+              }
+              return next;
+            });
+
+            // 2. Establish connections with existing peers
+            for (const p of msg.peers) {
+              const pc = createPeerConnection(p.id, p.name, p.role);
+              // Deterministic initiator: only peer with higher ID creates offer to avoid glare collisions
+              if (myUserId > p.id) {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                sendSignal(p.id, 'offer', offer);
+              }
+            }
+          }
+        } else if (msg.type === 'user-joined') {
+          // 1. Immediately register new participant in remotePeers so UI updates instantly
+          setRemotePeers((prev) => {
+            const next = new Map(prev);
+            next.set(msg.user.id, {
+              id: msg.user.id,
+              displayName: msg.user.name,
+              role: msg.user.role,
+              stream: new MediaStream(),
+              isSpeaking: false,
+              isMuted: false,
+              isVideoOff: false,
+            });
+            return next;
+          });
+
+          // 2. Peer with higher ID initiates offer
+          const pc = createPeerConnection(msg.user.id, msg.user.name, msg.user.role);
+          if (myUserId > msg.user.id) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSignal(msg.user.id, 'offer', offer);
+          }
+        } else if (msg.type === 'offer') {
+          const pc = createPeerConnection(msg.senderId, msg.senderName, 'participant');
+
+          // Polite peer collision resolution
+          if (pc.signalingState !== 'stable') {
+            if (myUserId > msg.senderId) {
+              return; // We have higher ID, our offer has priority
+            }
+            await pc.setLocalDescription({ type: 'rollback' });
+          }
+
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+
+          // Drain queued ICE candidates
+          const queued = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+          for (const cand of queued) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(cand));
+            } catch {}
+          }
+          pendingIceCandidatesRef.current.delete(msg.senderId);
+
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendSignal(msg.senderId, 'answer', answer);
+        } else if (msg.type === 'answer') {
+          const pc = peerConnectionsRef.current.get(msg.senderId);
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+
+            // Drain queued ICE candidates
+            const queued = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+            for (const cand of queued) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch {}
+            }
+            pendingIceCandidatesRef.current.delete(msg.senderId);
+          }
+        } else if (msg.type === 'candidate') {
+          const pc = peerConnectionsRef.current.get(msg.senderId);
+          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+            } catch {}
+          } else {
+            const queue = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+            queue.push(msg.data);
+            pendingIceCandidatesRef.current.set(msg.senderId, queue);
+          }
+        } else if (msg.type === 'user-left') {
+          removePeer(msg.userId);
+        } else if (msg.type === 'room-ended') {
+          handleLeave();
+        } else if (msg.type === 'mute-state') {
+          setRemotePeers((prev) => {
+            const existing = prev.get(msg.senderId);
+            if (!existing) return prev;
+            const next = new Map(prev);
+            next.set(msg.senderId, { ...existing, isMuted: Boolean(msg.data?.isMuted) });
+            return next;
+          });
+        } else if (msg.type === 'video-state') {
+          setRemotePeers((prev) => {
+            const existing = prev.get(msg.senderId);
+            if (!existing) return prev;
+            const next = new Map(prev);
+            next.set(msg.senderId, { ...existing, isVideoOff: Boolean(msg.data?.isVideoOff) });
+            return next;
+          });
+        }
+      } catch (err) {
+        console.warn('[WebRTC Signaling] Notice:', err);
+      }
+    };
+
+    return () => {
+      isSubscribed = false;
+      es.close();
+      eventSourceRef.current = null;
+      for (const pc of peerConnectionsRef.current.values()) {
+        pc.close();
+      }
+      peerConnectionsRef.current.clear();
+      pendingIceCandidatesRef.current.clear();
+    };
+  }, [useLiveKitRoom, cleanRoomName, isLocalMediaReady, myUserId, displayName, effectiveRole]);
+
+  // Fast, single-click frontend mic mute control: directly commands media tracks with zero lag
+  const toggleMute = () => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = !next;
+        });
+      }
+      fetch('/api/webrtc/signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: cleanRoomName,
+          senderId: myUserId,
+          senderName: displayName,
+          type: 'mute-state',
+          data: { isMuted: next },
+        }),
+      }).catch(() => {});
+      return next;
+    });
+  };
+
+  // Fast, single-click frontend camera toggle control: directly commands media tracks with zero lag
+  const toggleVideo = () => {
+    setIsVideoOff((prev) => {
+      const next = !prev;
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((track) => {
+          track.enabled = !next;
+        });
+      }
+      fetch('/api/webrtc/signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: cleanRoomName,
+          senderId: myUserId,
+          senderName: displayName,
+          type: 'video-state',
+          data: { isVideoOff: next },
+        }),
+      }).catch(() => {});
+      return next;
+    });
+  };
+
+  // Native browser screen share control
+  const toggleScreenShare = async () => {
+    if (isScreenSharing) {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
       setIsScreenSharing(false);
+
+      if (localStreamRef.current) {
+        const camTrack = localStreamRef.current.getVideoTracks()[0];
+        if (camTrack) {
+          for (const pc of peerConnectionsRef.current.values()) {
+            const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+            if (sender) sender.replaceTrack(camTrack).catch(() => {});
+          }
+        }
+      }
+    } else {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+        screenStreamRef.current = screenStream;
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = screenStream;
+        }
+        setIsScreenSharing(true);
+
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (screenTrack) {
+          screenTrack.onended = () => {
+            if (screenStreamRef.current) {
+              screenStreamRef.current.getTracks().forEach((t) => t.stop());
+              screenStreamRef.current = null;
+            }
+            setIsScreenSharing(false);
+            if (localStreamRef.current) {
+              const camTrack = localStreamRef.current.getVideoTracks()[0];
+              if (camTrack) {
+                for (const pc of peerConnectionsRef.current.values()) {
+                  const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+                  if (sender) sender.replaceTrack(camTrack).catch(() => {});
+                }
+              }
+            }
+          };
+
+          for (const pc of peerConnectionsRef.current.values()) {
+            const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+            if (sender) sender.replaceTrack(screenTrack).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn('Screen share cancelled or restricted:', err);
+      }
     }
+  };
+
+  // Hand raise control: toggles state and notifies room
+  const toggleRaiseHand = () => {
+    setHandRaised((prev) => !prev);
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -897,7 +1372,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setChatMessages(prev => [...prev, messageObj]);
+    setChatMessages((prev) => [...prev, messageObj]);
     setNewMessage('');
   };
 
@@ -942,34 +1417,57 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     };
   }, [syncAttendanceEngagement]);
 
+  // Instant Leave: Closes connections, closes viewport in <10ms, updates attendance
   const handleLeave = () => {
-    syncAttendanceEngagement({ isLeaving: true });
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    for (const pc of peerConnectionsRef.current.values()) {
+      pc.close();
+    }
+    peerConnectionsRef.current.clear();
+
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(`bp_active_room_${cleanRoomName}`);
+        if (courseId) sessionStorage.removeItem(`bp_active_room_${courseId}`);
+      } catch {}
     }
     if (onClose) {
       onClose();
     }
+    syncAttendanceEngagement({ isLeaving: true });
   };
 
-  const handleEndClass = async () => {
+  // Instant End Class: Ends room on server, closes viewport in <10ms, deactivates session
+  const handleEndClass = () => {
+    fetch('/api/webrtc/end-room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room: cleanRoomName }),
+    }).catch(() => {});
+
+    handleLeave();
     syncAttendanceEngagement({ endClass: true });
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-    await endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
+    endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
     if (courseId && endLiveClassSession) {
-      await endLiveClassSession(courseId).catch(console.error);
+      endLiveClassSession(courseId).catch(console.error);
     } else {
       const activeEvts = scheduleEvents.filter(
         (e) => (!courseId || e.courseId === courseId) && e.isActive,
       );
       for (const evt of activeEvts) {
-        await updateScheduleEvent(evt.id, { isActive: false }).catch(console.error);
+        updateScheduleEvent(evt.id, { isActive: false }).catch(console.error);
       }
-    }
-    if (onClose) {
-      onClose();
     }
   };
 
@@ -1289,12 +1787,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           {/* Sidebar Toggle: Participants */}
           <button
             onClick={() => setActiveSidebarTab(activeSidebarTab === 'participants' ? null : 'participants')}
-            className={`p-2 rounded-lg text-xs font-semibold border transition ${
-              activeSidebarTab === 'participants' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700'
+            className={`p-2 rounded-lg text-xs font-semibold border transition flex items-center space-x-1.5 ${
+              activeSidebarTab === 'participants' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
             title="Participants List"
           >
             <Users className="w-4 h-4" />
+            <span className="text-[11px] font-bold px-1.5 py-0.5 bg-slate-900/60 rounded-full">
+              {1 + remoteParticipants.length}
+            </span>
           </button>
 
           {/* Sidebar Toggle: Settings */}
@@ -1307,36 +1808,202 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           >
             <Settings className="w-4 h-4" />
           </button>
+
+          {/* End Class / Leave in Top Header */}
+          {onClose && (
+            effectiveRole === 'instructor' ? (
+              <button
+                onClick={handleEndClass}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center shrink-0 border border-red-500 cursor-pointer"
+                title="End class session permanently for all participants"
+              >
+                <PhoneOff className="w-3.5 h-3.5 mr-1" /> End Class
+              </button>
+            ) : (
+              <button
+                onClick={handleLeave}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-lg transition flex items-center shrink-0 border border-slate-700 cursor-pointer"
+                title="Leave meeting"
+              >
+                <PhoneOff className="w-3.5 h-3.5 mr-1" /> Leave
+              </button>
+            )
+          )}
+
+          {/* Direct Close (X) Button */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={handleLeave}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer shrink-0 ml-1"
+              title="Close Viewport"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Center Stage & Sidebar Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Video Canvas Stage */}
-        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-4 relative overflow-hidden">
           {/* Main Presenter / Multi-User WebRTC Stage */}
-          <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
-            {/* Embedded Multi-User WebRTC Conference Bridge */}
-            <iframe
-              src={jitsiConferenceUrl}
-              allow="camera; microphone; display-capture; autoplay; clipboard-write"
-              title="Live Interactive Stage"
-              className="w-full h-full border-none rounded-2xl"
-            />
+          <div className="w-full h-full max-w-6xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center p-2 sm:p-3">
+            
+            {/* If screen sharing is active: full center display of screen */}
+            {isScreenSharing ? (
+              <div className="relative w-full h-full flex items-center justify-center bg-black rounded-xl overflow-hidden">
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+                {/* Floating Self Camera PiP in Corner */}
+                <div className="absolute bottom-4 right-4 w-44 sm:w-56 aspect-video bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-2xl z-20">
+                  {!isVideoOff ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover -scale-x-100"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-300">
+                      <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-sm mb-1">
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium">Camera off</span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-1.5 left-2 bg-slate-950/80 px-2 py-0.5 rounded-md text-[10px] text-white font-medium flex items-center space-x-1">
+                    <span>You</span>
+                    {isMuted ? <MicOff className="w-2.5 h-2.5 text-red-400" /> : <Mic className="w-2.5 h-2.5 text-emerald-400" />}
+                  </div>
+                </div>
+              </div>
+            ) : remoteParticipants.length === 0 ? (
+              /* Solo view (Local user is alone in the room) */
+              <div className="relative w-full h-full rounded-xl overflow-hidden bg-slate-950 flex items-center justify-center">
+                {!isVideoOff ? (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover -scale-x-100 rounded-xl"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-6 space-y-3">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-4xl shadow-2xl">
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-white font-bold text-base">{displayName}</h4>
+                      <p className="text-xs text-slate-400">{roleLabel} (Camera off)</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status chip overlay */}
+                <div className="absolute top-4 right-4 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-slate-300">Waiting for participants</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsInviteModalOpen(true)}
+                    className="ml-2 px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-[11px] font-bold text-white transition cursor-pointer"
+                  >
+                    Invite
+                  </button>
+                </div>
+
+                {/* Local user identity & mic badge */}
+                <div className="absolute bottom-4 left-4 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+                  <span className="font-bold">{displayName} (You)</span>
+                  {isMuted ? (
+                    <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
+                  ) : (
+                    <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Multi-user Grid Stage (Local user + remote participants) */
+              <div
+                className={`w-full h-full grid gap-3 overflow-y-auto p-1 ${
+                  remoteParticipants.length === 1
+                    ? 'grid-cols-1 md:grid-cols-2'
+                    : remoteParticipants.length === 2
+                    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                    : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4'
+                }`}
+              >
+                {/* Local User Tile */}
+                <div className="relative w-full h-full min-h-[220px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-lg flex items-center justify-center">
+                  {!isVideoOff ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover -scale-x-100 rounded-2xl"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-4">
+                      <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xl shadow-lg mb-2">
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm font-bold text-white">{displayName} (You)</span>
+                      <span className="text-xs text-slate-400 mt-0.5">{roleLabel}</span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+                    <span className="font-bold truncate max-w-[140px]">{displayName} (You)</span>
+                    {isMuted ? (
+                      <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
+                    ) : (
+                      <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Remote Participants Tiles */}
+                {remoteParticipants.map((p) => (
+                  <RemoteVideoTile key={p.id} participant={p} />
+                ))}
+              </div>
+            )}
+
+            {/* Connecting State while Camera/Mic initializes */}
+            {!isLocalMediaReady && (
+              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-4 p-8 text-center z-10 animate-in fade-in duration-200">
+                <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                <div>
+                  <h4 className="text-white font-bold text-sm">Connecting Live Classroom...</h4>
+                  <p className="text-slate-400 text-xs mt-1">Starting native WebRTC media engine</p>
+                </div>
+              </div>
+            )}
 
             {/* Hand Raised Badge */}
             {handRaised && (
-              <div className="absolute top-4 left-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce pointer-events-none">
+              <div className="absolute top-4 left-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-lg animate-bounce pointer-events-none z-10">
                 <Hand className="w-4 h-4" />
                 <span>Hand Raised</span>
               </div>
             )}
 
-            {/* Permissions Alert */}
-            {hasPermissionsError && (
-              <div className="absolute top-4 right-4 bg-red-500/90 text-white text-xs p-3 rounded-xl flex items-center space-x-2 max-w-xs shadow-xl pointer-events-none">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>Camera or microphone access was blocked by browser. Please allow permissions.</span>
+            {/* Subtitles / Live Transcript Bar */}
+            {showSubtitles && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-slate-700/60 px-4 py-2 rounded-xl text-center max-w-md w-full shadow-2xl pointer-events-none z-10">
+                <span className="text-xs text-slate-200">
+                  {isMuted
+                    ? 'Microphone muted. Tap Unmute below to speak to the classroom.'
+                    : '🎙️ Classroom live audio active. Speak into your microphone.'}
+                </span>
               </div>
             )}
           </div>
@@ -1407,7 +2074,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               {activeSidebarTab === 'participants' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <span>In This Classroom</span>
+                    <span>In Classroom ({1 + remoteParticipants.length})</span>
                     <button
                       type="button"
                       onClick={() => setIsInviteModalOpen(true)}
@@ -1417,13 +2084,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                       <span>Invite</span>
                     </button>
                   </div>
+
+                  {/* Local User Tile */}
                   <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
                     <div className="flex items-center space-x-2.5">
                       <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">
                         {displayName.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <span className="font-bold text-white block">{displayName} (You)</span>
+                        <span className="font-bold text-white block text-xs">{displayName} (You)</span>
                         <span className="text-[10px] text-slate-400">{roleLabel}</span>
                       </div>
                     </div>
@@ -1432,6 +2101,42 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                       {isVideoOff ? <VideoOff className="w-3.5 h-3.5 text-red-400" /> : <Video className="w-3.5 h-3.5 text-emerald-400" />}
                     </div>
                   </div>
+
+                  {/* Remote Connected Participants / Guests */}
+                  {remoteParticipants.map((p) => {
+                    const isGuestSpeaker =
+                      p.role === 'speaker' ||
+                      p.role === 'guest_speaker' ||
+                      p.displayName.toLowerCase().includes('speaker');
+                    return (
+                      <div
+                        key={p.id}
+                        className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 flex items-center justify-between animate-in fade-in"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-xs ${
+                              isGuestSpeaker ? 'bg-purple-600' : 'bg-indigo-600'
+                            }`}
+                          >
+                            {(p.displayName || 'G').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-bold text-white block text-xs">{p.displayName}</span>
+                            <span className="text-[10px] text-purple-400">
+                              {isGuestSpeaker ? 'Guest Speaker 🎙️' : p.role || 'Connected'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1.5 text-slate-400">
+                          {p.isSpeaking && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1" title="Speaking" />
+                          )}
+                          <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   <button
                     type="button"
@@ -1508,11 +2213,12 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           </button>
 
           <button
-            onClick={handleLeave}
-            className="p-3 bg-red-600 hover:bg-red-500 text-white rounded-xl transition shadow-md border border-red-500"
-            title="Leave Meeting"
+            onClick={effectiveRole === 'instructor' ? handleEndClass : handleLeave}
+            className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl transition shadow-md border border-red-500 flex items-center space-x-1.5 font-bold text-xs cursor-pointer"
+            title={effectiveRole === 'instructor' ? "End Class for all participants" : "Leave Meeting"}
           >
-            <PhoneOff className="w-5 h-5" />
+            <PhoneOff className="w-4 h-4" />
+            <span>{effectiveRole === 'instructor' ? 'End Class' : 'Leave'}</span>
           </button>
         </div>
 

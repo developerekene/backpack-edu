@@ -41,6 +41,8 @@ import {
   Sparkles,
   ShieldCheck,
   XCircle,
+  Loader2,
+  PhoneOff,
 } from "lucide-react";
 import { PublicCourseDetails } from "../components/PublicCourseDetails";
 import { EditCourseDetailsModal } from "../components/EditCourseDetailsModal";
@@ -72,6 +74,7 @@ import {
   createLiveKitMeetingUrl,
   getLiveKitDirectUrl,
   endLiveClassSessionApi,
+  isEventLiveActive,
 } from "../../lib/liveClass";
 
 const CourseDetails = () => {
@@ -90,8 +93,10 @@ const CourseDetails = () => {
     updateEnrollmentRequest,
     orgMembers,
     scheduleEvents,
+    setScheduleEvents,
     addScheduleEvent,
     updateScheduleEvent,
+    endLiveClassSession,
     organizations,
     courseDonations,
     getCourseAdmissionGate,
@@ -406,18 +411,18 @@ const CourseDetails = () => {
   const activeCall = useMemo(() => {
     if (targetEventId) {
       const match = scheduleEvents.find(
-        (e) => e.id === targetEventId && e.courseId === courseId && e.isActive && !e.endedAt,
+        (e) => e.id === targetEventId && e.courseId === courseId && isEventLiveActive(e),
       );
       if (match) return match;
     }
     return (
-      scheduleEvents.find((e) => e.courseId === courseId && e.isActive && !e.endedAt) || null
+      scheduleEvents.find((e) => e.courseId === courseId && isEventLiveActive(e)) || null
     );
   }, [scheduleEvents, courseId, targetEventId]);
 
   const liveCallActiveEvent = useMemo(() => {
     return (
-      scheduleEvents.find((e) => e.courseId === courseId && e.isActive && !e.endedAt) || null
+      scheduleEvents.find((e) => e.courseId === courseId && isEventLiveActive(e)) || null
     );
   }, [scheduleEvents, courseId]);
 
@@ -426,110 +431,138 @@ const CourseDetails = () => {
     return getLiveClassRoomName(target, courseId);
   };
 
-  const handleStartCall = async () => {
-    if (!courseId || !course) return;
+  const [isStartingCall, setIsStartingCall] = useState(false);
+  const [activeCallRoomName, setActiveCallRoomName] = useState<string | null>(null);
 
-    if (liveCallActiveEvent) {
-      setIsCallActiveInApp(true);
-      return;
+  const handleStartCall = async (targetEventId?: string) => {
+    const validEventId = typeof targetEventId === "string" ? targetEventId : undefined;
+    if (!courseId || !course || isStartingCall) return;
+    setIsStartingCall(true);
+
+    // Clear ended flag for this course when starting a new call
+    if (typeof window !== "undefined" && courseId) {
+      try {
+        localStorage.removeItem(`bp_course_live_ended_${courseId}`);
+      } catch {}
     }
 
-    if (targetEventId) {
-      const match = scheduleEvents.find(
-        (e) => e.id === targetEventId && e.courseId === courseId,
-      );
-      if (match) {
-        const roomName = getLiveClassRoomName(match, courseId);
-        const livekitRes = await createLiveKitMeetingUrl({
-          roomName,
-          participantName: currentUser?.name || "Participant",
-          courseId,
-          role: currentUser?.role || "student",
-          forceSync: true,
-        });
-        const meetingUrl =
-          match.meetingUrl || livekitRes.url || getLiveKitDirectUrl(roomName);
-        await updateScheduleEvent(match.id, {
-          isActive: true,
-          meetingUrl,
-        });
-        setIsCallActiveInApp(true);
-        return;
+    try {
+      let roomName = "";
+      if (liveCallActiveEvent) {
+        roomName = getEffectiveRoomName(liveCallActiveEvent);
+      } else if (validEventId) {
+        const match = scheduleEvents.find(
+          (e) => e.id === validEventId && e.courseId === courseId,
+        );
+        if (match) {
+          roomName = getLiveClassRoomName(match, courseId);
+          const meetingUrl = match.meetingUrl || getLiveKitDirectUrl(roomName);
+          updateScheduleEvent(match.id, {
+            isActive: true,
+            meetingUrl,
+            updatedAt: Date.now(),
+          }).catch(console.error);
+        }
       }
-    }
 
-    const todayStr = new Date().toISOString().split("T")[0];
-    const todayScheduled = scheduleEvents.find(
-      (e) => e.courseId === courseId && e.date === todayStr && !e.isActive,
-    );
-    if (todayScheduled) {
-      const roomName = getLiveClassRoomName(todayScheduled, courseId);
-      const livekitRes = await createLiveKitMeetingUrl({
-        roomName,
-        participantName: currentUser?.name || "Participant",
-        courseId,
-        role: currentUser?.role || "student",
-        forceSync: true,
-      });
-      const meetingUrl =
-        todayScheduled.meetingUrl ||
-        livekitRes.url ||
-        getLiveKitDirectUrl(roomName);
-      await updateScheduleEvent(todayScheduled.id, {
-        isActive: true,
-        meetingUrl,
-      });
+      if (!roomName) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const newEventId = `live_${courseId}_${Date.now()}`;
+        roomName = getLiveClassRoomName({ id: newEventId, courseId }, courseId);
+        const meetingUrl = getLiveKitDirectUrl(roomName);
+
+        addScheduleEvent({
+          id: newEventId,
+          courseId,
+          title: `${course.title} - Live Class`,
+          date: todayStr,
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          durationMins: 60,
+          type: "lecture",
+          meetingUrl,
+          isActive: true,
+          updatedAt: Date.now(),
+        }).catch(console.error);
+      }
+
+      // Synchronously lock the active call room name and open in-app call viewport on first click!
+      setActiveCallRoomName(roomName);
       setIsCallActiveInApp(true);
-      return;
+    } catch (err) {
+      console.warn("Notice starting live session event sync:", err);
+    } finally {
+      setIsStartingCall(false);
     }
-
-    const newEventId = `live_${courseId}_${Date.now()}`;
-    const roomName = getLiveClassRoomName(
-      { id: newEventId, courseId },
-      courseId,
-    );
-
-    const livekitRes = await createLiveKitMeetingUrl({
-      roomName,
-      participantName: currentUser?.name || "Participant",
-      courseId,
-      role: currentUser?.role || "student",
-      forceSync: true,
-    });
-    const meetingUrl = livekitRes.url || getLiveKitDirectUrl(roomName);
-
-    await addScheduleEvent({
-      id: newEventId,
-      courseId,
-      title: `${course.title} - Live Class`,
-      date: todayStr,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      durationMins: 60,
-      type: "lecture",
-      meetingUrl,
-      isActive: true,
-    });
-    setIsCallActiveInApp(true);
   };
 
   const handleEndCall = async () => {
-    const activeEvts = scheduleEvents.filter(
-      (e) => e.courseId === courseId && e.isActive,
-    );
-    for (const evt of activeEvts) {
-      const room = getLiveClassRoomName(evt, courseId);
-      await endLiveClassSessionApi(room, courseId);
-      await updateScheduleEvent(evt.id, { isActive: false });
-    }
-    if (activeCall?.isActive) {
-      const room = getLiveClassRoomName(activeCall, courseId);
-      await endLiveClassSessionApi(room, courseId);
-      await updateScheduleEvent(activeCall.id, { isActive: false });
-    }
+    // 1. Immediately dismiss live call UI so the view closes in <10ms
     setIsCallActiveInApp(false);
+    const roomToEnd = activeCallRoomName || getEffectiveRoomName(liveCallActiveEvent || activeCall);
+    setActiveCallRoomName(null);
+
+    // 2. Persistently record that live session for this course has ended
+    const now = Date.now();
+    if (typeof window !== "undefined" && courseId) {
+      try {
+        localStorage.setItem(`bp_course_live_ended_${courseId}`, String(now));
+        sessionStorage.removeItem(`bp_active_room_${courseId}`);
+      } catch {}
+    }
+
+    // 3. Synchronously clear active scheduleEvents in local state and persistent localStorage
+    if (courseId) {
+      setScheduleEvents((prev) => {
+        const next = prev.map((e) =>
+          e.courseId === courseId
+            ? { ...e, isActive: false, endedAt: now, updatedAt: now }
+            : e,
+        );
+        try {
+          localStorage.setItem("bp_cache_course.scheduleEvents", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+
+    // 4. Remove live/joinLive/eventId URL query parameters so useEffect doesn't re-trigger it
+    if (typeof window !== "undefined") {
+      try {
+        navigate(location.pathname, { replace: true });
+      } catch {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("live");
+          url.searchParams.delete("joinLive");
+          url.searchParams.delete("eventId");
+          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+        } catch {}
+      }
+    }
+
+    // 5. Terminate room on server & global app state
+    if (roomToEnd) {
+      endLiveClassSessionApi(roomToEnd, courseId).catch(console.error);
+    }
+    try {
+      if (courseId && endLiveClassSession) {
+        await endLiveClassSession(courseId);
+      } else {
+        const activeEvts = scheduleEvents.filter(
+          (e) => e.courseId === courseId && e.isActive,
+        );
+        for (const evt of activeEvts) {
+          const room = getLiveClassRoomName(evt, courseId);
+          endLiveClassSessionApi(room, courseId).catch(() => {});
+          updateScheduleEvent(evt.id, { isActive: false }).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn("Notice updating live class events on call end:", err);
+    }
   };
 
   const handleEnrollSubmit = async (
@@ -1166,10 +1199,19 @@ const CourseDetails = () => {
                 )
               : canStartVideoCall && (
                   <button
-                    onClick={handleStartCall}
-                    className="w-full sm:w-auto flex items-center justify-center px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm hover:shadow-md font-heading cursor-pointer"
+                    onClick={() => handleStartCall()}
+                    disabled={isStartingCall}
+                    className="w-full sm:w-auto flex items-center justify-center px-4 py-2.5 bg-[#0078d4] hover:bg-[#006cbd] disabled:opacity-75 text-white font-bold rounded-xl transition text-xs sm:text-sm whitespace-nowrap shadow-sm hover:shadow-md font-heading cursor-pointer"
                   >
-                    <Video className="w-4 h-4 mr-2" /> Start Live Class
+                    {isStartingCall ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Starting Live Class...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="w-4 h-4 mr-2" /> Start Live Class
+                      </>
+                    )}
                   </button>
                 )}
           </div>
@@ -1371,6 +1413,16 @@ const CourseDetails = () => {
                 {copiedSpeakerClassLink ? "Copied Speaker Link!" : "Invite Guest Speaker 🎙️"}
               </span>
             </button>
+            {canEditCourse && (
+              <button
+                onClick={() => handleEndCall()}
+                className="flex-1 sm:flex-none px-3.5 py-2.5 bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold text-xs rounded-xl transition flex items-center justify-center border border-rose-300 dark:border-rose-800 shadow-2xs cursor-pointer font-heading"
+                title="End live session permanently and dismiss this alert"
+              >
+                <PhoneOff className="w-3.5 h-3.5 mr-1.5" />
+                <span>End Session</span>
+              </button>
+            )}
             <button
               onClick={() => setIsCallActiveInApp(true)}
               className="flex-1 sm:flex-none px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-sm hover:shadow-md flex items-center justify-center shrink-0 cursor-pointer font-heading"
@@ -1385,7 +1437,7 @@ const CourseDetails = () => {
       {isCallActiveInApp && (
         <div className="mb-6" id="live-class-viewport">
           <LiveKitCall
-            roomName={getEffectiveRoomName(liveCallActiveEvent || activeCall)}
+            roomName={activeCallRoomName || getEffectiveRoomName(liveCallActiveEvent || activeCall)}
             participantName={participantDisplayName}
             userRole={currentUser?.role}
             courseId={course.id}
@@ -1902,7 +1954,8 @@ const CourseDetails = () => {
                         });
                     }, 200);
                   }}
-                  onStartLiveCall={() => {
+                  onStartLiveCall={(room) => {
+                    if (room) setActiveCallRoomName(room);
                     setIsCallActiveInApp(true);
                     setTimeout(() => {
                       const el = document.getElementById("live-class-viewport");

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { useAccessibility } from "../../store/AccessibilityContext";
+import { isEventLiveActive } from "../../lib/liveClass";
 import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
 
 export const Navbar = () => {
@@ -88,7 +89,7 @@ export const Navbar = () => {
   // Strictly only show live class alerts for classrooms the user is actually enrolled in or instructing
   const activeLiveCalls = useMemo(() => {
     const active = scheduleEvents.filter(
-      (e) => e.isActive && !e.endedAt && e.courseId && userEnrolledCourseIds.includes(e.courseId),
+      (e) => isEventLiveActive(e) && e.courseId && userEnrolledCourseIds.includes(e.courseId),
     );
     const seen = new Set<string>();
     return active.filter((e) => {
@@ -152,7 +153,7 @@ export const Navbar = () => {
     // If the organization or instructor has ended the session, do not continue showing it as an active notification
     if (n.type === "live_class") {
       const isCourseCurrentlyActive = scheduleEvents.some(
-        (e) => e.isActive && !e.endedAt && e.courseId === n.courseId,
+        (e) => isEventLiveActive(e) && e.courseId === n.courseId,
       );
       if (!isCourseCurrentlyActive && !n.read) {
         return false;
