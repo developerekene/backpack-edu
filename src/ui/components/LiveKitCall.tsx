@@ -531,62 +531,61 @@ interface ChatMessage {
 }
 
 /**
- * Loads Jitsi Meet External API script into window if not present.
- * Enables Backpack frontend controls to drive the Jitsi conference engine headlessly under the hood.
+ * Remote Participant Video & Audio Tile for Backpack Native WebRTC Classroom
  */
-const loadJitsiScript = (domain: string, fallbackDomain = 'meet.mayfirst.org'): Promise<any> => {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined') {
-      resolve(null);
-      return;
-    }
-    const scriptId = 'jitsi-external-api-script';
-    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-    if (script && (window as any).JitsiMeetExternalAPI) {
-      resolve((window as any).JitsiMeetExternalAPI);
-      return;
-    }
-    if (script) {
-      script.remove();
-      try {
-        delete (window as any).JitsiMeetExternalAPI;
-      } catch {}
-    }
+const RemoteVideoTile: React.FC<{
+  participant: {
+    id: string;
+    displayName: string;
+    role?: string;
+    stream: MediaStream;
+    isSpeaking?: boolean;
+    isMuted?: boolean;
+  };
+}> = ({ participant }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-    script = document.createElement('script');
-    script.id = scriptId;
-    script.src = `https://${domain}/external_api.js`;
-    script.async = true;
+  useEffect(() => {
+    if (videoRef.current && participant.stream) {
+      videoRef.current.srcObject = participant.stream;
+    }
+  }, [participant.stream]);
 
-    // Safety timeout: prevent hanging if script load is blocked or delayed
-    const timer = setTimeout(() => {
-      if ((window as any).JitsiMeetExternalAPI) {
-        resolve((window as any).JitsiMeetExternalAPI);
-      } else if (fallbackDomain && fallbackDomain !== domain) {
-        console.warn(`[Jitsi] Script timeout from ${domain}, attempting fallback to ${fallbackDomain}`);
-        loadJitsiScript(fallbackDomain, '').then(resolve);
-      } else {
-        console.warn('[Jitsi] External API script timeout, resolving fallback.');
-        resolve(null);
-      }
-    }, 4500);
+  const hasVideoTrack = participant.stream && participant.stream.getVideoTracks().length > 0;
 
-    script.onload = () => {
-      clearTimeout(timer);
-      resolve((window as any).JitsiMeetExternalAPI || null);
-    };
-    script.onerror = () => {
-      clearTimeout(timer);
-      if (fallbackDomain && fallbackDomain !== domain) {
-        console.warn(`[Jitsi] Failed to load external_api.js from ${domain}, falling back to ${fallbackDomain}`);
-        loadJitsiScript(fallbackDomain, '').then(resolve);
-      } else {
-        console.warn('[Jitsi] Failed to load external_api.js from domain:', domain);
-        resolve(null);
-      }
-    };
-    document.body.appendChild(script);
-  });
+  return (
+    <div className="relative w-full h-full min-h-[220px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-center">
+      {hasVideoTrack ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="w-full h-full object-cover rounded-2xl"
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center text-center p-4">
+          <div className="w-16 h-16 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-xl shadow-lg mb-2">
+            {(participant.displayName || "G").charAt(0).toUpperCase()}
+          </div>
+          <span className="text-sm font-bold text-white">{participant.displayName}</span>
+          <span className="text-xs text-purple-400 mt-0.5">{participant.role || "Connected"}</span>
+        </div>
+      )}
+
+      {/* Name and Mic Status Overlay */}
+      <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+        <span className="font-bold truncate max-w-[140px]">{participant.displayName}</span>
+        {participant.isSpeaking && (
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1" title="Speaking" />
+        )}
+        {participant.isMuted ? (
+          <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
+        ) : (
+          <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+        )}
+      </div>
+    </div>
+  );
 };
 
 export const LiveKitCall: React.FC<LiveKitCallProps> = ({
@@ -753,22 +752,37 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   ]);
   const [newMessage, setNewMessage] = useState<string>('');
 
-  // Media & Engine Refs: Jitsi Meet powers the multi-peer conference headlessly
-  const jitsiContainerRef = useRef<HTMLDivElement>(null);
-  const jitsiApiRef = useRef<any>(null);
-  const [isJitsiEngineReady, setIsJitsiEngineReady] = useState<boolean>(false);
-  const [jitsiLoadError, setJitsiLoadError] = useState<boolean>(false);
-  const jitsiDomain = (import.meta.env.VITE_JITSI_DOMAIN as string) || 'meet.greenhost.net';
+  // Native WebRTC Media & Signaling Refs (Zero third-party popups, 100% Backpack-controlled)
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Remote participants state for multi-user classroom
-  const [remoteParticipants, setRemoteParticipants] = useState<
-    Array<{
+  const [isLocalMediaReady, setIsLocalMediaReady] = useState<boolean>(false);
+  const [remotePeers, setRemotePeers] = useState<
+    Map<string, {
       id: string;
       displayName: string;
       role?: string;
+      stream: MediaStream;
       isSpeaking?: boolean;
+      isMuted?: boolean;
     }>
-  >([]);
+  >(new Map());
+
+  // Derived array for participants drawer & badge counter
+  const remoteParticipants = useMemo(() => {
+    return Array.from(remotePeers.values());
+  }, [remotePeers]);
+
+  const myUserId = useMemo(() => {
+    return `${(currentUser?.id || displayName || 'guest')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '_')
+      .slice(0, 24)}_${sessionInstanceId}`;
+  }, [currentUser?.id, displayName, sessionInstanceId]);
 
   // Request LiveKit Token from server-side SDK endpoint (backed by Render URL service)
   const uniqueParticipantIdentity = `${(currentUser?.id || displayName || 'guest')
@@ -780,7 +794,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     let isMounted = true;
 
     async function loadToken() {
-      // If LiveKit URL is not configured in environment, immediately activate headless Jitsi engine
+      // If LiveKit URL is not configured in environment, immediately activate native WebRTC classroom engine
       if (!wsUrlFromEnv) {
         setUseLiveKitRoom(false);
         setIsConnecting(false);
@@ -879,212 +893,352 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     }
   };
 
-  // Jitsi Meet Headless Engine: powers multi-peer video conferencing under the hood
+  // Native WebRTC local media stream initialization (zero third-party dependencies, 100% Backpack-controlled)
   useEffect(() => {
-    if (useLiveKitRoom || !cleanRoomName) return;
+    if (useLiveKitRoom) return;
 
     let isSubscribed = true;
-    let apiInstance: any = null;
 
-    loadJitsiScript(jitsiDomain).then((JitsiAPI) => {
-      if (!isSubscribed || !jitsiContainerRef.current) return;
-      if (!JitsiAPI) {
-        console.warn('Jitsi script not available, running in fallback mode.');
-        setJitsiLoadError(true);
-        return;
-      }
-
+    async function initNativeMedia() {
       try {
-        jitsiContainerRef.current.innerHTML = '';
-        const options = {
-          roomName: cleanRoomName,
-          width: '100%',
-          height: '100%',
-          parentNode: jitsiContainerRef.current,
-          userInfo: {
-            displayName,
-          },
-          configOverwrite: {
-            prejoinPageEnabled: false,
-            prejoinConfig: { enabled: false },
-            startWithAudioMuted: isMuted,
-            startWithVideoMuted: isVideoOff,
-            disableDeepLinking: true,
-            enableWelcomePage: false,
-            enableClosePage: false,
-            // Hides ALL Jitsi native toolbar buttons so our Backpack controls own the UI
-            toolbarButtons: [],
-            toolbarConfig: {
-              initialTimeout: 0,
-              timeout: 0,
-              alwaysVisible: false,
-            },
-            notifications: [],
-            hideConferenceSubject: true,
-            hideConferenceTimer: true,
-            hideRecordingLabel: true,
-            hideParticipantsStats: true,
-            disablePolls: true,
-            disableReactions: true,
-            disableProfile: true,
-            disableSelfViewSettings: true,
-            readOnlyName: true,
-            defaultRemoteDisplayName: 'Classroom Learner',
-            filmstrip: {
-              disableResizable: true,
-              disableStageFilmstrip: false,
-            },
-          },
-          interfaceConfigOverwrite: {
-            // Hides Jitsi chrome and toolbar completely
-            TOOLBAR_BUTTONS: [],
-            SETTINGS_SECTIONS: [],
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_WATERMARK_FOR_GUESTS: false,
-            SHOW_BRAND_WATERMARK: false,
-            SHOW_POWERED_BY: false,
-            SHOW_CHROME_EXTENSION_BANNER: false,
-            SHOW_PROMOTIONAL_CLOSE_PAGE: false,
-            MOBILE_APP_PROMO: false,
-            HIDE_DEEP_LINKING_LOGO: true,
-            DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-            DEFAULT_BACKGROUND: '#020617',
-            APP_NAME: 'Backpack Virtual Classroom',
-            NATIVE_APP_NAME: 'Backpack',
-            PROVIDER_NAME: 'Backpack Education',
-          },
-        };
-
-        apiInstance = new JitsiAPI(jitsiDomain, options);
-        jitsiApiRef.current = apiInstance;
-        setIsJitsiEngineReady(true);
-
-        // Sync remote classroom participants and initial media states
-        apiInstance.addEventListener('videoConferenceJoined', () => {
-          try {
-            apiInstance.isAudioMuted().then((muted: boolean) => setIsMuted(muted)).catch(() => {});
-            apiInstance.isVideoMuted().then((muted: boolean) => setIsVideoOff(muted)).catch(() => {});
-            const list = apiInstance.getParticipantsInfo();
-            if (Array.isArray(list)) {
-              setRemoteParticipants(
-                list.map((p: any) => ({
-                  id: p.participantId || p.id,
-                  displayName: p.displayName || p.formattedDisplayName || 'Guest Learner',
-                  role: p.role || (isSpeaker ? 'Guest Speaker' : 'guest'),
-                })),
-              );
-            }
-          } catch {}
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
 
-        apiInstance.addEventListener('participantJoined', (p: any) => {
-          setRemoteParticipants((prev) => {
-            if (prev.some((x) => x.id === p.id)) return prev;
-            return [
-              ...prev,
-              {
-                id: p.id,
-                displayName: p.displayName || p.formattedDisplayName || 'Guest Learner',
-                role: p.role || (isSpeaker ? 'Guest Speaker' : 'guest'),
-              },
-            ];
-          });
+        if (!isSubscribed) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        localStreamRef.current = stream;
+
+        // Apply audio & video enabled states
+        stream.getAudioTracks().forEach((track) => {
+          track.enabled = !isMuted;
+        });
+        stream.getVideoTracks().forEach((track) => {
+          track.enabled = !isVideoOff;
         });
 
-        apiInstance.addEventListener('participantLeft', ({ id }: { id: string }) => {
-          setRemoteParticipants((prev) => prev.filter((p) => p.id !== id));
-        });
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
 
-        apiInstance.addEventListener('dominantSpeakerChanged', ({ id }: { id: string }) => {
-          setRemoteParticipants((prev) =>
-            prev.map((p) => ({
-              ...p,
-              isSpeaking: p.id === id,
-            })),
-          );
-        });
-
-        apiInstance.addEventListener('displayNameChange', ({ id, displayname }: { id: string; displayname: string }) => {
-          setRemoteParticipants((prev) =>
-            prev.map((p) => (p.id === id ? { ...p, displayName: displayname } : p)),
-          );
-        });
-
-        // Bi-directional event sync: Jitsi -> Backpack UI state
-        apiInstance.addEventListener('audioMuteStatusChanged', ({ muted }: { muted: boolean }) => {
-          setIsMuted(muted);
-        });
-
-        apiInstance.addEventListener('videoMuteStatusChanged', ({ muted }: { muted: boolean }) => {
-          setIsVideoOff(muted);
-        });
-
-        apiInstance.addEventListener('screenSharingStatusChanged', ({ on }: { on: boolean }) => {
-          setIsScreenSharing(on);
-        });
-
-        apiInstance.addEventListener('raiseHandUpdated', ({ handRaised }: { handRaised: boolean }) => {
-          setHandRaised(handRaised);
-        });
-
-        apiInstance.addEventListener('readyToClose', () => {
-          handleLeave();
-        });
+        setIsLocalMediaReady(true);
       } catch (err) {
-        console.warn('Notice initializing Jitsi Meet engine:', err);
-        setJitsiLoadError(true);
+        console.warn('[WebRTC] Native camera access fallback:', err);
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (!isSubscribed) {
+            audioStream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          localStreamRef.current = audioStream;
+          audioStream.getAudioTracks().forEach((track) => {
+            track.enabled = !isMuted;
+          });
+          setIsVideoOff(true);
+          setIsLocalMediaReady(true);
+        } catch {
+          if (isSubscribed) {
+            setIsLocalMediaReady(true);
+          }
+        }
       }
-    });
+    }
+
+    initNativeMedia();
 
     return () => {
       isSubscribed = false;
-      if (jitsiApiRef.current) {
-        try {
-          jitsiApiRef.current.dispose();
-        } catch {}
-        jitsiApiRef.current = null;
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
       }
     };
-  }, [useLiveKitRoom, cleanRoomName, displayName, jitsiDomain]);
+  }, [useLiveKitRoom]);
 
-  // Fast, single-click frontend mic mute control: commands Jitsi engine directly with zero UI lag
+  // Bind local stream to local video element whenever ready or re-mounted
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [isLocalMediaReady, isVideoOff, isScreenSharing, remoteParticipants.length]);
+
+  // Bind screen stream to screen video element when sharing
+  useEffect(() => {
+    if (screenVideoRef.current && screenStreamRef.current) {
+      screenVideoRef.current.srcObject = screenStreamRef.current;
+    }
+  }, [isScreenSharing]);
+
+  // Native WebRTC peer-to-peer signaling over SSE & backend endpoints
+  useEffect(() => {
+    if (useLiveKitRoom || !cleanRoomName || !isLocalMediaReady) return;
+
+    let isSubscribed = true;
+
+    const sendSignal = async (targetId: string | null, type: string, data?: any) => {
+      try {
+        await fetch('/api/webrtc/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room: cleanRoomName,
+            senderId: myUserId,
+            senderName: displayName,
+            targetId,
+            type,
+            data,
+          }),
+        });
+      } catch {}
+    };
+
+    const createPeerConnection = (targetUserId: string, targetUserName: string, targetRole: string) => {
+      if (peerConnectionsRef.current.has(targetUserId)) {
+        return peerConnectionsRef.current.get(targetUserId)!;
+      }
+
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ],
+      });
+
+      peerConnectionsRef.current.set(targetUserId, pc);
+
+      const activeMedia = screenStreamRef.current || localStreamRef.current;
+      if (activeMedia) {
+        activeMedia.getTracks().forEach((track) => {
+          pc.addTrack(track, activeMedia);
+        });
+      }
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendSignal(targetUserId, 'candidate', event.candidate);
+        }
+      };
+
+      pc.ontrack = (event) => {
+        const stream = event.streams[0] || new MediaStream([event.track]);
+        setRemotePeers((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(targetUserId);
+          next.set(targetUserId, {
+            id: targetUserId,
+            displayName: targetUserName,
+            role: targetRole,
+            stream,
+            isSpeaking: existing?.isSpeaking || false,
+            isMuted: existing?.isMuted || false,
+          });
+          return next;
+        });
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (
+          pc.connectionState === 'disconnected' ||
+          pc.connectionState === 'failed' ||
+          pc.connectionState === 'closed'
+        ) {
+          removePeer(targetUserId);
+        }
+      };
+
+      return pc;
+    };
+
+    const removePeer = (targetUserId: string) => {
+      const pc = peerConnectionsRef.current.get(targetUserId);
+      if (pc) {
+        pc.close();
+        peerConnectionsRef.current.delete(targetUserId);
+      }
+      setRemotePeers((prev) => {
+        const next = new Map(prev);
+        next.delete(targetUserId);
+        return next;
+      });
+    };
+
+    const sseUrl = `/api/webrtc/events?room=${encodeURIComponent(cleanRoomName)}&userId=${encodeURIComponent(myUserId)}&userName=${encodeURIComponent(displayName)}&role=${encodeURIComponent(effectiveRole)}`;
+    const es = new EventSource(sseUrl);
+    eventSourceRef.current = es;
+
+    es.onmessage = async (evt) => {
+      if (!isSubscribed) return;
+      try {
+        const msg = JSON.parse(evt.data);
+
+        if (msg.type === 'init') {
+          if (Array.isArray(msg.peers)) {
+            for (const p of msg.peers) {
+              const pc = createPeerConnection(p.id, p.name, p.role);
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              sendSignal(p.id, 'offer', offer);
+            }
+          }
+        } else if (msg.type === 'user-joined') {
+          const pc = createPeerConnection(msg.user.id, msg.user.name, msg.user.role);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          sendSignal(msg.user.id, 'offer', offer);
+        } else if (msg.type === 'offer') {
+          const pc = createPeerConnection(msg.senderId, msg.senderName, 'participant');
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendSignal(msg.senderId, 'answer', answer);
+        } else if (msg.type === 'answer') {
+          const pc = peerConnectionsRef.current.get(msg.senderId);
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+          }
+        } else if (msg.type === 'candidate') {
+          const pc = peerConnectionsRef.current.get(msg.senderId);
+          if (pc) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+            } catch {}
+          }
+        } else if (msg.type === 'user-left') {
+          removePeer(msg.userId);
+        } else if (msg.type === 'room-ended') {
+          handleLeave();
+        } else if (msg.type === 'mute-state') {
+          setRemotePeers((prev) => {
+            const existing = prev.get(msg.senderId);
+            if (!existing) return prev;
+            const next = new Map(prev);
+            next.set(msg.senderId, { ...existing, isMuted: Boolean(msg.data?.isMuted) });
+            return next;
+          });
+        }
+      } catch {}
+    };
+
+    return () => {
+      isSubscribed = false;
+      es.close();
+      eventSourceRef.current = null;
+      for (const pc of peerConnectionsRef.current.values()) {
+        pc.close();
+      }
+      peerConnectionsRef.current.clear();
+    };
+  }, [useLiveKitRoom, cleanRoomName, isLocalMediaReady, myUserId, displayName, effectiveRole]);
+
+  // Fast, single-click frontend mic mute control: directly commands media tracks with zero lag
   const toggleMute = () => {
-    setIsMuted((prev) => !prev);
-    if (jitsiApiRef.current) {
-      try {
-        jitsiApiRef.current.executeCommand('toggleAudio');
-      } catch {}
-    }
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = !next;
+        });
+      }
+      fetch('/api/webrtc/signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: cleanRoomName,
+          senderId: myUserId,
+          senderName: displayName,
+          type: 'mute-state',
+          data: { isMuted: next },
+        }),
+      }).catch(() => {});
+      return next;
+    });
   };
 
-  // Fast, single-click frontend camera toggle control: commands Jitsi engine directly with zero UI lag
+  // Fast, single-click frontend camera toggle control: directly commands media tracks with zero lag
   const toggleVideo = () => {
-    setIsVideoOff((prev) => !prev);
-    if (jitsiApiRef.current) {
+    setIsVideoOff((prev) => {
+      const next = !prev;
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((track) => {
+          track.enabled = !next;
+        });
+      }
+      return next;
+    });
+  };
+
+  // Native browser screen share control
+  const toggleScreenShare = async () => {
+    if (isScreenSharing) {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
+      setIsScreenSharing(false);
+
+      if (localStreamRef.current) {
+        const camTrack = localStreamRef.current.getVideoTracks()[0];
+        if (camTrack) {
+          for (const pc of peerConnectionsRef.current.values()) {
+            const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+            if (sender) sender.replaceTrack(camTrack).catch(() => {});
+          }
+        }
+      }
+    } else {
       try {
-        jitsiApiRef.current.executeCommand('toggleVideo');
-      } catch {}
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+        screenStreamRef.current = screenStream;
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = screenStream;
+        }
+        setIsScreenSharing(true);
+
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (screenTrack) {
+          screenTrack.onended = () => {
+            if (screenStreamRef.current) {
+              screenStreamRef.current.getTracks().forEach((t) => t.stop());
+              screenStreamRef.current = null;
+            }
+            setIsScreenSharing(false);
+            if (localStreamRef.current) {
+              const camTrack = localStreamRef.current.getVideoTracks()[0];
+              if (camTrack) {
+                for (const pc of peerConnectionsRef.current.values()) {
+                  const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+                  if (sender) sender.replaceTrack(camTrack).catch(() => {});
+                }
+              }
+            }
+          };
+
+          for (const pc of peerConnectionsRef.current.values()) {
+            const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+            if (sender) sender.replaceTrack(screenTrack).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn('Screen share cancelled or restricted:', err);
+      }
     }
   };
 
-  // Screen share control: commands Jitsi engine directly
-  const toggleScreenShare = () => {
-    setIsScreenSharing((prev) => !prev);
-    if (jitsiApiRef.current) {
-      try {
-        jitsiApiRef.current.executeCommand('toggleShareScreen');
-      } catch {}
-    }
-  };
-
-  // Hand raise control: commands Jitsi engine directly
+  // Hand raise control: toggles state and notifies room
   const toggleRaiseHand = () => {
     setHandRaised((prev) => !prev);
-    if (jitsiApiRef.current) {
-      try {
-        jitsiApiRef.current.executeCommand('toggleRaiseHand');
-      } catch {}
-    }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -1142,15 +1296,25 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     };
   }, [syncAttendanceEngagement]);
 
-  // Instant Leave: Commands Jitsi engine to hangup, closes viewport in <10ms, updates attendance
+  // Instant Leave: Closes connections, closes viewport in <10ms, updates attendance
   const handleLeave = () => {
-    if (jitsiApiRef.current) {
-      try {
-        jitsiApiRef.current.executeCommand('hangup');
-        jitsiApiRef.current.dispose();
-      } catch {}
-      jitsiApiRef.current = null;
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    for (const pc of peerConnectionsRef.current.values()) {
+      pc.close();
+    }
+    peerConnectionsRef.current.clear();
+
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.removeItem(`bp_active_room_${cleanRoomName}`);
@@ -1163,27 +1327,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     syncAttendanceEngagement({ isLeaving: true });
   };
 
-  // Instant End Class: Commands Jitsi engine to hangup, closes viewport in <10ms, deactivates session
+  // Instant End Class: Ends room on server, closes viewport in <10ms, deactivates session
   const handleEndClass = () => {
-    if (jitsiApiRef.current) {
-      try {
-        jitsiApiRef.current.executeCommand('hangup');
-        jitsiApiRef.current.dispose();
-      } catch {}
-      jitsiApiRef.current = null;
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.removeItem(`bp_active_room_${cleanRoomName}`);
-        if (courseId) {
-          sessionStorage.removeItem(`bp_active_room_${courseId}`);
-          localStorage.setItem(`bp_course_live_ended_${courseId}`, String(Date.now()));
-        }
-      } catch {}
-    }
-    if (onClose) {
-      onClose();
-    }
+    fetch('/api/webrtc/end-room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room: cleanRoomName }),
+    }).catch(() => {});
+
+    handleLeave();
     syncAttendanceEngagement({ endClass: true });
     endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
     if (courseId && endLiveClassSession) {
@@ -1574,42 +1726,144 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       {/* Center Stage & Sidebar Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Video Canvas Stage */}
-        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-4 relative overflow-hidden">
           {/* Main Presenter / Multi-User WebRTC Stage */}
-          <div className="w-full h-full max-w-5xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center">
-            {/* Embedded Conference Video Stage (Powered by headless Jitsi engine, styled & controlled by Backpack) */}
-            <div
-              ref={jitsiContainerRef}
-              className="w-full h-full rounded-2xl overflow-hidden relative flex items-center justify-center bg-slate-950 [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-none [&>iframe]:rounded-2xl"
-            />
+          <div className="w-full h-full max-w-6xl rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl relative flex items-center justify-center p-2 sm:p-3">
+            
+            {/* If screen sharing is active: full center display of screen */}
+            {isScreenSharing ? (
+              <div className="relative w-full h-full flex items-center justify-center bg-black rounded-xl overflow-hidden">
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+                {/* Floating Self Camera PiP in Corner */}
+                <div className="absolute bottom-4 right-4 w-44 sm:w-56 aspect-video bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-2xl z-20">
+                  {!isVideoOff ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover -scale-x-100"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-300">
+                      <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-sm mb-1">
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium">Camera off</span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-1.5 left-2 bg-slate-950/80 px-2 py-0.5 rounded-md text-[10px] text-white font-medium flex items-center space-x-1">
+                    <span>You</span>
+                    {isMuted ? <MicOff className="w-2.5 h-2.5 text-red-400" /> : <Mic className="w-2.5 h-2.5 text-emerald-400" />}
+                  </div>
+                </div>
+              </div>
+            ) : remoteParticipants.length === 0 ? (
+              /* Solo view (Local user is alone in the room) */
+              <div className="relative w-full h-full rounded-xl overflow-hidden bg-slate-950 flex items-center justify-center">
+                {!isVideoOff ? (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover -scale-x-100 rounded-xl"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-6 space-y-3">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-4xl shadow-2xl">
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-white font-bold text-base">{displayName}</h4>
+                      <p className="text-xs text-slate-400">{roleLabel} (Camera off)</p>
+                    </div>
+                  </div>
+                )}
 
-            {/* Connecting State while Conference Engine initializes */}
-            {!isJitsiEngineReady && !jitsiLoadError && (
+                {/* Status chip overlay */}
+                <div className="absolute top-4 right-4 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-slate-300">Waiting for participants</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsInviteModalOpen(true)}
+                    className="ml-2 px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-[11px] font-bold text-white transition cursor-pointer"
+                  >
+                    Invite
+                  </button>
+                </div>
+
+                {/* Local user identity & mic badge */}
+                <div className="absolute bottom-4 left-4 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+                  <span className="font-bold">{displayName} (You)</span>
+                  {isMuted ? (
+                    <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
+                  ) : (
+                    <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Multi-user Grid Stage (Local user + remote participants) */
+              <div
+                className={`w-full h-full grid gap-3 overflow-y-auto p-1 ${
+                  remoteParticipants.length === 1
+                    ? 'grid-cols-1 md:grid-cols-2'
+                    : remoteParticipants.length === 2
+                    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                    : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4'
+                }`}
+              >
+                {/* Local User Tile */}
+                <div className="relative w-full h-full min-h-[220px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-lg flex items-center justify-center">
+                  {!isVideoOff ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover -scale-x-100 rounded-2xl"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-4">
+                      <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xl shadow-lg mb-2">
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm font-bold text-white">{displayName} (You)</span>
+                      <span className="text-xs text-slate-400 mt-0.5">{roleLabel}</span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-white text-xs shadow-lg">
+                    <span className="font-bold truncate max-w-[140px]">{displayName} (You)</span>
+                    {isMuted ? (
+                      <MicOff className="w-3.5 h-3.5 text-red-400 ml-1" />
+                    ) : (
+                      <Mic className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Remote Participants Tiles */}
+                {remoteParticipants.map((p) => (
+                  <RemoteVideoTile key={p.id} participant={p} />
+                ))}
+              </div>
+            )}
+
+            {/* Connecting State while Camera/Mic initializes */}
+            {!isLocalMediaReady && (
               <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-4 p-8 text-center z-10 animate-in fade-in duration-200">
                 <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
                 <div>
                   <h4 className="text-white font-bold text-sm">Connecting Live Classroom...</h4>
-                  <p className="text-slate-400 text-xs mt-1">Starting video conference engine</p>
+                  <p className="text-slate-400 text-xs mt-1">Starting native WebRTC media engine</p>
                 </div>
-              </div>
-            )}
-
-            {/* Error State if Conference Engine fails to load */}
-            {jitsiLoadError && (
-              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-4 p-8 text-center z-10">
-                <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mb-2">
-                  <VideoOff className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="text-white font-bold text-sm">Unable to connect to live conference engine</h4>
-                  <p className="text-slate-400 text-xs mt-1">Please check your internet connection and reload</p>
-                </div>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition cursor-pointer"
-                >
-                  Reload Classroom
-                </button>
               </div>
             )}
 
@@ -1622,7 +1876,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
             )}
 
             {/* Subtitles / Live Transcript Bar */}
-            {showSubtitles && isJitsiEngineReady && (
+            {showSubtitles && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-slate-700/60 px-4 py-2 rounded-xl text-center max-w-md w-full shadow-2xl pointer-events-none z-10">
                 <span className="text-xs text-slate-200">
                   {isMuted

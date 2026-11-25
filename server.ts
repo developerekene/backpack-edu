@@ -2408,9 +2408,152 @@ app.post("/api/livekit/token", async (req, res) => {
   }
 });
 
+// --- Backpack Native WebRTC Room Signaling Engine ---
+interface PeerClient {
+  id: string;
+  name: string;
+  role: string;
+  res: express.Response;
+}
+
+const webrtcRooms = new Map<string, Map<string, PeerClient>>();
+
+app.get("/api/webrtc/events", (req, res) => {
+  const room = String(req.query.room || "").trim();
+  const userId = String(req.query.userId || "").trim();
+  const userName = String(req.query.userName || "Participant").trim();
+  const role = String(req.query.role || "student").trim();
+
+  if (!room || !userId) {
+    return res.status(400).json({ error: "room and userId are required" });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  if (typeof (res as any).flushHeaders === "function") {
+    (res as any).flushHeaders();
+  }
+
+  if (!webrtcRooms.has(room)) {
+    webrtcRooms.set(room, new Map());
+  }
+
+  const roomMap = webrtcRooms.get(room)!;
+  const client: PeerClient = { id: userId, name: userName, role, res };
+  roomMap.set(userId, client);
+
+  // Send current participants list to the joining user
+  const existingPeers = Array.from(roomMap.values())
+    .filter((p) => p.id !== userId)
+    .map((p) => ({ id: p.id, name: p.name, role: p.role }));
+
+  res.write(
+    `data: ${JSON.stringify({ type: "init", peers: existingPeers })}\n\n`
+  );
+
+  // Notify other participants in the room that a new peer joined
+  for (const [peerId, peer] of roomMap.entries()) {
+    if (peerId !== userId) {
+      try {
+        peer.res.write(
+          `data: ${JSON.stringify({
+            type: "user-joined",
+            user: { id: userId, name: userName, role },
+          })}\n\n`
+        );
+      } catch {}
+    }
+  }
+
+  req.on("close", () => {
+    roomMap.delete(userId);
+    if (roomMap.size === 0) {
+      webrtcRooms.delete(room);
+    } else {
+      for (const peer of roomMap.values()) {
+        try {
+          peer.res.write(
+            `data: ${JSON.stringify({
+              type: "user-left",
+              userId,
+            })}\n\n`
+          );
+        } catch {}
+      }
+    }
+  });
+});
+
+app.post("/api/webrtc/signal", (req, res) => {
+  const { room, senderId, senderName, targetId, type, data } = req.body || {};
+  if (!room || !senderId || !type) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  const roomMap = webrtcRooms.get(room);
+  if (!roomMap) {
+    return res.json({ success: true, delivered: 0 });
+  }
+
+  const payload = JSON.stringify({
+    type,
+    senderId,
+    senderName,
+    data,
+  });
+
+  let delivered = 0;
+  if (targetId) {
+    const targetPeer = roomMap.get(targetId);
+    if (targetPeer) {
+      try {
+        targetPeer.res.write(`data: ${payload}\n\n`);
+        delivered++;
+      } catch {}
+    }
+  } else {
+    for (const [peerId, peer] of roomMap.entries()) {
+      if (peerId !== senderId) {
+        try {
+          peer.res.write(`data: ${payload}\n\n`);
+          delivered++;
+        } catch {}
+      }
+    }
+  }
+
+  return res.json({ success: true, delivered });
+});
+
+app.post("/api/webrtc/end-room", (req, res) => {
+  const { room } = req.body || {};
+  if (room && webrtcRooms.has(room)) {
+    const roomMap = webrtcRooms.get(room)!;
+    for (const peer of roomMap.values()) {
+      try {
+        peer.res.write(`data: ${JSON.stringify({ type: "room-ended" })}\n\n`);
+        peer.res.end();
+      } catch {}
+    }
+    webrtcRooms.delete(room);
+  }
+  return res.json({ success: true });
+});
+
 // LiveKit End Room Endpoint
 app.post("/api/livekit/end-room", (req, res) => {
   const { roomName, courseId } = req.body || {};
+  if (roomName && webrtcRooms.has(roomName)) {
+    const roomMap = webrtcRooms.get(roomName)!;
+    for (const peer of roomMap.values()) {
+      try {
+        peer.res.write(`data: ${JSON.stringify({ type: "room-ended" })}\n\n`);
+        peer.res.end();
+      } catch {}
+    }
+    webrtcRooms.delete(roomName);
+  }
   res.status(200).json({
     success: true,
     message: "Live room ended successfully",
