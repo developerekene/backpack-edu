@@ -37,6 +37,19 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Explicit rule for WebRTC real-time classroom signaling and presence
+    match /webrtc_rooms/{document=**} {
+      allow read, write: if true;
+    }
+
+    // WebRTC Real-Time Classroom Signaling & Presence (Open to all participants & guest speakers)
+    match /backpack/webrtc_rooms/{document=**} {
+      allow read, write: if true;
+    }
+    match /webrtc_rooms/{document=**} {
+      allow read, write: if true;
+    }
+
     // Catch-all rule: Super Admin has global access to all documents
     match /{document=**} {
       allow read, write: if isSuperAdmin();

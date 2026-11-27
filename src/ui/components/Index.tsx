@@ -26,6 +26,8 @@ import { UniversalAccessibilityModal } from "./accessibility/UniversalAccessibil
 import AboutUs from "../pages/AboutUs";
 import Policy from "../pages/Policy";
 import { LiveRoomPage } from "../pages/LiveRoomPage";
+import { ShortLiveRedirectPage } from "../pages/ShortLiveRedirectPage";
+import { IncomingLiveClassCallModal } from "./IncomingLiveClassCallModal";
 import { GlobalLoader } from "./GlobalLoader";
 import SuperAdmin from "../pages/SuperAdmin";
 import ScrollToTop from "./ScrollToTop";
@@ -72,6 +74,7 @@ const AppShell: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#f8fafd] dark:bg-[#0a1824] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
       <Navbar />
+      <IncomingLiveClassCallModal />
       <UniversalAccessibilityModal />
       <main className="flex-1 w-full flex flex-col">
         <Routes>
@@ -84,6 +87,8 @@ const AppShell: React.FC = () => {
           <Route path="/donate/:courseId" element={<Navigate to="/explore" replace />} />
 
           <Route path="/privacy" element={<PageWrapper><Policy /></PageWrapper>} />
+          <Route path="/g/:shortCode" element={<PageWrapper><ShortLiveRedirectPage mode="speaker" /></PageWrapper>} />
+          <Route path="/j/:shortCode" element={<PageWrapper><ShortLiveRedirectPage mode="attendee" /></PageWrapper>} />
           <Route path="/live" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
           <Route path="/live/:roomName" element={<PageWrapper><LiveRoomPage /></PageWrapper>} />
           <Route path="/explore" element={<PageWrapper><ExploreOrgs /></PageWrapper>} />

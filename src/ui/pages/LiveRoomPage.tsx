@@ -25,6 +25,11 @@ import { useAppContext } from "../../store/AppContext";
 import { useEventContext } from "../../store/EventContext";
 import { normaliseEventType } from "../../lib/eventMeta";
 import {
+  normalizeLiveRoomName,
+  getShortSpeakerJoinUrl,
+  getShortAttendeeJoinUrl,
+} from "../../lib/liveClass";
+import {
   getStoredGuestIdentity,
   isEventOrganizer,
   saveGuestIdentity,
@@ -59,18 +64,12 @@ export const LiveRoomPage: React.FC = () => {
     searchParams.get("speaker") === "true" ||
     searchParams.get("speaker") === "1";
 
-  // Resolved clean room name
+  // Resolved clean room name (normalized so all links for a course converge to the same room)
   const effectiveRoomName = useMemo(() => {
     const raw =
       paramRoomName || searchParams.get("room") || "backpack-public-classroom";
-    return (
-      raw
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-+|-+$/g, "") || "backpack-public-classroom"
-    );
-  }, [paramRoomName, searchParams]);
+    return normalizeLiveRoomName(raw, queryCourseId);
+  }, [paramRoomName, searchParams, queryCourseId]);
 
   // Match any backend AppEvent bound to this room slug
   const matchedEvent = useMemo(
@@ -252,16 +251,14 @@ export const LiveRoomPage: React.FC = () => {
     waitingStatus === "admitted" ||
     attending;
 
-  // Direct join URLs
+  // Shortened join URLs that automatically expand to the full classroom link when visited
   const attendeeJoinUrl = useMemo(() => {
-    if (typeof window === "undefined") return `/live/${effectiveRoomName}`;
-    return `${window.location.origin}/live/${effectiveRoomName}`;
-  }, [effectiveRoomName]);
+    return getShortAttendeeJoinUrl(effectiveRoomName, matchedEvent?.courseId || queryCourseId);
+  }, [effectiveRoomName, matchedEvent?.courseId, queryCourseId]);
 
   const speakerJoinUrl = useMemo(() => {
-    if (typeof window === "undefined") return `/live/${effectiveRoomName}?role=speaker`;
-    return `${window.location.origin}/live/${effectiveRoomName}?role=speaker`;
-  }, [effectiveRoomName]);
+    return getShortSpeakerJoinUrl(effectiveRoomName, matchedEvent?.courseId || queryCourseId);
+  }, [effectiveRoomName, matchedEvent?.courseId, queryCourseId]);
 
   const handleCopyAttendeeLink = async () => {
     try {
@@ -751,7 +748,8 @@ export const LiveRoomPage: React.FC = () => {
             initialVideoEnabled={!previewCamOff}
             initialAudioEnabled={!previewMicMuted}
             isGuestSpeaker={isGuestSpeaker}
-            onClose={() => navigate(matchedEvent ? "/events" : "/courses")}
+            onLeaveOnly={() => navigate("/")}
+            onClose={() => navigate("/")}
           />
         </div>
       )}
