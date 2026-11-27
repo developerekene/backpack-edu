@@ -73,9 +73,15 @@ import {
   getLiveClassRoomName,
   createLiveKitMeetingUrl,
   getLiveKitDirectUrl,
+  getShortSpeakerJoinUrl,
+  getShortAttendeeJoinUrl,
   endLiveClassSessionApi,
   isEventLiveActive,
+  normalizeLiveRoomName,
 } from "../../lib/liveClass";
+import { endWebRtcClassroom } from "../../lib/webrtcSignaling";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
@@ -193,9 +199,7 @@ const CourseDetails = () => {
 
   const handleCopyClassUrl = async (targetRoom: string) => {
     try {
-      const origin =
-        typeof window !== "undefined" ? window.location.origin : "";
-      const url = `${origin}/live/${targetRoom}`;
+      const url = getShortAttendeeJoinUrl(targetRoom, courseId);
       await navigator.clipboard.writeText(url);
       setCopiedClassLink(true);
       setTimeout(() => setCopiedClassLink(false), 2500);
@@ -206,9 +210,7 @@ const CourseDetails = () => {
 
   const handleCopySpeakerClassUrl = async (targetRoom: string) => {
     try {
-      const origin =
-        typeof window !== "undefined" ? window.location.origin : "";
-      const url = `${origin}/live/${targetRoom}?role=speaker`;
+      const url = getShortSpeakerJoinUrl(targetRoom, courseId);
       await navigator.clipboard.writeText(url);
       setCopiedSpeakerClassLink(true);
       setTimeout(() => setCopiedSpeakerClassLink(false), 2500);
@@ -434,6 +436,38 @@ const CourseDetails = () => {
   const [isStartingCall, setIsStartingCall] = useState(false);
   const [activeCallRoomName, setActiveCallRoomName] = useState<string | null>(null);
 
+  // Watch the Firestore WebRTC room status when a live call is active on this course:
+  // The moment the last person leaves the call (status becomes 'empty' or 'ended'), automatically drop the call session.
+  useEffect(() => {
+    if (!liveCallActiveEvent || !courseId) return;
+    const cleanRoom = normalizeLiveRoomName(
+      getLiveClassRoomName(liveCallActiveEvent, courseId),
+      courseId
+    );
+    const roomDocRef = doc(db, "backpack", "webrtc_rooms", "rooms", cleanRoom);
+
+    let isInitial = true;
+    const unsub = onSnapshot(
+      roomDocRef,
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        if (
+          !isInitial &&
+          (data?.status === "empty" || data?.status === "ended") &&
+          data?.endedAt &&
+          data.endedAt >= (liveCallActiveEvent.updatedAt || 0)
+        ) {
+          handleEndCall().catch(() => {});
+        }
+        isInitial = false;
+      },
+      () => {}
+    );
+
+    return () => unsub();
+  }, [liveCallActiveEvent?.id, courseId]);
+
   const handleStartCall = async (targetEventId?: string) => {
     const validEventId = typeof targetEventId === "string" ? targetEventId : undefined;
     if (!courseId || !course || isStartingCall) return;
@@ -498,11 +532,33 @@ const CourseDetails = () => {
     }
   };
 
+  // Allows instructor or student to leave the video viewport while keeping the live class running for remaining participants
+  const handleLeaveCallOnly = () => {
+    setIsCallActiveInApp(false);
+    if (typeof window !== "undefined") {
+      try {
+        navigate(location.pathname, { replace: true });
+      } catch {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("live");
+          url.searchParams.delete("joinLive");
+          url.searchParams.delete("eventId");
+          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+        } catch {}
+      }
+    }
+  };
+
   const handleEndCall = async () => {
     // 1. Immediately dismiss live call UI so the view closes in <10ms
     setIsCallActiveInApp(false);
     const roomToEnd = activeCallRoomName || getEffectiveRoomName(liveCallActiveEvent || activeCall);
     setActiveCallRoomName(null);
+
+    if (roomToEnd) {
+      endWebRtcClassroom(roomToEnd, currentUser?.id || "instructor").catch(() => {});
+    }
 
     // 2. Persistently record that live session for this course has ended
     const now = Date.now();
@@ -1441,6 +1497,7 @@ const CourseDetails = () => {
             participantName={participantDisplayName}
             userRole={currentUser?.role}
             courseId={course.id}
+            onLeaveOnly={handleLeaveCallOnly}
             onClose={() => {
               handleEndCall().catch(console.error);
             }}

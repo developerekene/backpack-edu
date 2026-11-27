@@ -36,7 +36,21 @@ import {
   Share2,
 } from 'lucide-react';
 import { LiveClassRecorder } from './LiveClassRecorder';
-import { endLiveClassSessionApi } from '../../lib/liveClass';
+import {
+  endLiveClassSessionApi,
+  normalizeLiveRoomName,
+  getShortSpeakerJoinUrl,
+  getShortAttendeeJoinUrl,
+  registerShortLiveLink,
+} from '../../lib/liveClass';
+import {
+  joinWebRtcRoom,
+  leaveWebRtcRoomAndCheckEmpty,
+  sendWebRtcSignal,
+  updateParticipantMediaState,
+  endWebRtcClassroom,
+  WEBRTC_ICE_SERVERS,
+} from '../../lib/webrtcSignaling';
 import { centralApiClient } from '../../lib/centralApiClient';
 import { useAppContext } from '../../store/AppContext';
 import { useAuth } from '../../store/AuthContext';
@@ -49,6 +63,7 @@ interface LiveKitCallProps {
   eventId?: string;
   eventTitle?: string;
   onClose?: () => void;
+  onLeaveOnly?: () => void;
   initialVideoEnabled?: boolean;
   initialAudioEnabled?: boolean;
   isGuestSpeaker?: boolean;
@@ -337,19 +352,56 @@ const InvitePeopleModal: React.FC<{
           </button>
         </div>
 
-        {/* 1. Attendee Link */}
+        {/* Enrolled Student Notice */}
+        <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-800/50 text-[11px] text-emerald-200 leading-relaxed">
+          <strong className="text-emerald-300 font-bold">Note for Course Students:</strong> Enrolled students on your course do not need an invite link — their screen automatically rings when you start a live class so they can join with one click.
+        </div>
+
+        {/* 1. Guest Teacher / Guest Speaker Short Link (Primary) */}
+        <div className="space-y-2 p-3.5 bg-purple-950/30 rounded-2xl border border-purple-900/60">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-purple-200 flex items-center">
+              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-400" />
+              Short Guest Teacher / Speaker Link 🎙️
+            </span>
+            <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-extrabold uppercase">
+              Shortened Link
+            </span>
+          </div>
+          <p className="text-[11px] text-purple-300">
+            Easy to copy and remember. When the guest teacher clicks or enters this short link, it automatically expands to the full classroom URL.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={speakerJoinUrl}
+              className="flex-1 bg-slate-900 border border-purple-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-purple-200 outline-none"
+            />
+            <button
+              type="button"
+              onClick={onCopySpeaker}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer"
+            >
+              {copiedSpeakerUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedSpeakerUrl ? "Copied" : "Copy Short Link"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2. External Guest / Attendee Short Link */}
         <div className="space-y-2 p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-white flex items-center">
               <Users className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
-              Attendee Join Link
+              External Attendee Short Link
             </span>
             <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-semibold">
-              Students &amp; Guests
+              External Guests
             </span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Anyone opening this link can enter their name and join the session directly.
+            Short link for external guests who are not enrolled in the course.
           </p>
           <div className="flex items-center gap-2">
             <input
@@ -365,38 +417,6 @@ const InvitePeopleModal: React.FC<{
             >
               {copiedAttendeeUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedAttendeeUrl ? "Copied" : "Copy"}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 2. Guest Speaker Link */}
-        <div className="space-y-2 p-3.5 bg-purple-950/30 rounded-2xl border border-purple-900/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-purple-200 flex items-center">
-              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-400" />
-              External Guest Speaker Link 🎙️
-            </span>
-            <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-extrabold uppercase">
-              Speaker Stage Access
-            </span>
-          </div>
-          <p className="text-[11px] text-purple-300">
-            Automatically tags the invitee as a Guest Speaker with stage presentation &amp; speaking privileges.
-          </p>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              readOnly
-              value={speakerJoinUrl}
-              className="flex-1 bg-slate-900 border border-purple-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 outline-none"
-            />
-            <button
-              type="button"
-              onClick={onCopySpeaker}
-              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer"
-            >
-              {copiedSpeakerUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedSpeakerUrl ? "Copied" : "Copy"}</span>
             </button>
           </div>
         </div>
@@ -608,6 +628,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   eventId,
   eventTitle,
   onClose,
+  onLeaveOnly,
   initialVideoEnabled = true,
   initialAudioEnabled = true,
   isGuestSpeaker = false,
@@ -633,9 +654,10 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const sessionStartTimeRef = useRef<number>(0);
   const [elapsedEngagementSeconds, setElapsedEngagementSeconds] = useState<number>(0);
 
-  // Participants drawer and Invite modal states
+  // Participants drawer, Invite modal, and Google Meet-style End/Leave choice modal states
   const [isParticipantsDrawerOpen, setIsParticipantsDrawerOpen] = useState<boolean>(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
+  const [isEndChoiceModalOpen, setIsEndChoiceModalOpen] = useState<boolean>(false);
   const [copiedAttendeeUrl, setCopiedAttendeeUrl] = useState<boolean>(false);
   const [copiedSpeakerUrl, setCopiedSpeakerUrl] = useState<boolean>(false);
 
@@ -671,8 +693,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [handRaised, setHandRaised] = useState<boolean>(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<'chat' | 'participants' | 'settings' | null>(null);
 
-  // Participant Name
-  const [displayName] = useState<string>(participantName);
+  // Participant Name (reactive so auth or pre-join name changes propagate immediately)
+  const displayName = participantName || currentUser?.name || currentUser?.email || 'Guest Learner';
 
   // Classroom Features
   const [captionsLanguage, setCaptionsLanguage] = useState<string>('en-US');
@@ -682,14 +704,8 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const [copiedJoinUrl, setCopiedJoinUrl] = useState<boolean>(false);
 
   const cleanRoomName = useMemo(() => {
-    return (
-      (roomName || 'backpack-live-class')
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'backpack-live-class'
-    );
-  }, [roomName]);
+    return normalizeLiveRoomName(roomName, courseId);
+  }, [roomName, courseId]);
 
   const isSpeaker = Boolean(
     isGuestSpeaker ||
@@ -715,13 +731,20 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     ? 'Guest'
     : 'Learner';
 
-  const attendeeJoinUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/live/${cleanRoomName}`
-    : `/live/${cleanRoomName}`;
+  // Register short links in Firestore on mount so `/g/<code>` and `/j/<code>` expand to the full room URL on any device
+  useEffect(() => {
+    registerShortLiveLink(cleanRoomName, courseId).catch(() => {});
+  }, [cleanRoomName, courseId]);
 
-  const speakerJoinUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/live/${cleanRoomName}?role=speaker`
-    : `/live/${cleanRoomName}?role=speaker`;
+  const attendeeJoinUrl = useMemo(
+    () => getShortAttendeeJoinUrl(cleanRoomName, courseId),
+    [cleanRoomName, courseId]
+  );
+
+  const speakerJoinUrl = useMemo(
+    () => getShortSpeakerJoinUrl(cleanRoomName, courseId),
+    [cleanRoomName, courseId]
+  );
 
   const handleCopyAttendeeLink = async () => {
     try {
@@ -745,7 +768,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
   const handleCopyDirectJoinUrl = async () => {
     try {
-      await navigator.clipboard.writeText(attendeeJoinUrl);
+      await navigator.clipboard.writeText(speakerJoinUrl);
       setCopiedJoinUrl(true);
       setTimeout(() => setCopiedJoinUrl(false), 2500);
     } catch {
@@ -771,7 +794,7 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
   const screenStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const webrtcCleanupRef = useRef<(() => void) | null>(null);
 
   const [isLocalMediaReady, setIsLocalMediaReady] = useState<boolean>(false);
   const [remotePeers, setRemotePeers] = useState<
@@ -991,58 +1014,68 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     }
   }, [isScreenSharing]);
 
-  // Native WebRTC peer-to-peer signaling over SSE & backend endpoints
+  // Native WebRTC peer-to-peer signaling over Firestore real-time engine + STUN/TURN relays (works in production & localhost)
   useEffect(() => {
-    if (useLiveKitRoom || !cleanRoomName || !isLocalMediaReady) return;
+    if (useLiveKitRoom || !cleanRoomName) return;
 
     let isSubscribed = true;
 
-    const sendSignal = async (targetId: string | null, type: string, data?: any) => {
-      try {
-        await fetch('/api/webrtc/signal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            room: cleanRoomName,
-            senderId: myUserId,
-            senderName: displayName,
-            targetId,
-            type,
-            data,
-          }),
-        });
-      } catch {}
+    const sendSignal = async (
+      targetId: string | null,
+      type: 'offer' | 'answer' | 'candidate' | 'mute-state' | 'video-state' | 'hand-state' | 'chat' | 'room-ended',
+      data?: any
+    ) => {
+      await sendWebRtcSignal(cleanRoomName, {
+        senderId: myUserId,
+        senderName: displayName,
+        senderRole: roleLabel,
+        targetId,
+        type,
+        data,
+      });
+    };
+
+    const attachLocalTracksToPc = (pc: RTCPeerConnection) => {
+      const activeMedia = screenStreamRef.current || localStreamRef.current;
+      if (!activeMedia) return false;
+      let addedTrack = false;
+      const existingTrackIds = new Set(
+        pc.getSenders().map((s) => s.track?.id).filter(Boolean)
+      );
+      activeMedia.getTracks().forEach((track) => {
+        if (!existingTrackIds.has(track.id)) {
+          try {
+            pc.addTrack(track, activeMedia);
+            addedTrack = true;
+          } catch {}
+        }
+      });
+      return addedTrack;
     };
 
     const createPeerConnection = (targetUserId: string, targetUserName: string, targetRole: string) => {
       if (peerConnectionsRef.current.has(targetUserId)) {
-        return peerConnectionsRef.current.get(targetUserId)!;
+        const existingPc = peerConnectionsRef.current.get(targetUserId)!;
+        attachLocalTracksToPc(existingPc);
+        return existingPc;
       }
 
       const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-        ],
+        iceServers: WEBRTC_ICE_SERVERS,
+        iceCandidatePoolSize: 10,
       });
 
       peerConnectionsRef.current.set(targetUserId, pc);
-
-      const activeMedia = screenStreamRef.current || localStreamRef.current;
-      if (activeMedia) {
-        activeMedia.getTracks().forEach((track) => {
-          pc.addTrack(track, activeMedia);
-        });
-      }
+      attachLocalTracksToPc(pc);
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          sendSignal(targetUserId, 'candidate', event.candidate);
+          sendSignal(targetUserId, 'candidate', event.candidate.toJSON ? event.candidate.toJSON() : event.candidate);
         }
       };
 
       pc.ontrack = (event) => {
+        if (!isSubscribed) return;
         setRemotePeers((prev) => {
           const next = new Map(prev);
           const existing = next.get(targetUserId);
@@ -1064,13 +1097,20 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         });
       };
 
-      pc.onconnectionstatechange = () => {
-        if (
-          pc.connectionState === 'disconnected' ||
-          pc.connectionState === 'failed' ||
-          pc.connectionState === 'closed'
-        ) {
-          removePeer(targetUserId);
+      pc.oniceconnectionstatechange = async () => {
+        if (!isSubscribed) return;
+        if (pc.iceConnectionState === 'failed') {
+          try {
+            if (myUserId > targetUserId && pc.signalingState === 'stable') {
+              const restartOffer = await pc.createOffer({
+                iceRestart: true,
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true,
+              });
+              await pc.setLocalDescription(restartOffer);
+              sendSignal(targetUserId, 'offer', restartOffer);
+            }
+          } catch {}
         }
       };
 
@@ -1085,110 +1125,132 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
       }
       pendingIceCandidatesRef.current.delete(targetUserId);
       setRemotePeers((prev) => {
+        if (!prev.has(targetUserId)) return prev;
         const next = new Map(prev);
         next.delete(targetUserId);
         return next;
       });
     };
 
-    const sseUrl = `/api/webrtc/events?room=${encodeURIComponent(cleanRoomName)}&userId=${encodeURIComponent(myUserId)}&userName=${encodeURIComponent(displayName)}&role=${encodeURIComponent(effectiveRole)}`;
-    const es = new EventSource(sseUrl);
-    eventSourceRef.current = es;
-
-    es.onopen = () => {
-      // Broadcast our current mute & video states to the room
-      sendSignal(null, 'mute-state', { isMuted });
-      sendSignal(null, 'video-state', { isVideoOff });
+    const negotiateOfferWithPeer = async (targetUserId: string, pc: RTCPeerConnection) => {
+      try {
+        if (!isSubscribed || pc.signalingState !== 'stable') return;
+        attachLocalTracksToPc(pc);
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
+        if (pc.signalingState !== 'stable') return;
+        await pc.setLocalDescription(offer);
+        await sendSignal(targetUserId, 'offer', {
+          type: offer.type,
+          sdp: offer.sdp,
+        });
+      } catch (err) {
+        console.warn('[WebRTC] Offer negotiation notice:', err);
+      }
     };
 
-    es.onmessage = async (evt) => {
-      if (!isSubscribed) return;
-      try {
-        const msg = JSON.parse(evt.data);
+    const leaveFirestoreRoom = joinWebRtcRoom(
+      cleanRoomName,
+      {
+        id: myUserId,
+        displayName,
+        role: roleLabel,
+        isMuted,
+        isVideoOff,
+        handRaised,
+      },
+      async (activePeers) => {
+        if (!isSubscribed) return;
+        const activeIds = new Set(activePeers.map((p) => p.id));
 
-        if (msg.type === 'init') {
-          if (Array.isArray(msg.peers)) {
-            // 1. Immediately register all existing peers in remotePeers so UI updates instantly (Google Meet style)
-            setRemotePeers((prev) => {
-              const next = new Map(prev);
-              for (const p of msg.peers) {
-                if (!next.has(p.id)) {
-                  next.set(p.id, {
-                    id: p.id,
-                    displayName: p.name,
-                    role: p.role,
-                    stream: new MediaStream(),
-                    isSpeaking: false,
-                    isMuted: false,
-                    isVideoOff: false,
-                  });
+        // 1. Clean up peers that actually left the Firestore room
+        for (const existingId of Array.from(peerConnectionsRef.current.keys())) {
+          if (!activeIds.has(existingId)) {
+            removePeer(existingId);
+          }
+        }
+        setRemotePeers((prev) => {
+          const next = new Map(prev);
+          for (const existingId of Array.from(next.keys())) {
+            if (!activeIds.has(existingId)) {
+              next.delete(existingId);
+            }
+          }
+          // 2. Immediately register or update all active peers in remotePeers so UI & participant drawer update instantly
+          for (const p of activePeers) {
+            const existing = next.get(p.id);
+            next.set(p.id, {
+              id: p.id,
+              displayName: p.displayName || existing?.displayName || 'Participant',
+              role: p.role || existing?.role || 'Learner',
+              stream: existing?.stream || new MediaStream(),
+              isSpeaking: existing?.isSpeaking || false,
+              isMuted: p.isMuted ?? existing?.isMuted ?? false,
+              isVideoOff: p.isVideoOff ?? existing?.isVideoOff ?? false,
+            });
+          }
+          return next;
+        });
+
+        // 3. Establish RTCPeerConnection for any new peers
+        for (const p of activePeers) {
+          const isNewPeer = !peerConnectionsRef.current.has(p.id);
+          const pc = createPeerConnection(p.id, p.displayName, p.role);
+          if (isNewPeer) {
+            if (myUserId > p.id) {
+              await negotiateOfferWithPeer(p.id, pc);
+            } else {
+              // Fallback: if the peer with higher ID hasn't sent an offer within 2.5s, initiate offer ourselves
+              setTimeout(() => {
+                if (
+                  isSubscribed &&
+                  peerConnectionsRef.current.get(p.id) === pc &&
+                  pc.signalingState === 'stable' &&
+                  !pc.remoteDescription
+                ) {
+                  negotiateOfferWithPeer(p.id, pc);
                 }
-              }
+              }, 2500);
+            }
+          }
+        }
+      },
+      async (msg) => {
+        if (!isSubscribed) return;
+        try {
+          if (msg.type === 'offer' && msg.data?.sdp) {
+            // Ensure sender is visible in remotePeers immediately
+            setRemotePeers((prev) => {
+              if (prev.has(msg.senderId)) return prev;
+              const next = new Map(prev);
+              next.set(msg.senderId, {
+                id: msg.senderId,
+                displayName: msg.senderName || 'Participant',
+                role: msg.senderRole || 'Learner',
+                stream: new MediaStream(),
+                isSpeaking: false,
+                isMuted: false,
+                isVideoOff: false,
+              });
               return next;
             });
 
-            // 2. Establish connections with existing peers
-            for (const p of msg.peers) {
-              const pc = createPeerConnection(p.id, p.name, p.role);
-              // Deterministic initiator: only peer with higher ID creates offer to avoid glare collisions
-              if (myUserId > p.id) {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                sendSignal(p.id, 'offer', offer);
+            const pc = createPeerConnection(
+              msg.senderId,
+              msg.senderName || 'Participant',
+              msg.senderRole || 'Learner'
+            );
+
+            // Polite peer glare collision resolution
+            if (pc.signalingState !== 'stable') {
+              if (myUserId > msg.senderId) {
+                return; // Our in-flight offer takes priority
               }
+              await pc.setLocalDescription({ type: 'rollback' });
             }
-          }
-        } else if (msg.type === 'user-joined') {
-          // 1. Immediately register new participant in remotePeers so UI updates instantly
-          setRemotePeers((prev) => {
-            const next = new Map(prev);
-            next.set(msg.user.id, {
-              id: msg.user.id,
-              displayName: msg.user.name,
-              role: msg.user.role,
-              stream: new MediaStream(),
-              isSpeaking: false,
-              isMuted: false,
-              isVideoOff: false,
-            });
-            return next;
-          });
 
-          // 2. Peer with higher ID initiates offer
-          const pc = createPeerConnection(msg.user.id, msg.user.name, msg.user.role);
-          if (myUserId > msg.user.id) {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            sendSignal(msg.user.id, 'offer', offer);
-          }
-        } else if (msg.type === 'offer') {
-          const pc = createPeerConnection(msg.senderId, msg.senderName, 'participant');
-
-          // Polite peer collision resolution
-          if (pc.signalingState !== 'stable') {
-            if (myUserId > msg.senderId) {
-              return; // We have higher ID, our offer has priority
-            }
-            await pc.setLocalDescription({ type: 'rollback' });
-          }
-
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-
-          // Drain queued ICE candidates
-          const queued = pendingIceCandidatesRef.current.get(msg.senderId) || [];
-          for (const cand of queued) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(cand));
-            } catch {}
-          }
-          pendingIceCandidatesRef.current.delete(msg.senderId);
-
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          sendSignal(msg.senderId, 'answer', answer);
-        } else if (msg.type === 'answer') {
-          const pc = peerConnectionsRef.current.get(msg.senderId);
-          if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
 
             // Drain queued ICE candidates
@@ -1199,55 +1261,128 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
               } catch {}
             }
             pendingIceCandidatesRef.current.delete(msg.senderId);
+
+            attachLocalTracksToPc(pc);
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await sendSignal(msg.senderId, 'answer', {
+              type: answer.type,
+              sdp: answer.sdp,
+            });
+          } else if (msg.type === 'answer' && msg.data?.sdp) {
+            const pc = peerConnectionsRef.current.get(msg.senderId);
+            if (pc && pc.signalingState === 'have-local-offer') {
+              await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+
+              // Drain queued ICE candidates
+              const queued = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+              for (const cand of queued) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(cand));
+                } catch {}
+              }
+              pendingIceCandidatesRef.current.delete(msg.senderId);
+            }
+          } else if (msg.type === 'candidate' && msg.data) {
+            const pc = peerConnectionsRef.current.get(msg.senderId);
+            if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+              } catch {}
+            } else {
+              const queue = pendingIceCandidatesRef.current.get(msg.senderId) || [];
+              queue.push(msg.data);
+              pendingIceCandidatesRef.current.set(msg.senderId, queue);
+            }
+          } else if (msg.type === 'room-ended') {
+            handleLeave();
+          } else if (msg.type === 'mute-state') {
+            setRemotePeers((prev) => {
+              const existing = prev.get(msg.senderId);
+              if (!existing) return prev;
+              const next = new Map(prev);
+              next.set(msg.senderId, { ...existing, isMuted: Boolean(msg.data?.isMuted) });
+              return next;
+            });
+          } else if (msg.type === 'video-state') {
+            setRemotePeers((prev) => {
+              const existing = prev.get(msg.senderId);
+              if (!existing) return prev;
+              const next = new Map(prev);
+              next.set(msg.senderId, { ...existing, isVideoOff: Boolean(msg.data?.isVideoOff) });
+              return next;
+            });
+          } else if (msg.type === 'chat' && msg.data?.text) {
+            setChatMessages((prev) => [
+              ...prev,
+              {
+                sender: msg.senderName || 'Participant',
+                text: msg.data.text,
+                time:
+                  msg.data.time ||
+                  new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              },
+            ]);
           }
-        } else if (msg.type === 'candidate') {
-          const pc = peerConnectionsRef.current.get(msg.senderId);
-          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(msg.data));
-            } catch {}
-          } else {
-            const queue = pendingIceCandidatesRef.current.get(msg.senderId) || [];
-            queue.push(msg.data);
-            pendingIceCandidatesRef.current.set(msg.senderId, queue);
-          }
-        } else if (msg.type === 'user-left') {
-          removePeer(msg.userId);
-        } else if (msg.type === 'room-ended') {
-          handleLeave();
-        } else if (msg.type === 'mute-state') {
-          setRemotePeers((prev) => {
-            const existing = prev.get(msg.senderId);
-            if (!existing) return prev;
-            const next = new Map(prev);
-            next.set(msg.senderId, { ...existing, isMuted: Boolean(msg.data?.isMuted) });
-            return next;
-          });
-        } else if (msg.type === 'video-state') {
-          setRemotePeers((prev) => {
-            const existing = prev.get(msg.senderId);
-            if (!existing) return prev;
-            const next = new Map(prev);
-            next.set(msg.senderId, { ...existing, isVideoOff: Boolean(msg.data?.isVideoOff) });
-            return next;
-          });
+        } catch (err) {
+          console.warn('[WebRTC Signaling] Notice:', err);
         }
-      } catch (err) {
-        console.warn('[WebRTC Signaling] Notice:', err);
       }
-    };
+    );
+
+    webrtcCleanupRef.current = leaveFirestoreRoom;
 
     return () => {
       isSubscribed = false;
-      es.close();
-      eventSourceRef.current = null;
+      leaveFirestoreRoom();
+      webrtcCleanupRef.current = null;
       for (const pc of peerConnectionsRef.current.values()) {
         pc.close();
       }
       peerConnectionsRef.current.clear();
       pendingIceCandidatesRef.current.clear();
     };
-  }, [useLiveKitRoom, cleanRoomName, isLocalMediaReady, myUserId, displayName, effectiveRole]);
+  }, [useLiveKitRoom, cleanRoomName, myUserId, displayName, roleLabel]);
+
+  // When local camera/mic finishes initializing, attach tracks to any already-connected peers and renegotiate
+  useEffect(() => {
+    if (useLiveKitRoom || !isLocalMediaReady || !localStreamRef.current) return;
+    const activeMedia = screenStreamRef.current || localStreamRef.current;
+    if (!activeMedia) return;
+
+    peerConnectionsRef.current.forEach(async (pc, targetUserId) => {
+      const existingTrackIds = new Set(
+        pc.getSenders().map((s) => s.track?.id).filter(Boolean)
+      );
+      let added = false;
+      activeMedia.getTracks().forEach((track) => {
+        if (!existingTrackIds.has(track.id)) {
+          try {
+            pc.addTrack(track, activeMedia);
+            added = true;
+          } catch {}
+        }
+      });
+
+      if (added && pc.signalingState === 'stable') {
+        try {
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true,
+          });
+          await pc.setLocalDescription(offer);
+          await sendWebRtcSignal(cleanRoomName, {
+            senderId: myUserId,
+            senderName: displayName,
+            senderRole: roleLabel,
+            targetId: targetUserId,
+            type: 'offer',
+            data: { type: offer.type, sdp: offer.sdp },
+          });
+        } catch {}
+      }
+    });
+  }, [useLiveKitRoom, isLocalMediaReady, cleanRoomName, myUserId, displayName, roleLabel]);
 
   // Fast, single-click frontend mic mute control: directly commands media tracks with zero lag
   const toggleMute = () => {
@@ -1258,17 +1393,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           track.enabled = !next;
         });
       }
-      fetch('/api/webrtc/signal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          room: cleanRoomName,
-          senderId: myUserId,
-          senderName: displayName,
-          type: 'mute-state',
-          data: { isMuted: next },
-        }),
-      }).catch(() => {});
+      updateParticipantMediaState(cleanRoomName, myUserId, { isMuted: next });
+      sendWebRtcSignal(cleanRoomName, {
+        senderId: myUserId,
+        senderName: displayName,
+        senderRole: roleLabel,
+        targetId: null,
+        type: 'mute-state',
+        data: { isMuted: next },
+      });
       return next;
     });
   };
@@ -1282,17 +1415,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
           track.enabled = !next;
         });
       }
-      fetch('/api/webrtc/signal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          room: cleanRoomName,
-          senderId: myUserId,
-          senderName: displayName,
-          type: 'video-state',
-          data: { isVideoOff: next },
-        }),
-      }).catch(() => {});
+      updateParticipantMediaState(cleanRoomName, myUserId, { isVideoOff: next });
+      sendWebRtcSignal(cleanRoomName, {
+        senderId: myUserId,
+        senderName: displayName,
+        senderRole: roleLabel,
+        targetId: null,
+        type: 'video-state',
+        data: { isVideoOff: next },
+      });
       return next;
     });
   };
@@ -1374,6 +1505,15 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
 
     setChatMessages((prev) => [...prev, messageObj]);
     setNewMessage('');
+
+    sendWebRtcSignal(cleanRoomName, {
+      senderId: myUserId,
+      senderName: displayName,
+      senderRole: roleLabel,
+      targetId: null,
+      type: 'chat',
+      data: { text: messageObj.text, time: messageObj.time },
+    });
   };
 
   const syncAttendanceEngagement = useCallback(
@@ -1417,11 +1557,11 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
     };
   }, [syncAttendanceEngagement]);
 
-  // Instant Leave: Closes connections, closes viewport in <10ms, updates attendance
-  const handleLeave = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+  // Clean up local streams, WebRTC connections, and storage
+  const cleanupLocalMediaAndConnections = () => {
+    if (webrtcCleanupRef.current) {
+      webrtcCleanupRef.current();
+      webrtcCleanupRef.current = null;
     }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -1442,22 +1582,10 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         if (courseId) sessionStorage.removeItem(`bp_active_room_${courseId}`);
       } catch {}
     }
-    if (onClose) {
-      onClose();
-    }
-    syncAttendanceEngagement({ isLeaving: true });
   };
 
-  // Instant End Class: Ends room on server, closes viewport in <10ms, deactivates session
-  const handleEndClass = () => {
-    fetch('/api/webrtc/end-room', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room: cleanRoomName }),
-    }).catch(() => {});
-
-    handleLeave();
-    syncAttendanceEngagement({ endClass: true });
+  // Terminates the course's active live session in global state & backend
+  const terminateCourseLiveSession = () => {
     endLiveClassSessionApi(cleanRoomName, courseId).catch(console.error);
     if (courseId && endLiveClassSession) {
       endLiveClassSession(courseId).catch(console.error);
@@ -1466,8 +1594,62 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
         (e) => (!courseId || e.courseId === courseId) && e.isActive,
       );
       for (const evt of activeEvts) {
-        updateScheduleEvent(evt.id, { isActive: false }).catch(console.error);
+        updateScheduleEvent(evt.id, { isActive: false, endedAt: Date.now(), updatedAt: Date.now() }).catch(console.error);
       }
+    }
+  };
+
+  // Leave Only (Student, Guest Teacher, or Instructor choosing "Just leave the call"):
+  // Removes this user from the call. The moment the last person leaves (0 remaining), the entire call drops automatically.
+  const handleLeave = () => {
+    setIsEndChoiceModalOpen(false);
+    cleanupLocalMediaAndConnections();
+    syncAttendanceEngagement({ isLeaving: true });
+
+    // Check if we were the last person in the room; if so, drop the call session completely
+    leaveWebRtcRoomAndCheckEmpty(cleanRoomName, myUserId)
+      .then(({ isRoomNowEmpty }) => {
+        if (isRoomNowEmpty) {
+          terminateCourseLiveSession();
+        }
+      })
+      .catch(() => {});
+
+    // Guest teachers / guest speakers redirect to the home page on leave/end
+    if (isSpeaker && typeof window !== 'undefined' && window.location.pathname.startsWith('/live')) {
+      window.location.href = '/';
+      return;
+    }
+
+    if (onLeaveOnly) {
+      onLeaveOnly();
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
+  // End Call for Everyone (Instructor option):
+  // Broadcasts room-ended to throw everybody out of the call immediately and deactivates the session
+  const handleEndClassForEveryone = () => {
+    setIsEndChoiceModalOpen(false);
+    endWebRtcClassroom(cleanRoomName, myUserId).catch(() => {});
+    cleanupLocalMediaAndConnections();
+    syncAttendanceEngagement({ endClass: true });
+    terminateCourseLiveSession();
+
+    if (onClose) {
+      onClose();
+    } else if (onLeaveOnly) {
+      onLeaveOnly();
+    }
+  };
+
+  // Triggered when instructor clicks the red End Class button: opens Google Meet-style choice modal
+  const handleEndClass = () => {
+    if (effectiveRole === 'instructor') {
+      setIsEndChoiceModalOpen(true);
+    } else {
+      handleLeave();
     }
   };
 
@@ -2264,6 +2446,80 @@ export const LiveKitCall: React.FC<LiveKitCallProps> = ({
                 className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
               >
                 Dismiss Notice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Meet-style Instructor "Just Leave Call vs. End Call for Everyone" Modal */}
+      {isEndChoiceModalOpen && (
+        <div className="fixed inset-0 z-[10001] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 text-left">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center shrink-0">
+                  <PhoneOff className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Leave or end this class?
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {remoteParticipants.length > 0
+                      ? `${remoteParticipants.length} other participant${remoteParticipants.length > 1 ? 's are' : ' is'} currently in this call.`
+                      : 'You are currently the only person in this call.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEndChoiceModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleLeave}
+                className="w-full p-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition flex items-start justify-between group cursor-pointer"
+              >
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white block group-hover:text-indigo-300 transition">
+                    Just leave the call
+                  </span>
+                  <span className="text-[11px] text-slate-400 block mt-0.5 leading-relaxed">
+                    Everyone else stays in the call until the last person leaves. You will still see the live call notification and can rejoin or end it anytime.
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleEndClassForEveryone}
+                className="w-full p-3.5 rounded-2xl bg-red-600 hover:bg-red-500 border border-red-500 text-left transition flex items-start justify-between shadow-lg shadow-red-600/20 cursor-pointer"
+              >
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white block">
+                    End call for everyone
+                  </span>
+                  <span className="text-[11px] text-red-100 block mt-0.5 leading-relaxed">
+                    Ends the live session immediately and removes all participants from the call.
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setIsEndChoiceModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Cancel
               </button>
             </div>
           </div>
